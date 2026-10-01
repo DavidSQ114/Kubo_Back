@@ -14,10 +14,8 @@ export class ErrorApp extends Error {
 }
 
 export const errores = {
-  noAutenticado: () =>
-    new ErrorApp("NO_AUTENTICADO", "Tu sesión expiró. Vuelve a iniciar sesión.", 401),
-  accesoDenegado: () =>
-    new ErrorApp("ACCESO_DENEGADO", "No tiene permisos para acceder a este recurso.", 403),
+  noAutenticado: () => new ErrorApp("NO_AUTENTICADO", "Tu sesión expiró. Vuelve a iniciar sesión.", 401),
+  accesoDenegado: () => new ErrorApp("ACCESO_DENEGADO", "No tiene permisos para acceder a este recurso.", 403),
   noEncontrado: (que: string) => new ErrorApp("NO_ENCONTRADO", `${que} no existe.`, 404),
   datosInvalidos: (detalles: Record<string, unknown>) =>
     new ErrorApp("DATOS_INVALIDOS", "Revisa los datos ingresados.", 400, detalles),

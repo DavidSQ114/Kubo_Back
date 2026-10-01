@@ -9,10 +9,7 @@ import { Alerta, Badge, Boton, CampoPassword, ChecklistPassword, requisitosPassw
 import { api, ApiError } from "@/lib/api";
 
 type Estado =
-  | { fase: "validando" }
-  | { fase: "valido"; email: string; minutos: number }
-  | { fase: "expirado" }
-  | { fase: "listo" };
+  { fase: "validando" } | { fase: "valido"; email: string; minutos: number } | { fase: "expirado" } | { fase: "listo" };
 
 function Restablecer() {
   const token = useSearchParams().get("token") ?? "";
@@ -24,7 +21,9 @@ function Restablecer() {
 
   useEffect(() => {
     if (!token) return;
-    api<{ email: string; minutosRestantes: number }>(`/identidad/password/restablecer?token=${encodeURIComponent(token)}`)
+    api<{ email: string; minutosRestantes: number }>(
+      `/identidad/password/restablecer?token=${encodeURIComponent(token)}`,
+    )
       .then((r) => setEstado({ fase: "valido", email: r.email, minutos: r.minutosRestantes }))
       .catch(() => setEstado({ fase: "expirado" }));
   }, [token]);
@@ -57,10 +56,13 @@ function Restablecer() {
   if (estado.fase === "expirado") {
     return (
       <TarjetaAcceso ancho={440}>
-        <Badge tono="rojo" punto>Enlace expirado</Badge>
+        <Badge tono="rojo" punto>
+          Enlace expirado
+        </Badge>
         <IconoCircular nombre="icon-clock-rojo" tono="rojo" />
         <EncabezadoTarjeta titulo="El enlace ha expirado">
-          El enlace ha expirado. Solicita uno nuevo. Por seguridad, cada enlace es de un solo uso y vence a los 30 minutos.
+          El enlace ha expirado. Solicita uno nuevo. Por seguridad, cada enlace es de un solo uso y vence a los 30
+          minutos.
         </EncabezadoTarjeta>
         <Link
           href="/recuperar"
@@ -78,7 +80,9 @@ function Restablecer() {
   if (estado.fase === "listo") {
     return (
       <TarjetaAcceso ancho={440}>
-        <Badge tono="verde" punto>Contraseña actualizada</Badge>
+        <Badge tono="verde" punto>
+          Contraseña actualizada
+        </Badge>
         <IconoCircular nombre="icon-lock-grande" />
         <EncabezadoTarjeta titulo="Listo, ya puedes ingresar">
           Tu contraseña fue actualizada y se cerraron las sesiones abiertas en otros equipos.
@@ -105,7 +109,13 @@ function Restablecer() {
         <p className="text-[14px] leading-[1.4] text-texto-2">Cuenta: {estado.email}</p>
       </div>
       <form onSubmit={guardar} className="flex w-full flex-col gap-[18px]" noValidate>
-        <CampoPassword etiqueta="Nueva contraseña" obligatorio autoComplete="new-password" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        <CampoPassword
+          etiqueta="Nueva contraseña"
+          obligatorio
+          autoComplete="new-password"
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+        />
         <CampoPassword
           etiqueta="Confirmar contraseña"
           obligatorio

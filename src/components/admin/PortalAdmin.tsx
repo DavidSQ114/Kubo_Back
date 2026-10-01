@@ -6,7 +6,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Icono, Spinner } from "@/components/ui";
-import { api, ApiError, cerrarSesion, destinoPorErrorDeSesion, inicioPorRol, NOMBRE_ROL, type Rol, type Sesion } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  cerrarSesion,
+  destinoPorErrorDeSesion,
+  inicioPorRol,
+  NOMBRE_ROL,
+  type Rol,
+  type Sesion,
+} from "@/lib/api";
 
 const SesionContext = createContext<Sesion | null>(null);
 
@@ -66,7 +75,8 @@ export function PortalAdmin({ children }: { children: ReactNode }) {
     api<Sesion>("/identidad/sesion")
       .then((s) => {
         if (s.debeCambiarPassword) router.replace("/cambiar-password");
-        else if (s.rolActivo !== "ADMINISTRADOR") router.replace(`/acceso-denegado?desde=${encodeURIComponent(window.location.pathname)}`);
+        else if (s.rolActivo !== "ADMINISTRADOR")
+          router.replace(`/acceso-denegado?desde=${encodeURIComponent(window.location.pathname)}`);
         else setSesion(s);
       })
       .catch((e) => router.replace(destinoPorErrorDeSesion(e) ?? "/login"));
@@ -120,7 +130,13 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
       className={`sticky top-0 flex h-screen shrink-0 flex-col bg-kubo-azul py-6 transition-[width] ${minimizada ? "w-[76px] px-3" : "w-[264px] px-4"}`}
     >
       <div className={`flex items-center pb-6 ${minimizada ? "flex-col gap-3 px-0" : "px-2"}`}>
-        {minimizada ? <Icono nombre="logo-isotipo-sidebar" size={30} /> : <Link href="/admin" aria-label="Inicio"><LogoSidebar /></Link>}
+        {minimizada ? (
+          <Icono nombre="logo-isotipo-sidebar" size={30} />
+        ) : (
+          <Link href="/admin" aria-label="Inicio">
+            <LogoSidebar />
+          </Link>
+        )}
         <div className="flex-1" />
         <button
           type="button"
@@ -137,11 +153,17 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
         {NAVEGACION.map((g, i) => (
           <nav key={i} className="flex w-full flex-col gap-0.5" aria-label={g.grupo ?? "Principal"}>
             {g.grupo && !minimizada && (
-              <p className="px-3 pt-3.5 pb-1.5 text-[11px] font-semibold leading-[1.3] tracking-[1px] text-white/60">{g.grupo}</p>
+              <p className="px-3 pt-3.5 pb-1.5 text-[11px] font-semibold leading-[1.3] tracking-[1px] text-white/60">
+                {g.grupo}
+              </p>
             )}
             {g.grupo && minimizada && <div className="mx-3 my-2 h-px bg-white/15" />}
             {g.items.map((item) => {
-              const activo = item.href ? (item.href === "/admin" ? ruta === "/admin" : ruta.startsWith(item.href)) : false;
+              const activo = item.href
+                ? item.href === "/admin"
+                  ? ruta === "/admin"
+                  : ruta.startsWith(item.href)
+                : false;
               const clases = `flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] leading-[1.5] ${minimizada ? "justify-center" : ""}`;
               const contenido = (
                 <>
@@ -151,7 +173,11 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
               );
               if (!item.href) {
                 return (
-                  <span key={item.texto} title={`${item.texto} · disponible próximamente`} className={`${clases} cursor-not-allowed font-medium text-white/82 opacity-45`}>
+                  <span
+                    key={item.texto}
+                    title={`${item.texto} · disponible próximamente`}
+                    className={`${clases} cursor-not-allowed font-medium text-white/82 opacity-45`}
+                  >
                     {contenido}
                   </span>
                 );
@@ -195,7 +221,10 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
             </button>
           ))}
         {!minimizada && (
-          <Link href="/cambiar-password" className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10">
+          <Link
+            href="/cambiar-password"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10"
+          >
             Cambiar contraseña
           </Link>
         )}
@@ -247,7 +276,12 @@ function BarraSuperior() {
         </label>
       </form>
       <div className="flex-1" />
-      <button type="button" aria-label="Notificaciones" title="Notificaciones · disponible próximamente" className="size-10 shrink-0">
+      <button
+        type="button"
+        aria-label="Notificaciones"
+        title="Notificaciones · disponible próximamente"
+        className="size-10 shrink-0"
+      >
         <Icono nombre="btn-notificaciones" size={40} />
       </button>
     </header>

@@ -49,18 +49,47 @@ export function BadgeRol({ rol }: { rol: Rol }) {
 }
 
 export function BadgeEstado({ estado }: { estado: EstadoCuenta }) {
-  if (estado === "ACTIVO") return <Badge tono="verde" punto>Activo</Badge>;
-  if (estado === "SUSPENDIDO") return <Badge tono="rojo" punto>Suspendido</Badge>;
-  if (estado === "PENDIENTE_ACTIVACION") return <Badge tono="ambar" punto>Pendiente</Badge>;
-  if (estado === "DADO_DE_BAJA") return <Badge tono="gris" punto>De baja</Badge>;
-  return <Badge tono="gris" punto>Sin cuenta</Badge>;
+  if (estado === "ACTIVO")
+    return (
+      <Badge tono="verde" punto>
+        Activo
+      </Badge>
+    );
+  if (estado === "SUSPENDIDO")
+    return (
+      <Badge tono="rojo" punto>
+        Suspendido
+      </Badge>
+    );
+  if (estado === "PENDIENTE_ACTIVACION")
+    return (
+      <Badge tono="ambar" punto>
+        Pendiente
+      </Badge>
+    );
+  if (estado === "DADO_DE_BAJA")
+    return (
+      <Badge tono="gris" punto>
+        De baja
+      </Badge>
+    );
+  return (
+    <Badge tono="gris" punto>
+      Sin cuenta
+    </Badge>
+  );
 }
 
 export function Avatar({ usuario, tamano = 34 }: { usuario: UsuarioListado; tamano?: 34 | 40 }) {
   const color = usuario.estado === "SUSPENDIDO" ? "bg-texto-3" : COLOR_AVATAR[usuario.roles[0] ?? "DOCENTE"];
   return (
-    <div className={`flex shrink-0 items-center justify-center rounded-full ${color}`} style={{ width: tamano, height: tamano }}>
-      <span className={`font-semibold leading-none text-white ${tamano === 40 ? "text-[15px]" : "text-[13px]"}`}>{usuario.iniciales}</span>
+    <div
+      className={`flex shrink-0 items-center justify-center rounded-full ${color}`}
+      style={{ width: tamano, height: tamano }}
+    >
+      <span className={`font-semibold leading-none text-white ${tamano === 40 ? "text-[15px]" : "text-[13px]"}`}>
+        {usuario.iniciales}
+      </span>
     </div>
   );
 }
@@ -95,7 +124,15 @@ const MOTIVOS_SUSPENSION = [
   "Otro",
 ];
 
-export function ModalSuspender({ usuario, onCerrar, onListo }: { usuario: UsuarioListado | null; onCerrar: () => void; onListo: (mensaje: string) => void }) {
+export function ModalSuspender({
+  usuario,
+  onCerrar,
+  onListo,
+}: {
+  usuario: UsuarioListado | null;
+  onCerrar: () => void;
+  onListo: (mensaje: string) => void;
+}) {
   const [motivo, setMotivo] = useState("");
   const [detalle, setDetalle] = useState("");
   const [notificar, setNotificar] = useState(true);
@@ -151,7 +188,9 @@ export function ModalSuspender({ usuario, onCerrar, onListo }: { usuario: Usuari
       }
     >
       {usuario && <FichaUsuario usuario={usuario} />}
-      <Alerta tipo="error">El usuario no podrá iniciar sesión y todas sus sesiones activas se cerrarán de inmediato.</Alerta>
+      <Alerta tipo="error">
+        El usuario no podrá iniciar sesión y todas sus sesiones activas se cerrarán de inmediato.
+      </Alerta>
       <div className="flex w-full flex-col gap-1.5">
         <label htmlFor="motivo-suspension" className="flex gap-1 text-[14px] font-medium leading-[1.4] text-texto-2">
           Motivo <span className="text-rojo">*</span>
@@ -190,7 +229,12 @@ export function ModalSuspender({ usuario, onCerrar, onListo }: { usuario: Usuari
           className="h-[72px] w-full resize-none rounded-lg border border-borde bg-white px-4 py-3 text-[16px] leading-[1.5] text-texto outline-none placeholder:text-texto-3 focus:border-kubo-azul focus:ring-1 focus:ring-kubo-azul"
         />
       </div>
-      <Casilla etiqueta="Notificar al usuario por correo electrónico" checked={notificar} onChange={setNotificar} color="verde" />
+      <Casilla
+        etiqueta="Notificar al usuario por correo electrónico"
+        checked={notificar}
+        onChange={setNotificar}
+        color="verde"
+      />
       {error && <Alerta tipo="error" titulo={error} />}
     </Modal>
   );
@@ -198,7 +242,15 @@ export function ModalSuspender({ usuario, onCerrar, onListo }: { usuario: Usuari
 
 // ---------- Reactivar acceso ----------
 
-export function ModalReactivar({ usuario, onCerrar, onListo }: { usuario: UsuarioListado | null; onCerrar: () => void; onListo: (mensaje: string) => void }) {
+export function ModalReactivar({
+  usuario,
+  onCerrar,
+  onListo,
+}: {
+  usuario: UsuarioListado | null;
+  onCerrar: () => void;
+  onListo: (mensaje: string) => void;
+}) {
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,7 +266,10 @@ export function ModalReactivar({ usuario, onCerrar, onListo }: { usuario: Usuari
     setEnviando(true);
     setError(null);
     try {
-      await api(`/identidad/usuarios/${usuario.usuarioId}/reactivar`, { method: "POST", body: { motivo: motivo.trim() || null } });
+      await api(`/identidad/usuarios/${usuario.usuarioId}/reactivar`, {
+        method: "POST",
+        body: { motivo: motivo.trim() || null },
+      });
       onListo(`Se reactivó el acceso de ${usuario.nombreCompleto}.`);
       cerrar();
     } catch (e) {
@@ -276,7 +331,15 @@ interface ResultadoRegistro {
 
 const VACIO = { dni: "", nombres: "", apellidos: "", email: "", telefono: "", cargo: "" };
 
-export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { abierto: boolean; onCerrar: () => void; onListo: (mensaje: string) => void }) {
+export function ModalRegistrarAdministrador({
+  abierto,
+  onCerrar,
+  onListo,
+}: {
+  abierto: boolean;
+  onCerrar: () => void;
+  onListo: (mensaje: string) => void;
+}) {
   const [datos, setDatos] = useState(VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -284,7 +347,8 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
   const [resultado, setResultado] = useState<ResultadoRegistro | null>(null);
   const [copiado, setCopiado] = useState(false);
 
-  const cambiar = (campo: keyof typeof VACIO) => (e: { target: { value: string } }) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
+  const cambiar = (campo: keyof typeof VACIO) => (e: { target: { value: string } }) =>
+    setDatos((d) => ({ ...d, [campo]: e.target.value }));
 
   function cerrar() {
     setDatos(VACIO);
@@ -315,7 +379,8 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
       setResultado(r);
       onListo(`Se registró a ${r.nombreCompleto} como administrador.`);
     } catch (err) {
-      if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS") setErrores(err.detalles as Record<string, string>);
+      if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
+        setErrores(err.detalles as Record<string, string>);
       else setError(alertaError(err));
     } finally {
       setEnviando(false);
@@ -329,7 +394,9 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
       icono="icon-userplus"
       tonoIcono="azul"
       titulo={resultado ? "Administrador registrado" : "Registrar administrador"}
-      subtitulo={resultado ? undefined : "Se creará su cuenta con una contraseña temporal que deberá cambiar al ingresar."}
+      subtitulo={
+        resultado ? undefined : "Se creará su cuenta con una contraseña temporal que deberá cambiar al ingresar."
+      }
       pie={
         resultado ? (
           <Boton onClick={cerrar}>Listo</Boton>
@@ -348,7 +415,9 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
       {resultado ? (
         <>
           <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es administrador`}>
-            {resultado.personaExistia ? "La persona ya estaba registrada: se le agregó el perfil sin duplicar sus datos. " : ""}
+            {resultado.personaExistia
+              ? "La persona ya estaba registrada: se le agregó el perfil sin duplicar sus datos. "
+              : ""}
             {resultado.cuentaCreada
               ? resultado.correoEnviado
                 ? `Enviamos sus credenciales a ${resultado.email}.`
@@ -357,9 +426,13 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
           </Alerta>
           {resultado.passwordTemporal && (
             <div className="flex w-full flex-col gap-1.5">
-              <p className="text-[14px] font-medium leading-[1.4] text-texto-2">Contraseña temporal (solo se muestra esta vez)</p>
+              <p className="text-[14px] font-medium leading-[1.4] text-texto-2">
+                Contraseña temporal (solo se muestra esta vez)
+              </p>
               <div className="flex items-center gap-2 rounded-lg border border-borde bg-fondo px-4 py-3">
-                <code className="flex-1 text-[18px] font-semibold tracking-[1px] text-texto">{resultado.passwordTemporal}</code>
+                <code className="flex-1 text-[18px] font-semibold tracking-[1px] text-texto">
+                  {resultado.passwordTemporal}
+                </code>
                 <Boton
                   variante="secundario"
                   onClick={() => {
@@ -375,12 +448,51 @@ export function ModalRegistrarAdministrador({ abierto, onCerrar, onListo }: { ab
         </>
       ) : (
         <form onSubmit={registrar} className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
-          <Campo etiqueta="DNI" obligatorio inputMode="numeric" maxLength={8} value={datos.dni} onChange={cambiar("dni")} error={errores.dni} />
-          <Campo etiqueta="Correo" obligatorio type="email" value={datos.email} onChange={cambiar("email")} error={errores.email} />
-          <Campo etiqueta="Nombres" obligatorio value={datos.nombres} onChange={cambiar("nombres")} error={errores.nombres} />
-          <Campo etiqueta="Apellidos" obligatorio value={datos.apellidos} onChange={cambiar("apellidos")} error={errores.apellidos} />
-          <Campo etiqueta="Teléfono (opcional)" inputMode="tel" value={datos.telefono} onChange={cambiar("telefono")} error={errores.telefono} />
-          <Campo etiqueta="Cargo (opcional)" placeholder="Ej.: Secretaria académica" value={datos.cargo} onChange={cambiar("cargo")} error={errores.cargo} />
+          <Campo
+            etiqueta="DNI"
+            obligatorio
+            inputMode="numeric"
+            maxLength={8}
+            value={datos.dni}
+            onChange={cambiar("dni")}
+            error={errores.dni}
+          />
+          <Campo
+            etiqueta="Correo"
+            obligatorio
+            type="email"
+            value={datos.email}
+            onChange={cambiar("email")}
+            error={errores.email}
+          />
+          <Campo
+            etiqueta="Nombres"
+            obligatorio
+            value={datos.nombres}
+            onChange={cambiar("nombres")}
+            error={errores.nombres}
+          />
+          <Campo
+            etiqueta="Apellidos"
+            obligatorio
+            value={datos.apellidos}
+            onChange={cambiar("apellidos")}
+            error={errores.apellidos}
+          />
+          <Campo
+            etiqueta="Teléfono (opcional)"
+            inputMode="tel"
+            value={datos.telefono}
+            onChange={cambiar("telefono")}
+            error={errores.telefono}
+          />
+          <Campo
+            etiqueta="Cargo (opcional)"
+            placeholder="Ej.: Secretaria académica"
+            value={datos.cargo}
+            onChange={cambiar("cargo")}
+            error={errores.cargo}
+          />
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
           {error && (
             <div className="sm:col-span-2">

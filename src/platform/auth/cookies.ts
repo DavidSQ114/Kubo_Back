@@ -37,7 +37,13 @@ export function escribirCookiesSesion(
 
 export function borrarCookiesSesion(res: NextResponse) {
   res.cookies.set(COOKIE_ACCESO, "", { httpOnly: true, secure: seguro(), sameSite: "lax", path: "/", maxAge: 0 });
-  res.cookies.set(COOKIE_REFRESH, "", { httpOnly: true, secure: seguro(), sameSite: "lax", path: RUTA_REFRESH, maxAge: 0 });
+  res.cookies.set(COOKIE_REFRESH, "", {
+    httpOnly: true,
+    secure: seguro(),
+    sameSite: "lax",
+    path: RUTA_REFRESH,
+    maxAge: 0,
+  });
 }
 
 export function leerTokenAcceso(req: NextRequest): string | null {

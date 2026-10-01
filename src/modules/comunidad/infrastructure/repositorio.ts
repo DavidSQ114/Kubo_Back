@@ -50,8 +50,10 @@ export const personas = {
   porDni: (dni: string, db: Db = prisma) =>
     db.persona.findUnique({ where: { dni }, select: { id: true, nombres: true, apellidos: true, email: true } }),
 
-  crear: (data: { dni: string; nombres: string; apellidos: string; email: string; telefono?: string | null }, db: Db = prisma) =>
-    db.persona.create({ data, select: { id: true, nombres: true, apellidos: true, email: true } }),
+  crear: (
+    data: { dni: string; nombres: string; apellidos: string; email: string; telefono?: string | null },
+    db: Db = prisma,
+  ) => db.persona.create({ data, select: { id: true, nombres: true, apellidos: true, email: true } }),
 
   administradorDe: (personaId: string, db: Db = prisma) =>
     db.administrador.findUnique({ where: { personaId }, select: { id: true, activo: true } }),
@@ -60,7 +62,11 @@ export const personas = {
     db.administrador.create({ data, select: { id: true } }),
 
   reactivarAdministrador: (id: string, cargo: string | null | undefined, db: Db = prisma) =>
-    db.administrador.update({ where: { id }, data: { activo: true, ...(cargo ? { cargo } : {}) }, select: { id: true } }),
+    db.administrador.update({
+      where: { id },
+      data: { activo: true, ...(cargo ? { cargo } : {}) },
+      select: { id: true },
+    }),
 };
 
 // ---------- Listado de usuarios (AD-06) ----------

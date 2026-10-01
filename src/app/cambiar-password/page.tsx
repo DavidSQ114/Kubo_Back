@@ -58,10 +58,16 @@ export default function CambiarPasswordPage() {
   return (
     <PaginaCentrada>
       <TarjetaAcceso ancho={440}>
-        {obligatorio && <Badge tono="ambar" punto>Primer ingreso</Badge>}
+        {obligatorio && (
+          <Badge tono="ambar" punto>
+            Primer ingreso
+          </Badge>
+        )}
         <IconoCircular nombre="icon-lock-grande" />
         <div className="flex w-full flex-col gap-2">
-          <h1 className="text-[24px] font-semibold leading-[1.25] text-texto">{obligatorio ? "Crea tu contraseña personal" : "Cambiar contraseña"}</h1>
+          <h1 className="text-[24px] font-semibold leading-[1.25] text-texto">
+            {obligatorio ? "Crea tu contraseña personal" : "Cambiar contraseña"}
+          </h1>
           <p className="text-[14px] leading-[1.4] text-texto-2">
             {obligatorio
               ? "Por seguridad, reemplaza la contraseña temporal que te entregó el colegio antes de continuar."
@@ -77,7 +83,13 @@ export default function CambiarPasswordPage() {
             value={actual}
             onChange={(e) => setActual(e.target.value)}
           />
-          <CampoPassword etiqueta="Nueva contraseña" obligatorio autoComplete="new-password" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+          <CampoPassword
+            etiqueta="Nueva contraseña"
+            obligatorio
+            autoComplete="new-password"
+            value={nueva}
+            onChange={(e) => setNueva(e.target.value)}
+          />
           <CampoPassword
             etiqueta="Confirmar contraseña"
             obligatorio
@@ -92,11 +104,19 @@ export default function CambiarPasswordPage() {
           </Boton>
         </form>
         {obligatorio ? (
-          <button type="button" onClick={salir} className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline">
+          <button
+            type="button"
+            onClick={salir}
+            className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline"
+          >
             Cerrar sesión
           </button>
         ) : (
-          <button type="button" onClick={() => router.back()} className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline"
+          >
             Volver
           </button>
         )}

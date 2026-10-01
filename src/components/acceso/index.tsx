@@ -17,7 +17,9 @@ export function PanelMarca() {
     <aside className="relative hidden h-screen min-h-[640px] shrink-0 flex-col gap-6 overflow-hidden bg-kubo-azul p-16 lg:flex lg:w-[44%] xl:w-[640px]">
       <Logo variante="marca" />
       <div className="flex-1" />
-      <p className="relative z-10 max-w-[500px] text-[40px] font-bold leading-[1.15] text-white">Toda la vida escolar, en un solo lugar.</p>
+      <p className="relative z-10 max-w-[500px] text-[40px] font-bold leading-[1.15] text-white">
+        Toda la vida escolar, en un solo lugar.
+      </p>
       <ul className="relative z-10 flex flex-col gap-3.5 pt-2">
         {BENEFICIOS.map((b) => (
           <li key={b.texto} className="flex items-center gap-3">
@@ -32,7 +34,12 @@ export function PanelMarca() {
       <p className="relative z-10 text-[12px] leading-[1.4] text-white/60">
         © 2026 Kubo · Plataforma Educativa Integral · Ingeniería de Software PUCP
       </p>
-      <img src="/figma/decoracion-login.svg" alt="" aria-hidden className="pointer-events-none absolute left-[300px] top-[420px] size-[520px] max-w-none" />
+      <img
+        src="/figma/decoracion-login.svg"
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute left-[300px] top-[420px] size-[520px] max-w-none"
+      />
     </aside>
   );
 }
@@ -66,7 +73,9 @@ export function TarjetaAcceso({ children, ancho = 480 }: { children: ReactNode; 
 
 export function IconoCircular({ nombre, tono = "azul" }: { nombre: string; tono?: "azul" | "rojo" }) {
   return (
-    <div className={`flex size-14 items-center justify-center rounded-full ${tono === "azul" ? "bg-[rgba(27,77,137,0.1)]" : "bg-[rgba(214,69,69,0.1)]"}`}>
+    <div
+      className={`flex size-14 items-center justify-center rounded-full ${tono === "azul" ? "bg-[rgba(27,77,137,0.1)]" : "bg-[rgba(214,69,69,0.1)]"}`}
+    >
       <Icono nombre={nombre} size={28} />
     </div>
   );
@@ -83,7 +92,10 @@ export function EncabezadoTarjeta({ titulo, children }: { titulo: string; childr
 
 export function VolverAlLogin() {
   return (
-    <Link href="/login" className="flex items-center gap-1.5 text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline">
+    <Link
+      href="/login"
+      className="flex items-center gap-1.5 text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline"
+    >
       <Icono nombre="icon-back" size={18} />
       Volver a iniciar sesión
     </Link>

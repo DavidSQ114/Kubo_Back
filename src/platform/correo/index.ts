@@ -29,7 +29,9 @@ export async function enviarCorreo(correo: Correo): Promise<boolean> {
   const t = obtenerTransporte();
   if (!t) {
     if (process.env.NODE_ENV !== "production") {
-      console.log(`\n──── Correo (modo desarrollo) ────\nPara: ${correo.para}\nAsunto: ${correo.asunto}\n\n${correo.texto}\n──────────────────────────────────\n`);
+      console.log(
+        `\n──── Correo (modo desarrollo) ────\nPara: ${correo.para}\nAsunto: ${correo.asunto}\n\n${correo.texto}\n──────────────────────────────────\n`,
+      );
       return true;
     }
     logger.error("SMTP no configurado: no se pudo enviar un correo", { asunto: correo.asunto });

@@ -51,7 +51,11 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintentar =
       cache: "no-store",
     });
   } catch {
-    throw new ApiError("SIN_CONEXION", "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.", 0);
+    throw new ApiError(
+      "SIN_CONEXION",
+      "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.",
+      0,
+    );
   }
 
   const json = await res.json().catch(() => ({}));
