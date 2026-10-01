@@ -1,6 +1,7 @@
-# Pruebas manuales de la API de identidad y administración de usuarios.
+# Pruebas manuales de la API de identidad (sesión, contraseñas y acceso de las cuentas).
 # Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
 # Las cookies de sesión se guardan solas entre solicitudes. Ejecuta los bloques en orden.
+# El listado de usuarios y el registro de administradores están en comunidad.http.
 
 @base = http://localhost:3000/api/v1
 @admin = admin@kubo.edu.pe
@@ -29,69 +30,51 @@ Content-Type: application/json
 ### 5. Datos de la sesión → 200, debeCambiarPassword = false
 GET {{base}}/identidad/sesion
 
-### 6. Resumen de usuarios (tarjetas y pestañas de AD-06)
-GET {{base}}/comunidad/usuarios/resumen
-
-### 7. Buscar usuarios (RF46): por nombre, DNI o correo, filtrando por rol y estado
-GET {{base}}/comunidad/usuarios?q=admin&rol=ADMINISTRADOR&pagina=1&tamano=20
-
-### 8. Registrar otro administrador → 201 con passwordTemporal (también se "envía" por correo: ver la consola de npm run dev)
-POST {{base}}/comunidad/administradores
-Content-Type: application/json
-
-{ "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "rosa.huaman@kubo.edu.pe", "cargo": "Secretaria académica" }
-
-### 9. Registrar con un DNI que ya es administrador → 409 YA_ES_ADMINISTRADOR
-POST {{base}}/comunidad/administradores
-Content-Type: application/json
-
-{ "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "otro@kubo.edu.pe" }
-
-### 10. Suspender a Rosa (copia su usuarioId de la respuesta 8) → 200 SUSPENDIDO
+### 6. Suspender a Rosa (regístrala antes con el bloque 3 de comunidad.http y copia su usuarioId) → 200 SUSPENDIDO
 @usuarioRosa = PEGAR-AQUI-EL-usuarioId
 POST {{base}}/identidad/usuarios/{{usuarioRosa}}/suspender
 Content-Type: application/json
 
 { "motivo": "Licencia temporal", "detalle": "Vuelve en noviembre", "notificar": true }
 
-### 11. Rosa intenta entrar (usa la passwordTemporal de la respuesta 8) → 403 CUENTA_SUSPENDIDA
+### 7. Rosa intenta entrar (usa la passwordTemporal del bloque 3 de comunidad.http) → 403 CUENTA_SUSPENDIDA
 POST {{base}}/identidad/login
 Content-Type: application/json
 
 { "email": "rosa.huaman@kubo.edu.pe", "password": "PEGAR-PASSWORD-TEMPORAL" }
 
-### 12. Volver a entrar como administrador (el paso 11 no cambia tu cookie si falló, pero por si acaso)
+### 8. Volver a entrar como administrador (el paso 7 no cambia tu cookie si falló, pero por si acaso)
 POST {{base}}/identidad/login
 Content-Type: application/json
 
 { "email": "{{admin}}", "password": "Kubo2026Admin" }
 
-### 13. Reactivar a Rosa → 200 PENDIENTE_ACTIVACION (aún debe cambiar su contraseña temporal)
+### 9. Reactivar a Rosa → 200 PENDIENTE_ACTIVACION (aún debe cambiar su contraseña temporal)
 POST {{base}}/identidad/usuarios/{{usuarioRosa}}/reactivar
 Content-Type: application/json
 
 { "motivo": "Retorno de licencia" }
 
-### 14. Pedir enlace de recuperación (RF02) → 200 siempre; el enlace aparece en la consola de npm run dev
+### 10. Pedir enlace de recuperación (RF02) → 200 siempre; el enlace aparece en la consola de npm run dev
 POST {{base}}/identidad/password/recuperar
 Content-Type: application/json
 
 { "email": "{{admin}}" }
 
-### 15. Validar el enlace (copia el token del enlace de la consola) → 200 con minutosRestantes
+### 11. Validar el enlace (copia el token del enlace de la consola) → 200 con minutosRestantes
 @token = PEGAR-TOKEN
 GET {{base}}/identidad/password/restablecer?token={{token}}
 
-### 16. Renovar la sesión con el refresh token → 200
+### 12. Renovar la sesión con el refresh token → 200
 POST {{base}}/identidad/refresh
 
-### 17. Cerrar sesión → 200 y cookies borradas
+### 13. Cerrar sesión → 200 y cookies borradas
 POST {{base}}/identidad/logout
 
-### 18. Después del logout, la sesión ya no sirve → 401
+### 14. Después del logout, la sesión ya no sirve → 401
 GET {{base}}/identidad/sesion
 
-### 19. Bloqueo (RF01): repite este bloque 5 veces → al 5.º intento 423 CUENTA_BLOQUEADA (15 minutos)
+### 15. Bloqueo (RF01): repite este bloque 5 veces → al 5.º intento 423 CUENTA_BLOQUEADA (15 minutos)
 POST {{base}}/identidad/login
 Content-Type: application/json
 

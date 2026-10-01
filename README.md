@@ -31,6 +31,7 @@ Sistema web para la gestión integral de un colegio de secundaria: matrícula y 
 9. [Qué se sube al repositorio y qué no](#9-qué-se-sube-al-repositorio-y-qué-no)
 10. [Flujo de trabajo con Git](#10-flujo-de-trabajo-con-git)
 11. [Convenciones](#11-convenciones)
+12. [Estándar de programación](#12-estándar-de-programación)
 
 ---
 
@@ -331,3 +332,15 @@ Prefijos de commit: `feat` (nueva función), `fix` (corrección), `docs`, `refac
 - **Nombres:** `PascalCase` para componentes y modelos, `camelCase` para variables y funciones, `kebab-case` para carpetas de rutas (`aula-virtual`), `UPPER_SNAKE_CASE` para códigos de error (`SECCION_SIN_VACANTES`).
 - **Formato:** Prettier y ESLint antes de cada commit; sin `console.log` en el código final (usar el logger de `platform`).
 - **Fuente de verdad:** si el código y un documento no coinciden, se corrige el que esté mal y se avisa al equipo. El orden es Requisitos v4.2 → diagrama de clases v4.2 → este repositorio.
+
+---
+
+## 12. Estándar de programación
+
+Todo el código sigue el [estándar de programación del equipo](docs/ESTANDAR-PROGRAMACION.md): nombres, estructura de módulos, API, frontend, base de datos, pruebas y flujo de Git.
+
+Antes de abrir un pull request debe pasar:
+
+```powershell
+npm run check                 # formato, lint, tipos, pruebas y build
+```

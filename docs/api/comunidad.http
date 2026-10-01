@@ -1,0 +1,24 @@
+# Pruebas manuales de la API de comunidad (usuarios y administradores).
+# Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
+# Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
+# (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
+
+@base = http://localhost:3000/api/v1
+
+### 1. Resumen de usuarios (tarjetas y pestañas de AD-06)
+GET {{base}}/comunidad/usuarios/resumen
+
+### 2. Buscar usuarios (RF46): por nombre, DNI o correo, filtrando por rol y estado
+GET {{base}}/comunidad/usuarios?q=admin&rol=ADMINISTRADOR&pagina=1&tamano=20
+
+### 3. Registrar otro administrador → 201 con passwordTemporal (también se "envía" por correo: ver la consola de npm run dev)
+POST {{base}}/comunidad/administradores
+Content-Type: application/json
+
+{ "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "rosa.huaman@kubo.edu.pe", "cargo": "Secretaria académica" }
+
+### 4. Registrar con un DNI que ya es administrador → 409 YA_ES_ADMINISTRADOR
+POST {{base}}/comunidad/administradores
+Content-Type: application/json
+
+{ "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "otro@kubo.edu.pe" }
