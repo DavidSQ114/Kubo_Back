@@ -1,0 +1,77 @@
+// Capa de plataforma: notificaciones, cola de eventos (outbox), auditoría y log de errores.
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model Notificacion {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId          String           @db.Uuid @map("usuario_id")
+  usuario            Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo               TipoNotificacion
+  titulo             String
+  mensaje            String
+  enlace             String?
+  leidaEn            DateTime?        @db.Timestamptz(3) @map("leida_en")
+  claveDeduplicacion String?          @unique @map("clave_deduplicacion")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt          DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([usuarioId, leidaEn])
+  @@map("notificacion")
+}
+
+model OutboxEvento {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipoEvento     String      @map("tipo_evento")
+  agregadoTipo   String      @map("agregado_tipo")
+  agregadoId     String      @map("agregado_id")
+  payload        Json
+  estado         EstadoEnvio @default(PENDIENTE)
+  intentos       Int         @default(0)
+  proximoIntento DateTime?   @db.Timestamptz(3) @map("proximo_intento")
+  procesadoEn    DateTime?   @db.Timestamptz(3) @map("procesado_en")
+  ultimoError    String?     @map("ultimo_error")
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([estado, proximoIntento])
+  @@map("outbox_evento")
+}
+
+model RegistroAuditoria {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId       String?  @db.Uuid @map("usuario_id")
+  usuario         Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  requestId       String?  @map("request_id")
+  entidadAfectada String   @map("entidad_afectada")
+  entidadId       String   @map("entidad_id")
+  accion          String
+  valorAnterior   Json?    @map("valor_anterior")
+  valorNuevo      Json?    @map("valor_nuevo")
+  motivo          String?
+  ipOrigen        String?  @map("ip_origen")
+  fecha           DateTime @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+
+  @@index([entidadAfectada, entidadId])
+  @@index([fecha])
+  @@map("registro_auditoria")
+}
+
+model LogError {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String?  @db.Uuid @map("usuario_id")
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  requestId  String?  @map("request_id")
+  endpoint   String
+  metodoHttp String?  @map("metodo_http")
+  codigoHttp Int      @map("codigo_http")
+  nivel      NivelLog
+  mensaje    String
+  stackTrace String?  @map("stack_trace")
+  metadatos  Json?
+  ipOrigen   String?  @map("ip_origen")
+  fecha      DateTime @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+
+  @@index([fecha])
+  @@map("log_error")
+}

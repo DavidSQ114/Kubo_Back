@@ -1,0 +1,123 @@
+// Módulo aula virtual: unidades, materiales, enlaces, trabajos y entregas.
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model UnidadDidactica {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asignacionDocenteId String            @db.Uuid @map("asignacion_docente_id")
+  asignacionDocente   AsignacionDocente @relation(fields: [asignacionDocenteId], references: [id], onDelete: Cascade)
+  numero              Int
+  titulo              String
+  activo              Boolean           @default(true)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  materialesEstudio   MaterialEstudio[]
+
+  @@unique([asignacionDocenteId, numero])
+  @@map("unidad_didactica")
+}
+
+model MaterialEstudio {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asignacionDocenteId String            @db.Uuid @map("asignacion_docente_id")
+  asignacionDocente   AsignacionDocente @relation(fields: [asignacionDocenteId], references: [id], onDelete: Cascade)
+  unidadId            String?           @db.Uuid @map("unidad_id")
+  unidad              UnidadDidactica?  @relation(fields: [unidadId], references: [id], onDelete: SetNull)
+  titulo              String
+  tipoFormato         TipoFormato       @map("tipo_formato")
+  urlArchivo          String            @map("url_archivo")
+  pesoMb              Decimal?          @db.Decimal(5, 2) @map("peso_mb")
+  mimeType            String?           @map("mime_type")
+  estadoVisibilidad   EstadoVisibilidad @default(BORRADOR) @map("estado_visibilidad")
+  publicadoEn         DateTime?         @db.Timestamptz(3) @map("publicado_en")
+  subidoPorId         String            @db.Uuid @map("subido_por_id")
+  subidoPor           Usuario           @relation(fields: [subidoPorId], references: [id], onDelete: Restrict)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("material_estudio")
+}
+
+model EnlaceVirtual {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asignacionDocenteId String            @db.Uuid @map("asignacion_docente_id")
+  asignacionDocente   AsignacionDocente @relation(fields: [asignacionDocenteId], references: [id], onDelete: Cascade)
+  tipoEnlace          TipoEnlace        @map("tipo_enlace")
+  titulo              String
+  urlMeet             String            @map("url_meet")
+  horario             String?
+  fechaProgramada     DateTime?         @db.Timestamptz(3) @map("fecha_programada")
+  visible             Boolean           @default(true)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("enlace_virtual")
+}
+
+model Trabajo {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asignacionDocenteId String               @db.Uuid @map("asignacion_docente_id")
+  asignacionDocente   AsignacionDocente    @relation(fields: [asignacionDocenteId], references: [id], onDelete: Cascade)
+  titulo              String
+  instrucciones       String
+  fechaLimite         DateTime             @db.Timestamptz(3) @map("fecha_limite")
+  archivoApoyoUrl     String?              @map("archivo_apoyo_url")
+  estado              EstadoTrabajo        @default(BORRADOR)
+  publicadoEn         DateTime?            @db.Timestamptz(3) @map("publicado_en")
+  creadoPorId         String               @db.Uuid @map("creado_por_id")
+  creadoPor           Usuario              @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  trabajosCompetencia TrabajoCompetencia[]
+  entregasTrabajo     EntregaTrabajo[]
+
+  @@map("trabajo")
+}
+
+model TrabajoCompetencia {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trabajoId         String          @db.Uuid @map("trabajo_id")
+  trabajo           Trabajo         @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  competenciaPlanId String          @db.Uuid @map("competencia_plan_id")
+  competenciaPlan   CompetenciaPlan @relation(fields: [competenciaPlanId], references: [id], onDelete: Restrict)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime        @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([trabajoId, competenciaPlanId])
+  @@map("trabajo_competencia")
+}
+
+model EntregaTrabajo {
+  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trabajoId             String                @db.Uuid @map("trabajo_id")
+  trabajo               Trabajo               @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  matriculaId           String                @db.Uuid @map("matricula_id")
+  matricula             Matricula             @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
+  comentario            String?
+  entregadoEn           DateTime              @default(now()) @db.Timestamptz(3) @map("entregado_en")
+  estado                EstadoEntrega         @default(ENTREGADO)
+  retroalimentacion     String?
+  revisadoPorId         String?               @db.Uuid @map("revisado_por_id")
+  revisadoPor           Usuario?              @relation(fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  revisadoEn            DateTime?             @db.Timestamptz(3) @map("revisado_en")
+  createdAt             DateTime              @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt             DateTime              @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  evidenciasPedagogicas EvidenciaPedagogica[]
+  archivosEntrega       ArchivoEntrega[]
+
+  @@unique([trabajoId, matriculaId])
+  @@map("entrega_trabajo")
+}
+
+model ArchivoEntrega {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entregaTrabajoId String         @db.Uuid @map("entrega_trabajo_id")
+  entregaTrabajo   EntregaTrabajo @relation(fields: [entregaTrabajoId], references: [id], onDelete: Cascade)
+  nombreArchivo    String         @map("nombre_archivo")
+  archivoUrl       String         @map("archivo_url")
+  mimeType         String         @map("mime_type")
+  tamanoBytes      Int            @map("tamano_bytes")
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("archivo_entrega")
+}

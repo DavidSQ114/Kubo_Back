@@ -1,0 +1,11 @@
+// Kubo · configuración base de Prisma (schema dividido por módulo en esta carpeta)
+// Diagrama de clases v4.2 · 50 tablas · 34 enumeraciones
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

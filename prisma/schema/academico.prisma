@@ -1,0 +1,228 @@
+// Módulo académico: años, periodos, grados, secciones, aulas, currículo, plan de estudios, asignaciones, reglas y parámetros.
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model AnioAcademico {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anio                  Int                    @unique
+  fechaInicio           DateTime               @db.Date @map("fecha_inicio")
+  fechaFin              DateTime               @db.Date @map("fecha_fin")
+  estado                EstadoAnio             @default(PLANIFICADO)
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt             DateTime               @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  periodosEvaluacion    PeriodoEvaluacion[]
+  secciones             Seccion[]
+  planesEstudio         PlanEstudio[]
+  reglasConsolidacion   ReglaConsolidacion[]
+  parametrosInstitucion ParametroInstitucion[]
+  matriculas            Matricula[]
+
+  @@map("anio_academico")
+}
+
+model PeriodoEvaluacion {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId     String               @db.Uuid @map("anio_academico_id")
+  anioAcademico       AnioAcademico        @relation(fields: [anioAcademicoId], references: [id], onDelete: Cascade)
+  numero              Int
+  nombre              String
+  fechaInicio         DateTime             @db.Date @map("fecha_inicio")
+  fechaFin            DateTime             @db.Date @map("fecha_fin")
+  estado              EstadoPeriodo        @default(INACTIVO)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  reglasConsolidacion ReglaConsolidacion[]
+  cierresCalificacion CierreCalificacion[]
+
+  @@unique([anioAcademicoId, numero])
+  @@map("periodo_evaluacion")
+}
+
+model Grado {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero        Int           @unique
+  nombre        String
+  activo        Boolean       @default(true)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt     DateTime      @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  estudiantes   Estudiante[]
+  secciones     Seccion[]
+  planesEstudio PlanEstudio[]
+
+  @@map("grado")
+}
+
+model Aula {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre          String           @unique
+  aforo           Int
+  ubicacion       String?
+  activo          Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  secciones       Seccion[]
+  detallesHorario DetalleHorario[]
+
+  @@map("aula")
+}
+
+model Seccion {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId     String              @db.Uuid @map("anio_academico_id")
+  anioAcademico       AnioAcademico       @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  gradoId             String              @db.Uuid @map("grado_id")
+  grado               Grado               @relation(fields: [gradoId], references: [id], onDelete: Restrict)
+  aulaId              String?             @db.Uuid @map("aula_id")
+  aula                Aula?               @relation(fields: [aulaId], references: [id], onDelete: SetNull)
+  tutorId             String?             @db.Uuid @map("tutor_id")
+  tutor               Docente?            @relation(fields: [tutorId], references: [id], onDelete: SetNull)
+  nombre              String
+  aforoMaximo         Int                 @map("aforo_maximo")
+  estado              EstadoSeccion       @default(ACTIVA)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  asignacionesDocente AsignacionDocente[]
+  matriculas          Matricula[]
+  historialesSeccion  HistorialSeccion[]
+  horarios            Horario[]
+  detallesHorario     DetalleHorario[]
+
+  @@unique([anioAcademicoId, gradoId, nombre])
+  @@map("seccion")
+}
+
+model AreaCurricular {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo       String        @unique
+  nombre       String
+  activo       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt    DateTime      @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  cursos       Curso[]
+  competencias Competencia[]
+
+  @@map("area_curricular")
+}
+
+model Curso {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  areaCurricularId String         @db.Uuid @map("area_curricular_id")
+  areaCurricular   AreaCurricular @relation(fields: [areaCurricularId], references: [id], onDelete: Restrict)
+  codigo           String         @unique
+  nombre           String
+  descripcion      String?
+  estado           EstadoCurso    @default(ACTIVO)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  planesEstudio    PlanEstudio[]
+
+  @@map("curso")
+}
+
+model Competencia {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  areaCurricularId String            @db.Uuid @map("area_curricular_id")
+  areaCurricular   AreaCurricular    @relation(fields: [areaCurricularId], references: [id], onDelete: Restrict)
+  codigo           String            @unique
+  nombre           String
+  descripcion      String?
+  activo           Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  competenciasPlan CompetenciaPlan[]
+
+  @@map("competencia")
+}
+
+model PlanEstudio {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId     String              @db.Uuid @map("anio_academico_id")
+  anioAcademico       AnioAcademico       @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  gradoId             String              @db.Uuid @map("grado_id")
+  grado               Grado               @relation(fields: [gradoId], references: [id], onDelete: Restrict)
+  cursoId             String              @db.Uuid @map("curso_id")
+  curso               Curso               @relation(fields: [cursoId], references: [id], onDelete: Restrict)
+  horasSemanales      Int                 @map("horas_semanales")
+  activo              Boolean             @default(true)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  competenciasPlan    CompetenciaPlan[]
+  asignacionesDocente AsignacionDocente[]
+
+  @@unique([anioAcademicoId, gradoId, cursoId])
+  @@map("plan_estudio")
+}
+
+model CompetenciaPlan {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planEstudioId       String               @db.Uuid @map("plan_estudio_id")
+  planEstudio         PlanEstudio          @relation(fields: [planEstudioId], references: [id], onDelete: Cascade)
+  competenciaId       String               @db.Uuid @map("competencia_id")
+  competencia         Competencia          @relation(fields: [competenciaId], references: [id], onDelete: Restrict)
+  orden               Int
+  peso                Decimal?             @db.Decimal(5, 2)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  notas               Nota[]
+  trabajosCompetencia TrabajoCompetencia[]
+
+  @@unique([planEstudioId, competenciaId])
+  @@map("competencia_plan")
+}
+
+model AsignacionDocente {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planEstudioId       String               @db.Uuid @map("plan_estudio_id")
+  planEstudio         PlanEstudio          @relation(fields: [planEstudioId], references: [id], onDelete: Restrict)
+  seccionId           String               @db.Uuid @map("seccion_id")
+  seccion             Seccion              @relation(fields: [seccionId], references: [id], onDelete: Restrict)
+  docenteId           String               @db.Uuid @map("docente_id")
+  docente             Docente              @relation(fields: [docenteId], references: [id], onDelete: Restrict)
+  activo              Boolean              @default(true)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  detallesHorario     DetalleHorario[]
+  cierresCalificacion CierreCalificacion[]
+  unidadesDidacticas  UnidadDidactica[]
+  materialesEstudio   MaterialEstudio[]
+  enlacesVirtuales    EnlaceVirtual[]
+  trabajos            Trabajo[]
+
+  @@index([docenteId])
+  @@map("asignacion_docente")
+}
+
+model ReglaConsolidacion {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId     String               @db.Uuid @map("anio_academico_id")
+  anioAcademico       AnioAcademico        @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  rigeDesdeId         String?              @db.Uuid @map("rige_desde_id")
+  rigeDesde           PeriodoEvaluacion?   @relation(fields: [rigeDesdeId], references: [id], onDelete: SetNull)
+  nombre              String
+  metodo              MetodoConsolidacion
+  criterioDesempate   CriterioDesempate    @default(MAYOR_JERARQUIA) @map("criterio_desempate")
+  configuracion       Json
+  version             Int
+  estado              EstadoRegla          @default(BORRADOR)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  cierresCalificacion CierreCalificacion[]
+
+  @@unique([anioAcademicoId, version])
+  @@map("regla_consolidacion")
+}
+
+model ParametroInstitucion {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId  String?        @db.Uuid @map("anio_academico_id")
+  anioAcademico    AnioAcademico? @relation(fields: [anioAcademicoId], references: [id], onDelete: SetNull)
+  clave            String
+  valor            Json
+  descripcion      String?
+  actualizadoPorId String         @db.Uuid @map("actualizado_por_id")
+  actualizadoPor   Usuario        @relation(fields: [actualizadoPorId], references: [id], onDelete: Restrict)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([clave, anioAcademicoId])
+  @@map("parametro_institucion")
+}

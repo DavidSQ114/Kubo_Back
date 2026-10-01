@@ -1,0 +1,116 @@
+// Módulo horarios: bloques, horarios versionados, detalle, sesiones de clase y asistencia.
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model BloqueHorario {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dia             DiaSemana
+  horaInicio      DateTime         @db.Time(0) @map("hora_inicio")
+  horaFin         DateTime         @db.Time(0) @map("hora_fin")
+  etiqueta        String
+  obligatorio     Boolean          @default(true)
+  activo          Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  detallesHorario DetalleHorario[]
+
+  @@unique([dia, horaInicio])
+  @@map("bloque_horario")
+}
+
+model Horario {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seccionId         String            @db.Uuid @map("seccion_id")
+  seccion           Seccion           @relation(fields: [seccionId], references: [id], onDelete: Restrict)
+  estadoPublicacion EstadoPublicacion @default(BORRADOR) @map("estado_publicacion")
+  version           Int
+  publicadoPorId    String?           @db.Uuid @map("publicado_por_id")
+  publicadoPor      Usuario?          @relation(fields: [publicadoPorId], references: [id], onDelete: SetNull)
+  publicadoEn       DateTime?         @db.Timestamptz(3) @map("publicado_en")
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  detallesHorario   DetalleHorario[]
+
+  @@unique([seccionId, version])
+  @@map("horario")
+}
+
+model DetalleHorario {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  horarioId           String            @db.Uuid @map("horario_id")
+  horario             Horario           @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+  bloqueId            String            @db.Uuid @map("bloque_id")
+  bloque              BloqueHorario     @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
+  aulaId              String            @db.Uuid @map("aula_id")
+  aula                Aula              @relation(fields: [aulaId], references: [id], onDelete: Restrict)
+  asignacionDocenteId String            @db.Uuid @map("asignacion_docente_id")
+  asignacionDocente   AsignacionDocente @relation(fields: [asignacionDocenteId], references: [id], onDelete: Restrict)
+  docenteId           String            @db.Uuid @map("docente_id")
+  docente             Docente           @relation(fields: [docenteId], references: [id], onDelete: Restrict)
+  seccionId           String            @db.Uuid @map("seccion_id")
+  seccion             Seccion           @relation(fields: [seccionId], references: [id], onDelete: Restrict)
+  enVigor             Boolean           @default(false) @map("en_vigor")
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  sesionesClase       SesionClase[]
+
+  @@unique([horarioId, bloqueId])
+  @@map("detalle_horario")
+}
+
+model SesionClase {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  detalleHorarioId      String                 @db.Uuid @map("detalle_horario_id")
+  detalleHorario        DetalleHorario         @relation(fields: [detalleHorarioId], references: [id], onDelete: Restrict)
+  docenteId             String                 @db.Uuid @map("docente_id")
+  docente               Docente                @relation(fields: [docenteId], references: [id], onDelete: Restrict)
+  fecha                 DateTime               @db.Date
+  iniciadaEn            DateTime?              @db.Timestamptz(3) @map("iniciada_en")
+  cerradaEn             DateTime?              @db.Timestamptz(3) @map("cerrada_en")
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt             DateTime               @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  asistenciasEstudiante AsistenciaEstudiante[]
+
+  @@unique([detalleHorarioId, fecha])
+  @@map("sesion_clase")
+}
+
+model AsistenciaEstudiante {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sesionClaseId   String           @db.Uuid @map("sesion_clase_id")
+  sesionClase     SesionClase      @relation(fields: [sesionClaseId], references: [id], onDelete: Cascade)
+  matriculaId     String           @db.Uuid @map("matricula_id")
+  matricula       Matricula        @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
+  estado          EstadoAsistencia
+  registradoPorId String           @db.Uuid @map("registrado_por_id")
+  registradoPor   Usuario          @relation("AsistenciaEstudianteRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  registradoEn    DateTime         @default(now()) @db.Timestamptz(3) @map("registrado_en")
+  modificadoPorId String?          @db.Uuid @map("modificado_por_id")
+  modificadoPor   Usuario?         @relation("AsistenciaEstudianteModificadoPor", fields: [modificadoPorId], references: [id], onDelete: SetNull)
+  modificadoEn    DateTime?        @db.Timestamptz(3) @map("modificado_en")
+  motivoCambio    String?          @map("motivo_cambio")
+  observacion     String?
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([sesionClaseId, matriculaId])
+  @@index([matriculaId])
+  @@map("asistencia_estudiante")
+}
+
+model AsistenciaDocente {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  docenteId       String                  @db.Uuid @map("docente_id")
+  docente         Docente                 @relation(fields: [docenteId], references: [id], onDelete: Restrict)
+  fecha           DateTime                @db.Date
+  horaIngreso     DateTime?               @db.Time(0) @map("hora_ingreso")
+  horaSalida      DateTime?               @db.Time(0) @map("hora_salida")
+  estado          EstadoAsistenciaDocente
+  justificacion   String?
+  registradoPorId String                  @db.Uuid @map("registrado_por_id")
+  registradoPor   Usuario                 @relation(fields: [registradoPorId], references: [id], onDelete: Restrict)
+  createdAt       DateTime                @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime                @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([docenteId, fecha])
+  @@map("asistencia_docente")
+}

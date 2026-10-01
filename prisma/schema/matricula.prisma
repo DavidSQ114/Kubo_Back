@@ -1,0 +1,132 @@
+// Módulo matrícula: matrículas, historial de secciones, cobros, operaciones de pago, pagos y comprobantes.
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model Matricula {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estudianteId           String                 @db.Uuid @map("estudiante_id")
+  estudiante             Estudiante             @relation(fields: [estudianteId], references: [id], onDelete: Restrict)
+  seccionId              String?                @db.Uuid @map("seccion_id")
+  seccion                Seccion?               @relation(fields: [seccionId], references: [id], onDelete: SetNull)
+  anioAcademicoId        String                 @db.Uuid @map("anio_academico_id")
+  anioAcademico          AnioAcademico          @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  vinculoResponsableId   String?                @db.Uuid @map("vinculo_responsable_id")
+  vinculoResponsable     VinculoApoderado?      @relation(fields: [vinculoResponsableId], references: [id], onDelete: SetNull)
+  fechaMatricula         DateTime               @default(now()) @db.Date @map("fecha_matricula")
+  estado                 EstadoMatricula        @default(EN_PROCESO)
+  modalidadPago          ModalidadPago          @default(MENSUAL) @map("modalidad_pago")
+  registradoPorId        String                 @db.Uuid @map("registrado_por_id")
+  registradoPor          Usuario                @relation("MatriculaRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  retiradoEn             DateTime?              @db.Timestamptz(3) @map("retirado_en")
+  motivoRetiro           MotivoRetiro?          @map("motivo_retiro")
+  detalleRetiro          String?                @map("detalle_retiro")
+  anuladoPorId           String?                @db.Uuid @map("anulado_por_id")
+  anuladoPor             Usuario?               @relation("MatriculaAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn              DateTime?              @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion        String?                @map("motivo_anulacion")
+  ultimoRecordatorioEn   DateTime?              @db.Timestamptz(3) @map("ultimo_recordatorio_en")
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt              DateTime               @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  historialesSeccion     HistorialSeccion[]
+  conceptosCobro         ConceptoCobro[]
+  asistenciasEstudiante  AsistenciaEstudiante[]
+  notas                  Nota[]
+  resultadosConsolidados ResultadoConsolidado[]
+  entregasTrabajo        EntregaTrabajo[]
+
+  @@index([seccionId, estado])
+  @@map("matricula")
+}
+
+model HistorialSeccion {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId     String    @db.Uuid @map("matricula_id")
+  matricula       Matricula @relation(fields: [matriculaId], references: [id], onDelete: Cascade)
+  seccionId       String    @db.Uuid @map("seccion_id")
+  seccion         Seccion   @relation(fields: [seccionId], references: [id], onDelete: Restrict)
+  fechaInicio     DateTime  @db.Date @map("fecha_inicio")
+  fechaFin        DateTime? @db.Date @map("fecha_fin")
+  motivo          String?
+  registradoPorId String    @db.Uuid @map("registrado_por_id")
+  registradoPor   Usuario   @relation(fields: [registradoPorId], references: [id], onDelete: Restrict)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("historial_seccion")
+}
+
+model ConceptoCobro {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId      String       @db.Uuid @map("matricula_id")
+  matricula        Matricula    @relation(fields: [matriculaId], references: [id], onDelete: Cascade)
+  tipo             TipoConcepto
+  mes              Int?
+  concepto         String
+  monto            Decimal      @db.Decimal(10, 2)
+  moneda           String       @default("PEN")
+  fechaVencimiento DateTime     @db.Date @map("fecha_vencimiento")
+  estado           EstadoCobro  @default(PENDIENTE)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime     @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  pagos            Pago[]
+
+  @@unique([matriculaId, tipo, mes])
+  @@index([estado, fechaVencimiento])
+  @@map("concepto_cobro")
+}
+
+model OperacionPago {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numeroOperacion      String           @map("numero_operacion")
+  medioPago            MedioPago        @map("medio_pago")
+  fechaPago            DateTime         @db.Timestamptz(3) @map("fecha_pago")
+  montoTotal           Decimal          @db.Decimal(10, 2) @map("monto_total")
+  estado               EstadoPago
+  registradoPorId      String           @db.Uuid @map("registrado_por_id")
+  registradoPor        Usuario          @relation("OperacionPagoRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  confirmadoPorId      String?          @db.Uuid @map("confirmado_por_id")
+  confirmadoPor        Usuario?         @relation("OperacionPagoConfirmadoPor", fields: [confirmadoPorId], references: [id], onDelete: SetNull)
+  anuladoPorId         String?          @db.Uuid @map("anulado_por_id")
+  anuladoPor           Usuario?         @relation("OperacionPagoAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn            DateTime?        @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion      MotivoAnulacion? @map("motivo_anulacion")
+  observacionAnulacion String?          @map("observacion_anulacion")
+  createdAt            DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  pagos                Pago[]
+  comprobante          Comprobante?
+
+  @@index([numeroOperacion])
+  @@map("operacion_pago")
+}
+
+model Pago {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  operacionPagoId String        @db.Uuid @map("operacion_pago_id")
+  operacionPago   OperacionPago @relation(fields: [operacionPagoId], references: [id], onDelete: Cascade)
+  conceptoCobroId String        @db.Uuid @map("concepto_cobro_id")
+  conceptoCobro   ConceptoCobro @relation(fields: [conceptoCobroId], references: [id], onDelete: Restrict)
+  montoAplicado   Decimal       @db.Decimal(10, 2) @map("monto_aplicado")
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime      @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([operacionPagoId, conceptoCobroId])
+  @@map("pago")
+}
+
+model Comprobante {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  operacionPagoId   String        @unique @db.Uuid @map("operacion_pago_id")
+  operacionPago     OperacionPago @relation(fields: [operacionPagoId], references: [id], onDelete: Restrict)
+  numeroComprobante String        @unique @map("numero_comprobante")
+  nombreArchivo     String        @map("nombre_archivo")
+  archivoUrl        String        @map("archivo_url")
+  mimeType          String        @map("mime_type")
+  tamanoBytes       Int?          @map("tamano_bytes")
+  checksumSha256    String?       @map("checksum_sha256")
+  montoTotal        Decimal       @db.Decimal(10, 2) @map("monto_total")
+  enviadoEn         DateTime?     @db.Timestamptz(3) @map("enviado_en")
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime      @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("comprobante")
+}

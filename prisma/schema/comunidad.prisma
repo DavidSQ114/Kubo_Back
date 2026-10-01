@@ -1,0 +1,100 @@
+// Módulo comunidad: personas y sus roles (estudiante, apoderado, administrador, docente).
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model Persona {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dni             String         @unique
+  nombres         String
+  apellidos       String
+  telefono        String?
+  email           String?
+  direccion       String?
+  fechaNacimiento DateTime?      @db.Date @map("fecha_nacimiento")
+  sexo            Sexo?
+  activo          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  usuario         Usuario?
+  estudiante      Estudiante?
+  apoderado       Apoderado?
+  administrador   Administrador?
+  docente         Docente?
+
+  @@map("persona")
+}
+
+model Estudiante {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId          String             @unique @db.Uuid @map("persona_id")
+  persona            Persona            @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  gradoIngresoId     String?            @db.Uuid @map("grado_ingreso_id")
+  gradoIngreso       Grado?             @relation(fields: [gradoIngresoId], references: [id], onDelete: SetNull)
+  colegioProcedencia String?            @map("colegio_procedencia")
+  activo             Boolean            @default(true)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt          DateTime           @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  vinculosApoderado  VinculoApoderado[]
+  matriculas         Matricula[]
+
+  @@map("estudiante")
+}
+
+model Apoderado {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId         String             @unique @db.Uuid @map("persona_id")
+  persona           Persona            @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  ocupacion         String?
+  activo            Boolean            @default(true)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime           @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  vinculosApoderado VinculoApoderado[]
+
+  @@map("apoderado")
+}
+
+model Administrador {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId String   @unique @db.Uuid @map("persona_id")
+  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  cargo     String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("administrador")
+}
+
+model Docente {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId           String              @unique @db.Uuid @map("persona_id")
+  persona             Persona             @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  codigoDocente       String?             @unique @map("codigo_docente")
+  especialidad        String?
+  activo              Boolean             @default(true)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  secciones           Seccion[]
+  asignacionesDocente AsignacionDocente[]
+  detallesHorario     DetalleHorario[]
+  sesionesClase       SesionClase[]
+  asistenciasDocente  AsistenciaDocente[]
+
+  @@map("docente")
+}
+
+model VinculoApoderado {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estudianteId String      @db.Uuid @map("estudiante_id")
+  estudiante   Estudiante  @relation(fields: [estudianteId], references: [id], onDelete: Restrict)
+  apoderadoId  String      @db.Uuid @map("apoderado_id")
+  apoderado    Apoderado   @relation(fields: [apoderadoId], references: [id], onDelete: Restrict)
+  parentesco   String
+  esPrincipal  Boolean     @default(false) @map("es_principal")
+  autorizado   Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt    DateTime    @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  matriculas   Matricula[]
+
+  @@unique([estudianteId, apoderadoId])
+  @@map("vinculo_apoderado")
+}

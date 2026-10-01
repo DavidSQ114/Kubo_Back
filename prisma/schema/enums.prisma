@@ -1,0 +1,228 @@
+// Enumeraciones del diagrama de clases v4.2 (34).
+
+enum Rol {
+  ADMINISTRADOR
+  DOCENTE
+  APODERADO
+  ALUMNO
+}
+
+enum EstadoUsuario {
+  PENDIENTE_ACTIVACION
+  ACTIVO
+  SUSPENDIDO
+  DADO_DE_BAJA
+}
+
+enum TipoNotificacion {
+  HORARIO
+  NOTAS
+  PAGO
+  RECTIFICACION
+  MATERIAL
+  TRABAJO
+  ASISTENCIA
+  RECORDATORIO
+  SISTEMA
+}
+
+enum NivelLog {
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+enum EstadoEnvio {
+  PENDIENTE
+  PROCESADO
+  FALLIDO
+}
+
+enum EstadoAnio {
+  PLANIFICADO
+  EN_MATRICULA
+  EN_CURSO
+  EN_CIERRE
+  CERRADO
+}
+
+enum EstadoPeriodo {
+  INACTIVO
+  ACTIVO
+  EN_CIERRE
+  FINALIZADO
+}
+
+enum EstadoSeccion {
+  ACTIVA
+  INACTIVA
+}
+
+enum EstadoCurso {
+  ACTIVO
+  INACTIVO
+}
+
+enum MetodoConsolidacion {
+  MODA
+  PONDERADO
+}
+
+enum CriterioDesempate {
+  MAYOR_JERARQUIA
+  MENOR_JERARQUIA
+  ULTIMO_REGISTRO
+}
+
+enum EstadoRegla {
+  BORRADOR
+  VIGENTE
+  ARCHIVADA
+}
+
+enum Logro {
+  AD
+  A
+  B
+  C
+}
+
+enum EstadoMatricula {
+  EN_PROCESO
+  MATRICULADO
+  RETIRADO
+  ANULADO
+  FINALIZADO
+}
+
+enum ModalidadPago {
+  MENSUAL
+  ANUAL
+}
+
+enum TipoConcepto {
+  MATRICULA
+  PENSION
+}
+
+enum EstadoCobro {
+  PENDIENTE
+  PAGADO
+  ANULADO
+}
+
+enum EstadoPago {
+  OBSERVADO
+  CONFIRMADO
+  ANULADO
+}
+
+enum MedioPago {
+  EFECTIVO
+  TRANSFERENCIA
+  DEPOSITO
+  TARJETA
+}
+
+enum DiaSemana {
+  LUNES
+  MARTES
+  MIERCOLES
+  JUEVES
+  VIERNES
+}
+
+enum EstadoPublicacion {
+  BORRADOR
+  COMPLETO
+  PUBLICADO
+  ARCHIVADO
+}
+
+enum EstadoAsistencia {
+  PRESENTE
+  TARDANZA
+  FALTA
+  FALTA_JUSTIFICADA
+}
+
+enum EstadoAsistenciaDocente {
+  PUNTUAL
+  TARDANZA
+  FALTA
+  FALTA_JUSTIFICADA
+}
+
+enum EstadoCierre {
+  PENDIENTE_APERTURA
+  ABIERTO
+  FUERA_DE_PLAZO
+  CERRADO
+  PUBLICADO
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
+enum TipoFormato {
+  PDF
+  PPTX
+  DOCX
+  XLSX
+  IMAGEN
+  ENLACE
+}
+
+enum EstadoVisibilidad {
+  BORRADOR
+  PUBLICADO
+  OCULTO
+}
+
+enum TipoEnlace {
+  CLASE_VIRTUAL
+  ASESORIA
+  TALLER
+}
+
+enum EstadoEnlace {
+  PROGRAMADO
+  ACTIVO
+  FINALIZADO
+}
+
+enum EstadoTrabajo {
+  BORRADOR
+  PUBLICADO
+  CERRADO
+}
+
+enum EstadoEntrega {
+  ENTREGADO
+  REVISADO
+}
+
+enum Sexo {
+  FEMENINO
+  MASCULINO
+}
+
+enum MotivoAnulacion {
+  ERROR_DIGITACION
+  PAGO_DUPLICADO
+  SOLICITUD_APODERADO
+  OTRO
+}
+
+enum MotivoRetiro {
+  TRASLADO
+  MOTIVOS_ECONOMICOS
+  MOTIVOS_SALUD
+  OTRO
+}

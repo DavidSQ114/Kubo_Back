@@ -1,0 +1,76 @@
+// Módulo identidad: cuentas, sesiones y recuperación de contraseña (RF01–RF04, RF43).
+// Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+
+model Usuario {
+  id                                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personaId                          String                   @unique @db.Uuid @map("persona_id")
+  persona                            Persona                  @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  email                              String                   @unique
+  passwordHash                       String                   @map("password_hash")
+  estado                             EstadoUsuario            @default(PENDIENTE_ACTIVACION)
+  intentosFallidos                   Int                      @default(0) @map("intentos_fallidos")
+  bloqueadoHasta                     DateTime?                @db.Timestamptz(3) @map("bloqueado_hasta")
+  debeCambiarPassword                Boolean                  @default(true) @map("debe_cambiar_password")
+  versionSesion                      Int                      @default(0) @map("version_sesion")
+  ultimoAccesoEn                     DateTime?                @db.Timestamptz(3) @map("ultimo_acceso_en")
+  createdAt                          DateTime                 @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt                          DateTime                 @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  sesiones                           Sesion[]
+  tokensRecuperacion                 TokenRecuperacion[]
+  notificaciones                     Notificacion[]
+  registrosAuditoria                 RegistroAuditoria[]
+  logsError                          LogError[]
+  parametrosInstitucion              ParametroInstitucion[]
+  matriculasRegistradoPor            Matricula[]              @relation("MatriculaRegistradoPor")
+  matriculasAnuladoPor               Matricula[]              @relation("MatriculaAnuladoPor")
+  historialesSeccion                 HistorialSeccion[]
+  operacionesPagoRegistradoPor       OperacionPago[]          @relation("OperacionPagoRegistradoPor")
+  operacionesPagoConfirmadoPor       OperacionPago[]          @relation("OperacionPagoConfirmadoPor")
+  operacionesPagoAnuladoPor          OperacionPago[]          @relation("OperacionPagoAnuladoPor")
+  horarios                           Horario[]
+  asistenciasEstudianteRegistradoPor AsistenciaEstudiante[]   @relation("AsistenciaEstudianteRegistradoPor")
+  asistenciasEstudianteModificadoPor AsistenciaEstudiante[]   @relation("AsistenciaEstudianteModificadoPor")
+  asistenciasDocente                 AsistenciaDocente[]
+  cierresCalificacionCerradoPor      CierreCalificacion[]     @relation("CierreCalificacionCerradoPor")
+  cierresCalificacionPublicadoPor    CierreCalificacion[]     @relation("CierreCalificacionPublicadoPor")
+  notas                              Nota[]
+  evidenciasPedagogicas              EvidenciaPedagogica[]
+  solicitudesRectificacion           SolicitudRectificacion[]
+  materialesEstudio                  MaterialEstudio[]
+  trabajos                           Trabajo[]
+  entregasTrabajo                    EntregaTrabajo[]
+
+  @@map("usuario")
+}
+
+model Sesion {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId        String    @db.Uuid @map("usuario_id")
+  usuario          Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  versionSesion    Int       @map("version_sesion")
+  rolActivo        Rol       @map("rol_activo")
+  ipOrigen         String?   @map("ip_origen")
+  userAgent        String?   @map("user_agent")
+  expiraEn         DateTime  @db.Timestamptz(3) @map("expira_en")
+  revocadaEn       DateTime? @db.Timestamptz(3) @map("revocada_en")
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([usuarioId])
+  @@map("sesion")
+}
+
+model TokenRecuperacion {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String    @db.Uuid @map("usuario_id")
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash")
+  expiraEn   DateTime  @db.Timestamptz(3) @map("expira_en")
+  usadoEn    DateTime? @db.Timestamptz(3) @map("usado_en")
+  revocadoEn DateTime? @db.Timestamptz(3) @map("revocado_en")
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@map("token_recuperacion")
+}

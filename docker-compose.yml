@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16
+    container_name: kubo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kubo
+      POSTGRES_PASSWORD: kubo
+      POSTGRES_DB: kubo_dev
+      TZ: America/Lima
+    ports:
+      # Host 5433: el 5432 lo ocupa el PostgreSQL instalado en Windows (servicio postgresql-x64-18).
+      - "5433:5432"
+    volumes:
+      - kubo-data:/var/lib/postgresql/data
+      - ./prisma:/kubo-prisma:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kubo -d kubo_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  kubo-data:
