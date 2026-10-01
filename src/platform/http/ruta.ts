@@ -57,7 +57,7 @@ function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
 }
 
 export function ruta(manejador: Manejador) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Next.js entrega params sin tipo
   return async (req: NextRequest, contexto: { params: Promise<any> }): Promise<Response> => {
     const meta: MetaSolicitud = {
       requestId: req.headers.get("x-request-id") ?? randomUUID(),

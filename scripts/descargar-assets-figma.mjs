@@ -2,6 +2,7 @@
 // Uso (una sola vez, desde la raíz del proyecto):  node scripts/descargar-assets-figma.mjs
 // Los enlaces de Figma vencen 7 días después de generarse (1/10/2026). Si fallan con 403/404,
 // pide a Claude que vuelva a generarlos desde el Figma.
+/* eslint-disable no-console -- script de línea de comandos: la consola es su salida */
 import fs from "node:fs/promises";
 import path from "node:path";
 

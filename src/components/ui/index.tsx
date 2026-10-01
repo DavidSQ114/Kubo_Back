@@ -248,7 +248,7 @@ export function Badge({
     azul: { caja: "bg-[rgba(27,77,137,0.12)] text-kubo-azul", dot: "dot-gris" },
     celeste: { caja: "bg-[rgba(74,144,217,0.12)] text-kubo-azul", dot: "dot-gris" },
     gris: { caja: "bg-[rgba(139,147,155,0.12)] text-texto-2", dot: "dot-gris" },
-    ambar: { caja: "bg-[rgba(232,169,59,0.16)] text-[#8a5a00]", dot: "dot-gris" },
+    ambar: { caja: "bg-[rgba(232,169,59,0.16)] text-ambar-oscuro", dot: "dot-gris" },
   }[tono];
   return (
     <span
