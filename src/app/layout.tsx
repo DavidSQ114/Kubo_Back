@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const plex = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// IBM Plex Sans (latin) servida desde el repositorio: el build no depende de descargarla de Google Fonts.
+// Es la fuente variable (un solo archivo para los pesos 100 a 700), la misma que entrega Google.
+// El archivo y su licencia OFL están en src/app/fuentes/.
+const plex = localFont({
+  src: "./fuentes/ibm-plex-sans-latin-wght-normal.woff2",
+  weight: "100 700",
+  style: "normal",
   variable: "--font-plex",
   display: "swap",
 });

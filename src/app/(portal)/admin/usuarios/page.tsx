@@ -136,7 +136,7 @@ function Usuarios({ qInicial }: { qInicial: string }) {
     <>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-[280px] flex-1 flex-col gap-1.5">
-          <p className="text-[14px] leading-[1.4] whitespace-pre text-texto-3">Comunidad  /  Usuarios</p>
+          <p className="text-[14px] leading-[1.4] whitespace-pre text-texto-3">Comunidad / Usuarios</p>
           <h1 className="text-[32px] font-bold leading-[1.2] text-texto">Usuarios</h1>
           <p className="text-[16px] leading-[1.5] text-texto-2">
             Registra docentes y apoderados, revisa sus vínculos y controla el acceso de cada perfil al sistema.
@@ -145,7 +145,12 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando(true)}>
           Registrar administrador
         </Boton>
-        <Boton variante="secundario" icono="icon-userplus" disabled title="Disponible cuando se construya el módulo comunidad (RF12)">
+        <Boton
+          variante="secundario"
+          icono="icon-userplus"
+          disabled
+          title="Disponible cuando se construya el módulo comunidad (RF12)"
+        >
           Registrar apoderado
         </Boton>
         <Boton icono="icon-userplus-blanco" disabled title="Disponible cuando se construya el módulo comunidad (RF11)">
@@ -156,10 +161,34 @@ function Usuarios({ qInicial }: { qInicial: string }) {
       {aviso && <Alerta tipo="exito" icono="icon-check-verde" titulo={aviso} />}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi icono="kpi-book" fondo="bg-[rgba(27,77,137,0.12)]" titulo="Docentes" valor={resumen?.docentes} nota="Con perfil activo" />
-        <Kpi icono="kpi-users" fondo="bg-[rgba(30,110,74,0.12)]" titulo="Apoderados" valor={resumen?.apoderados} nota="Con perfil activo" />
-        <Kpi icono="kpi-user" fondo="bg-[rgba(74,144,217,0.12)]" titulo="Alumnos" valor={resumen?.alumnos} nota="Con perfil activo" />
-        <Kpi icono="kpi-ban" fondo="bg-[rgba(214,69,69,0.12)]" titulo="Accesos suspendidos" valor={resumen?.suspendidos} nota="Se pueden reactivar" />
+        <Kpi
+          icono="kpi-book"
+          fondo="bg-[rgba(27,77,137,0.12)]"
+          titulo="Docentes"
+          valor={resumen?.docentes}
+          nota="Con perfil activo"
+        />
+        <Kpi
+          icono="kpi-users"
+          fondo="bg-[rgba(30,110,74,0.12)]"
+          titulo="Apoderados"
+          valor={resumen?.apoderados}
+          nota="Con perfil activo"
+        />
+        <Kpi
+          icono="kpi-user"
+          fondo="bg-[rgba(74,144,217,0.12)]"
+          titulo="Alumnos"
+          valor={resumen?.alumnos}
+          nota="Con perfil activo"
+        />
+        <Kpi
+          icono="kpi-ban"
+          fondo="bg-[rgba(214,69,69,0.12)]"
+          titulo="Accesos suspendidos"
+          valor={resumen?.suspendidos}
+          nota="Se pueden reactivar"
+        />
       </div>
 
       <Tarjeta className="flex flex-col gap-4 p-6">
@@ -175,7 +204,9 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                   aria-selected={activa}
                   onClick={() => setRol(p.rol)}
                   className={`-mb-px border-b-2 px-0.5 py-2.5 text-[14px] leading-[1.4] whitespace-nowrap ${
-                    activa ? "border-kubo-azul font-semibold text-kubo-azul" : "border-transparent font-medium text-texto-2 hover:text-texto"
+                    activa
+                      ? "border-kubo-azul font-semibold text-kubo-azul"
+                      : "border-transparent font-medium text-texto-2 hover:text-texto"
                   }`}
                 >
                   {p.texto}
@@ -217,7 +248,11 @@ function Usuarios({ qInicial }: { qInicial: string }) {
           {cargando && <Spinner claro={false} />}
         </div>
 
-        {error && <Alerta tipo="error" titulo="No pudimos cargar los usuarios">{error}</Alerta>}
+        {error && (
+          <Alerta tipo="error" titulo="No pudimos cargar los usuarios">
+            {error}
+          </Alerta>
+        )}
 
         <div className="overflow-x-auto rounded-lg border border-borde">
           <table className="w-full min-w-[960px] border-collapse bg-white text-left">
@@ -236,7 +271,10 @@ function Usuarios({ qInicial }: { qInicial: string }) {
               {datos?.items.map((u) => {
                 const esYo = u.usuarioId === sesion.usuario.id;
                 return (
-                  <tr key={u.personaId} className={`border-b border-borde text-[14px] leading-[1.4] text-texto last:border-b-0 ${u.estado === "SUSPENDIDO" ? "bg-[rgba(214,69,69,0.07)]" : ""}`}>
+                  <tr
+                    key={u.personaId}
+                    className={`border-b border-borde text-[14px] leading-[1.4] text-texto last:border-b-0 ${u.estado === "SUSPENDIDO" ? "bg-[rgba(214,69,69,0.07)]" : ""}`}
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar usuario={u} />
@@ -265,8 +303,12 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-0.5">
                         <Accion icono="act-eye" texto="Ver detalle · disponible próximamente" />
-                        {u.estado !== "SUSPENDIDO" && <Accion icono="act-edit" texto="Editar · disponible próximamente" />}
-                        {u.usuarioId && u.estado === "SUSPENDIDO" && <Accion icono="act-refresh" texto="Reactivar acceso" onClick={() => setAReactivar(u)} />}
+                        {u.estado !== "SUSPENDIDO" && (
+                          <Accion icono="act-edit" texto="Editar · disponible próximamente" />
+                        )}
+                        {u.usuarioId && u.estado === "SUSPENDIDO" && (
+                          <Accion icono="act-refresh" texto="Reactivar acceso" onClick={() => setAReactivar(u)} />
+                        )}
                         {u.usuarioId && u.estado !== "SUSPENDIDO" && !esYo && (
                           <Accion icono="act-ban" texto="Suspender acceso" onClick={() => setASuspender(u)} />
                         )}
@@ -287,23 +329,45 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         </div>
 
         {datos && datos.paginacion.total > 0 && (
-          <Paginacion texto={rango} pagina={datos.paginacion.pagina} paginas={datos.paginacion.paginas} onCambiar={setPagina} />
+          <Paginacion
+            texto={rango}
+            pagina={datos.paginacion.pagina}
+            paginas={datos.paginacion.paginas}
+            onCambiar={setPagina}
+          />
         )}
       </Tarjeta>
 
       <Alerta tipo="info" titulo="Suspensión de accesos">
-        Al suspender un usuario, sus sesiones activas se cierran de inmediato y verá el mensaje “Tu acceso está suspendido. Comunícate con la
-        administración del colegio.” Al reactivarlo podrá ingresar con sus credenciales originales.
+        Al suspender un usuario, sus sesiones activas se cierran de inmediato y verá el mensaje “Tu acceso está
+        suspendido. Comunícate con la administración del colegio.” Al reactivarlo podrá ingresar con sus credenciales
+        originales.
       </Alerta>
 
       <ModalSuspender usuario={aSuspender} onCerrar={() => setASuspender(null)} onListo={alTerminarAccion} />
       <ModalReactivar usuario={aReactivar} onCerrar={() => setAReactivar(null)} onListo={alTerminarAccion} />
-      <ModalRegistrarAdministrador abierto={registrando} onCerrar={() => setRegistrando(false)} onListo={alTerminarAccion} />
+      <ModalRegistrarAdministrador
+        abierto={registrando}
+        onCerrar={() => setRegistrando(false)}
+        onListo={alTerminarAccion}
+      />
     </>
   );
 }
 
-function Kpi({ icono, fondo, titulo, valor, nota }: { icono: string; fondo: string; titulo: string; valor?: number; nota: string }) {
+function Kpi({
+  icono,
+  fondo,
+  titulo,
+  valor,
+  nota,
+}: {
+  icono: string;
+  fondo: string;
+  titulo: string;
+  valor?: number;
+  nota: string;
+}) {
   return (
     <Tarjeta className="flex flex-col gap-3 p-5">
       <div className="flex items-center gap-3">
@@ -333,13 +397,24 @@ function Accion({ icono, texto, onClick }: { icono: string; texto: string; onCli
   );
 }
 
-function Paginacion({ texto, pagina, paginas, onCambiar }: { texto: string; pagina: number; paginas: number; onCambiar: (p: number) => void }) {
+function Paginacion({
+  texto,
+  pagina,
+  paginas,
+  onCambiar,
+}: {
+  texto: string;
+  pagina: number;
+  paginas: number;
+  onCambiar: (p: number) => void;
+}) {
   const numeros = useMemo(() => {
     const set = new Set([1, paginas, pagina - 1, pagina, pagina + 1].filter((n) => n >= 1 && n <= paginas));
     return [...set].sort((a, b) => a - b);
   }, [pagina, paginas]);
 
-  const boton = "flex items-center justify-center rounded-md border text-[16px] font-bold leading-[1.5] tracking-[0.2px]";
+  const boton =
+    "flex items-center justify-center rounded-md border text-[16px] font-bold leading-[1.5] tracking-[0.2px]";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <p className="text-[13px] leading-[1.4] text-texto-3">{texto}</p>

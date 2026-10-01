@@ -20,7 +20,11 @@ export default function RecuperarPage() {
       await api("/identidad/password/recuperar", { method: "POST", body: { email } });
       setEnviado(true);
     } catch (err) {
-      setError(err instanceof ApiError && err.codigo === "DATOS_INVALIDOS" ? "Ingresa un correo válido." : (err as Error).message);
+      setError(
+        err instanceof ApiError && err.codigo === "DATOS_INVALIDOS"
+          ? "Ingresa un correo válido."
+          : (err as Error).message,
+      );
     } finally {
       setEnviando(false);
     }

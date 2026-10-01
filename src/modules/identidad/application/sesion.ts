@@ -250,7 +250,14 @@ async function resumen(u: UsuarioFila, rol: Rol, perfiles: Rol[]): Promise<Resum
   const apellidos = p?.apellidos ?? "";
   const iniciales = `${nombres.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
   return {
-    usuario: { id: u.id, email: u.email, nombres, apellidos, nombreCompleto: `${nombres} ${apellidos}`.trim(), iniciales },
+    usuario: {
+      id: u.id,
+      email: u.email,
+      nombres,
+      apellidos,
+      nombreCompleto: `${nombres} ${apellidos}`.trim(),
+      iniciales,
+    },
     rolActivo: rol,
     perfiles,
     debeCambiarPassword: u.debeCambiarPassword,

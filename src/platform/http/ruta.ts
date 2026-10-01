@@ -28,10 +28,7 @@ export function ok<T>(data: T, estado = 200): NextResponse {
 }
 
 function respuestaError(codigo: string, mensaje: string, estado: number, detalles?: unknown) {
-  return NextResponse.json(
-    { error: { code: codigo, message: mensaje, details: detalles ?? {} } },
-    { status: estado },
-  );
+  return NextResponse.json({ error: { code: codigo, message: mensaje, details: detalles ?? {} } }, { status: estado });
 }
 
 function detallesZod(e: ZodError): Record<string, string> {
@@ -46,7 +43,9 @@ function detallesZod(e: ZodError): Record<string, string> {
 /** Convierte errores lanzados por la base de datos (triggers con código al inicio). */
 function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
   const texto = String((e as { message?: string })?.message ?? "");
-  const m = texto.match(/\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE)\b/);
+  const m = texto.match(
+    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE)\b/,
+  );
   if (!m) return null;
   const mensajes: Record<string, string> = {
     AFORO_EXCEDE_AULA: "El aforo de la sección supera la capacidad del aula.",
@@ -58,7 +57,7 @@ function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
 }
 
 export function ruta(manejador: Manejador) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Next.js entrega params sin tipo
   return async (req: NextRequest, contexto: { params: Promise<any> }): Promise<Response> => {
     const meta: MetaSolicitud = {
       requestId: req.headers.get("x-request-id") ?? randomUUID(),
@@ -73,7 +72,13 @@ export function ruta(manejador: Manejador) {
     } catch (e) {
       const app = e instanceof ErrorApp ? e : errorDeBaseDeDatos(e);
       if (app) {
-        logger.info("Solicitud rechazada", { requestId: meta.requestId, endpoint, metodo: req.method, codigo: app.codigo, estado: app.estadoHttp });
+        logger.info("Solicitud rechazada", {
+          requestId: meta.requestId,
+          endpoint,
+          metodo: req.method,
+          codigo: app.codigo,
+          estado: app.estadoHttp,
+        });
         respuesta = respuestaError(app.codigo, app.message, app.estadoHttp, app.detalles);
       } else if (e instanceof ZodError) {
         logger.info("Datos inválidos", { requestId: meta.requestId, endpoint, metodo: req.method });
@@ -82,7 +87,13 @@ export function ruta(manejador: Manejador) {
         respuesta = respuestaError("JSON_INVALIDO", "La solicitud no tiene un formato válido.", 400);
       } else {
         const err = e as Error;
-        logger.error("Error no controlado", { requestId: meta.requestId, endpoint, metodo: req.method, error: err?.message, stack: err?.stack });
+        logger.error("Error no controlado", {
+          requestId: meta.requestId,
+          endpoint,
+          metodo: req.method,
+          error: err?.message,
+          stack: err?.stack,
+        });
         await prisma.logError
           .create({
             data: {
@@ -97,7 +108,12 @@ export function ruta(manejador: Manejador) {
             },
           })
           .catch(() => undefined);
-        respuesta = respuestaError("ERROR_INTERNO", "Ocurrió un error inesperado. Inténtalo nuevamente en unos minutos.", 500, { requestId: meta.requestId });
+        respuesta = respuestaError(
+          "ERROR_INTERNO",
+          "Ocurrió un error inesperado. Inténtalo nuevamente en unos minutos.",
+          500,
+          { requestId: meta.requestId },
+        );
       }
     }
     respuesta.headers.set("x-request-id", meta.requestId);

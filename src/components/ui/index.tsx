@@ -36,7 +36,9 @@ export function Logo({ variante = "claro" }: { variante?: "claro" | "marca" | "s
         <Icono nombre="logo-isotipo-blanco" size={44} />
         <div className="flex flex-col gap-1 whitespace-nowrap">
           <span className="text-[34px] font-bold leading-none text-white">Kubo</span>
-          <span className="text-[11px] font-semibold leading-[1.2] tracking-[1.4px] text-white/75">PLATAFORMA EDUCATIVA INTEGRAL</span>
+          <span className="text-[11px] font-semibold leading-[1.2] tracking-[1.4px] text-white/75">
+            PLATAFORMA EDUCATIVA INTEGRAL
+          </span>
         </div>
       </div>
     );
@@ -49,7 +51,9 @@ export function Logo({ variante = "claro" }: { variante?: "claro" | "marca" | "s
           Ku<span className="text-kubo-azul">b</span>
           <span className="text-verde">o</span>
         </span>
-        <span className="text-[10px] font-semibold leading-[1.2] tracking-[1.4px] text-texto-3">PLATAFORMA EDUCATIVA INTEGRAL</span>
+        <span className="text-[10px] font-semibold leading-[1.2] tracking-[1.4px] text-texto-3">
+          PLATAFORMA EDUCATIVA INTEGRAL
+        </span>
       </div>
     </div>
   );
@@ -77,7 +81,10 @@ export function Alerta({
 }) {
   const e = ESTILO_ALERTA[tipo];
   return (
-    <div role={tipo === "error" ? "alert" : "status"} className={`flex w-full items-start gap-3 rounded-lg border-l-4 px-4 py-3 ${e.caja}`}>
+    <div
+      role={tipo === "error" ? "alert" : "status"}
+      className={`flex w-full items-start gap-3 rounded-lg border-l-4 px-4 py-3 ${e.caja}`}
+    >
       <Icono nombre={icono ?? e.icono} size={20} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-[14px] leading-[1.4]">
         {titulo && <p className="font-semibold text-texto">{titulo}</p>}
@@ -146,7 +153,17 @@ export function CampoPassword(props: Omit<CampoProps, "type" | "derecha" | "icon
   );
 }
 
-export function Casilla({ etiqueta, checked, onChange, color = "azul" }: { etiqueta: string; checked: boolean; onChange: (v: boolean) => void; color?: "azul" | "verde" }) {
+export function Casilla({
+  etiqueta,
+  checked,
+  onChange,
+  color = "azul",
+}: {
+  etiqueta: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  color?: "azul" | "verde";
+}) {
   const marcado = color === "verde" ? "bg-verde-oscuro border-verde-oscuro" : "bg-kubo-azul border-kubo-azul";
   return (
     <label className="flex cursor-pointer items-center gap-2 select-none">
@@ -173,8 +190,19 @@ interface BotonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ancho?: boolean;
 }
 
-export function Boton({ variante = "primario", tamano = "md", icono, cargando, ancho, children, className = "", disabled, ...resto }: BotonProps) {
-  const base = "inline-flex items-center justify-center gap-2 rounded-md font-bold tracking-[0.2px] transition disabled:cursor-not-allowed";
+export function Boton({
+  variante = "primario",
+  tamano = "md",
+  icono,
+  cargando,
+  ancho,
+  children,
+  className = "",
+  disabled,
+  ...resto
+}: BotonProps) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-md font-bold tracking-[0.2px] transition disabled:cursor-not-allowed";
   const tam = tamano === "lg" ? "px-6 py-3 text-[20px] leading-[1.5]" : "px-4 py-2.5 text-[16px] leading-[1.5]";
   const estilos = {
     primario: "bg-kubo-azul text-white hover:bg-kubo-azul-oscuro disabled:bg-kubo-azul/60",
@@ -183,7 +211,11 @@ export function Boton({ variante = "primario", tamano = "md", icono, cargando, a
     peligro: "bg-rojo text-white hover:bg-rojo-oscuro disabled:bg-rojo/60",
   }[variante];
   return (
-    <button disabled={disabled || cargando} className={`${base} ${tam} ${estilos} ${ancho ? "w-full" : ""} ${className}`} {...resto}>
+    <button
+      disabled={disabled || cargando}
+      className={`${base} ${tam} ${estilos} ${ancho ? "w-full" : ""} ${className}`}
+      {...resto}
+    >
       {cargando ? <Spinner claro={variante !== "secundario"} /> : icono && <Icono nombre={icono} size={20} />}
       {children}
     </button>
@@ -201,17 +233,27 @@ export function Spinner({ claro = true }: { claro?: boolean }) {
 
 // ---------- Badges ----------
 
-export function Badge({ children, tono, punto }: { children: ReactNode; tono: "verde" | "rojo" | "azul" | "celeste" | "gris" | "ambar"; punto?: boolean }) {
+export function Badge({
+  children,
+  tono,
+  punto,
+}: {
+  children: ReactNode;
+  tono: "verde" | "rojo" | "azul" | "celeste" | "gris" | "ambar";
+  punto?: boolean;
+}) {
   const t = {
     verde: { caja: "bg-[rgba(46,158,107,0.12)] text-verde-oscuro", dot: "dot-verde" },
     rojo: { caja: "bg-[rgba(214,69,69,0.12)] text-rojo-oscuro", dot: "dot-rojo" },
     azul: { caja: "bg-[rgba(27,77,137,0.12)] text-kubo-azul", dot: "dot-gris" },
     celeste: { caja: "bg-[rgba(74,144,217,0.12)] text-kubo-azul", dot: "dot-gris" },
     gris: { caja: "bg-[rgba(139,147,155,0.12)] text-texto-2", dot: "dot-gris" },
-    ambar: { caja: "bg-[rgba(232,169,59,0.16)] text-[#8a5a00]", dot: "dot-gris" },
+    ambar: { caja: "bg-[rgba(232,169,59,0.16)] text-ambar-oscuro", dot: "dot-gris" },
   }[tono];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-[1.5] whitespace-nowrap ${t.caja}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[12px] font-semibold leading-[1.5] whitespace-nowrap ${t.caja}`}
+    >
       {punto && <Icono nombre={t.dot} size={6} />}
       {children}
     </span>
@@ -272,11 +314,21 @@ export function Modal({
 }) {
   if (!abierto) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(31,35,40,0.45)] p-4" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
-      <div role="dialog" aria-modal aria-label={titulo} className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-xl bg-white shadow-modal">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(31,35,40,0.45)] p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}
+    >
+      <div
+        role="dialog"
+        aria-modal
+        aria-label={titulo}
+        className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-xl bg-white shadow-modal"
+      >
         <div className="flex items-start gap-3 border-b border-borde px-6 py-5">
           {icono && (
-            <div className={`flex size-10 shrink-0 items-center justify-center rounded-full ${tonoIcono === "rojo" ? "bg-[rgba(214,69,69,0.12)]" : "bg-[rgba(27,77,137,0.1)]"}`}>
+            <div
+              className={`flex size-10 shrink-0 items-center justify-center rounded-full ${tonoIcono === "rojo" ? "bg-[rgba(214,69,69,0.12)]" : "bg-[rgba(27,77,137,0.1)]"}`}
+            >
               <Icono nombre={icono} size={20} />
             </div>
           )}

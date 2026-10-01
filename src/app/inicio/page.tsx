@@ -38,7 +38,10 @@ export default function InicioPage() {
     <PaginaCentrada>
       <TarjetaAcceso>
         <h1 className="text-[24px] font-semibold leading-[1.25] text-texto">Hola, {sesion.usuario.nombres}</h1>
-        <Alerta tipo="info" titulo={`El portal de ${NOMBRE_ROL[sesion.rolActivo].toLowerCase()} estará disponible pronto`}>
+        <Alerta
+          tipo="info"
+          titulo={`El portal de ${NOMBRE_ROL[sesion.rolActivo].toLowerCase()} estará disponible pronto`}
+        >
           Tu sesión está activa. Estamos construyendo las pantallas de horarios, notas, asistencia y pagos.
         </Alerta>
         {sesion.perfiles

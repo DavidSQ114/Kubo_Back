@@ -10,8 +10,7 @@ import { api, ApiError, inicioPorRol, NOMBRE_ROL, type Rol, type Sesion } from "
 import { cuentaRegresiva } from "@/lib/formato";
 
 type RespuestaLogin =
-  | { tipo: "SESION"; sesion: Sesion }
-  | { tipo: "SELECCION"; tokenSeleccion: string; perfiles: Rol[]; nombres: string };
+  { tipo: "SESION"; sesion: Sesion } | { tipo: "SELECCION"; tokenSeleccion: string; perfiles: Rol[]; nombres: string };
 
 const ICONO_PERFIL: Record<Rol, string> = {
   ADMINISTRADOR: "perfil-shield",
@@ -89,7 +88,8 @@ export default function LoginPage() {
     if (err instanceof ApiError && err.codigo === "CREDENCIALES_INVALIDAS") {
       setError({
         titulo: "Correo o contraseña incorrectos",
-        texto: "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras 5 intentos fallidos la cuenta se bloquea 15 minutos.",
+        texto:
+          "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras 5 intentos fallidos la cuenta se bloquea 15 minutos.",
       });
       return;
     }
@@ -97,7 +97,10 @@ export default function LoginPage() {
       setError({ titulo: "Revisa los datos ingresados", texto: Object.values(err.detalles).join(" ") });
       return;
     }
-    setError({ titulo: "No pudimos iniciar sesión", texto: err instanceof Error ? err.message : "Inténtalo nuevamente." });
+    setError({
+      titulo: "No pudimos iniciar sesión",
+      texto: err instanceof Error ? err.message : "Inténtalo nuevamente.",
+    });
   }
 
   async function elegirPerfil(rol: Rol) {
@@ -105,7 +108,10 @@ export default function LoginPage() {
     setEnviando(true);
     setError(null);
     try {
-      const r = await api<{ sesion: Sesion }>("/identidad/login/perfil", { method: "POST", body: { tokenSeleccion: seleccion.token, rol } });
+      const r = await api<{ sesion: Sesion }>("/identidad/login/perfil", {
+        method: "POST",
+        body: { tokenSeleccion: seleccion.token, rol },
+      });
       entrar(r.sesion);
     } catch (err) {
       if (err instanceof ApiError && err.codigo === "SELECCION_EXPIRADA") {
@@ -132,9 +138,14 @@ export default function LoginPage() {
             <>
               <h1 className="text-[32px] font-bold leading-[1.2] text-texto">¿Con qué perfil deseas ingresar?</h1>
               <p className="text-[16px] leading-[1.5] text-texto-2">
-                Hola{seleccion.nombres ? `, ${seleccion.nombres}` : ""}. Tu cuenta tiene más de un perfil. Podrás cambiarlo después sin cerrar sesión.
+                Hola{seleccion.nombres ? `, ${seleccion.nombres}` : ""}. Tu cuenta tiene más de un perfil. Podrás
+                cambiarlo después sin cerrar sesión.
               </p>
-              {error && <Alerta tipo="error" titulo={error.titulo}>{error.texto}</Alerta>}
+              {error && (
+                <Alerta tipo="error" titulo={error.titulo}>
+                  {error.texto}
+                </Alerta>
+              )}
               <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
                 {seleccion.perfiles.map((rol) => (
                   <button
@@ -149,14 +160,20 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => setSeleccion(null)} className="text-[14px] font-semibold text-kubo-azul hover:underline">
+              <button
+                type="button"
+                onClick={() => setSeleccion(null)}
+                className="text-[14px] font-semibold text-kubo-azul hover:underline"
+              >
                 Ingresar con otra cuenta
               </button>
             </>
           ) : (
             <form onSubmit={enviar} className="flex w-full flex-col items-start gap-5" noValidate>
               <h1 className="text-[32px] font-bold leading-[1.2] text-texto">Iniciar sesión</h1>
-              <p className="text-[16px] leading-[1.5] text-texto-2">Ingresa con tu correo institucional o el usuario que te asignó el colegio.</p>
+              <p className="text-[16px] leading-[1.5] text-texto-2">
+                Ingresa con tu correo institucional o el usuario que te asignó el colegio.
+              </p>
 
               {error && (
                 <Alerta tipo={bloqueado ? "aviso" : "error"} titulo={error.titulo}>
@@ -193,13 +210,18 @@ export default function LoginPage() {
               <div className="flex w-full items-center">
                 <Casilla etiqueta="Recordarme en este equipo" checked={recordar} onChange={setRecordar} />
                 <div className="flex-1" />
-                <Link href="/recuperar" className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline">
+                <Link
+                  href="/recuperar"
+                  className="text-[14px] font-semibold leading-[1.4] text-kubo-azul hover:underline"
+                >
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
 
               <Boton type="submit" tamano="lg" ancho cargando={enviando} disabled={bloqueado}>
-                {bloqueado && bloqueadoHasta ? `Esperar ${cuentaRegresiva(bloqueadoHasta, ahora)} min` : "Iniciar sesión"}
+                {bloqueado && bloqueadoHasta
+                  ? `Esperar ${cuentaRegresiva(bloqueadoHasta, ahora)} min`
+                  : "Iniciar sesión"}
               </Boton>
 
               <div className="flex w-full items-start gap-2">

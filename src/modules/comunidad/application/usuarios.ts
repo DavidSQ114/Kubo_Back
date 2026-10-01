@@ -5,7 +5,13 @@ import { registrarAuditoria } from "@/platform/auditoria";
 import { ErrorApp } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import { asegurarCuenta, enviarBienvenida, type Autenticado, type EstadoUsuario, type Rol } from "@/modules/identidad";
-import { buscarUsuarios, contarUsuarios, personas, rolesActivos, type FiltroUsuarios } from "../infrastructure/repositorio";
+import {
+  buscarUsuarios,
+  contarUsuarios,
+  personas,
+  rolesActivos,
+  type FiltroUsuarios,
+} from "../infrastructure/repositorio";
 
 export interface UsuarioListado {
   personaId: string;
@@ -30,13 +36,22 @@ export async function listarUsuarios(filtro: FiltroUsuarios) {
     email: p.usuario?.email ?? p.email ?? null,
     dni: p.dni,
     roles: rolesActivos(p),
-    detalle: p.administrador?.activo ? (p.administrador.cargo ?? null) : p.docente?.activo ? (p.docente.especialidad ?? null) : null,
+    detalle: p.administrador?.activo
+      ? (p.administrador.cargo ?? null)
+      : p.docente?.activo
+        ? (p.docente.especialidad ?? null)
+        : null,
     estado: (p.usuario?.estado as EstadoUsuario | undefined) ?? "SIN_CUENTA",
     ultimoAccesoEn: p.usuario?.ultimoAccesoEn ?? null,
   }));
   return {
     items,
-    paginacion: { pagina: filtro.pagina, tamano: filtro.tamano, total, paginas: Math.max(1, Math.ceil(total / filtro.tamano)) },
+    paginacion: {
+      pagina: filtro.pagina,
+      tamano: filtro.tamano,
+      total,
+      paginas: Math.max(1, Math.ceil(total / filtro.tamano)),
+    },
   };
 }
 
@@ -48,7 +63,14 @@ export const resumenUsuarios = () => contarUsuarios();
  */
 export async function registrarAdministrador(
   admin: Autenticado,
-  datos: { dni: string; nombres: string; apellidos: string; email: string; telefono?: string | null; cargo?: string | null },
+  datos: {
+    dni: string;
+    nombres: string;
+    apellidos: string;
+    email: string;
+    telefono?: string | null;
+    cargo?: string | null;
+  },
   urlBase: string,
   meta: MetaSolicitud,
 ) {
@@ -59,7 +81,13 @@ export async function registrarAdministrador(
       const persona =
         existente ??
         (await personas.crear(
-          { dni: datos.dni, nombres: datos.nombres, apellidos: datos.apellidos, email: datos.email, telefono: datos.telefono ?? null },
+          {
+            dni: datos.dni,
+            nombres: datos.nombres,
+            apellidos: datos.apellidos,
+            email: datos.email,
+            telefono: datos.telefono ?? null,
+          },
           tx,
         ));
 

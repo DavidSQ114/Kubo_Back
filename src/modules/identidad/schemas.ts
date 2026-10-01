@@ -2,8 +2,16 @@
 import { z } from "zod";
 import { ROLES } from "./domain/reglas";
 
-const email = z.string({ message: "Ingresa tu correo" }).trim().min(1, "Ingresa tu correo").max(254, "Correo demasiado largo").email("Ingresa un correo válido");
-const password = z.string({ message: "Ingresa tu contraseña" }).min(1, "Ingresa tu contraseña").max(200, "Contraseña demasiado larga");
+const email = z
+  .string({ message: "Ingresa tu correo" })
+  .trim()
+  .min(1, "Ingresa tu correo")
+  .max(254, "Correo demasiado largo")
+  .email("Ingresa un correo válido");
+const password = z
+  .string({ message: "Ingresa tu contraseña" })
+  .min(1, "Ingresa tu contraseña")
+  .max(200, "Contraseña demasiado larga");
 const rol = z.enum(ROLES, { message: "Perfil no válido" });
 
 export const LoginSchema = z.object({

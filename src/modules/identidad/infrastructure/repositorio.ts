@@ -51,7 +51,13 @@ export const usuarios = {
     db.usuario.update({ where: { id }, data, select: camposUsuario }) as Promise<UsuarioFila>,
 
   crear: (
-    data: { personaId: string; email: string; passwordHash: string; estado: EstadoUsuario; debeCambiarPassword: boolean },
+    data: {
+      personaId: string;
+      email: string;
+      passwordHash: string;
+      estado: EstadoUsuario;
+      debeCambiarPassword: boolean;
+    },
     db: Db = prisma,
   ) => db.usuario.create({ data, select: camposUsuario }) as Promise<UsuarioFila>,
 };
@@ -64,7 +70,14 @@ export interface SesionConUsuario {
   expiraEn: Date;
   revocadaEn: Date | null;
   createdAt: Date;
-  usuario: { id: string; personaId: string; email: string; estado: EstadoUsuario; versionSesion: number; debeCambiarPassword: boolean };
+  usuario: {
+    id: string;
+    personaId: string;
+    email: string;
+    estado: EstadoUsuario;
+    versionSesion: number;
+    debeCambiarPassword: boolean;
+  };
 }
 
 const selectSesion = {
@@ -75,12 +88,22 @@ const selectSesion = {
   expiraEn: true,
   revocadaEn: true,
   createdAt: true,
-  usuario: { select: { id: true, personaId: true, email: true, estado: true, versionSesion: true, debeCambiarPassword: true } },
+  usuario: {
+    select: { id: true, personaId: true, email: true, estado: true, versionSesion: true, debeCambiarPassword: true },
+  },
 } as const;
 
 export const sesiones = {
   crear: (
-    data: { usuarioId: string; refreshTokenHash: string; versionSesion: number; rolActivo: Rol; ipOrigen: string | null; userAgent: string | null; expiraEn: Date },
+    data: {
+      usuarioId: string;
+      refreshTokenHash: string;
+      versionSesion: number;
+      rolActivo: Rol;
+      ipOrigen: string | null;
+      userAgent: string | null;
+      expiraEn: Date;
+    },
     db: Db = prisma,
   ) => db.sesion.create({ data, select: { id: true, expiraEn: true } }),
 
@@ -109,7 +132,10 @@ export const tokensRecuperacion = {
     db.tokenRecuperacion.create({ data, select: { id: true } }),
 
   revocarPendientes: (usuarioId: string, db: Db = prisma) =>
-    db.tokenRecuperacion.updateMany({ where: { usuarioId, usadoEn: null, revocadoEn: null }, data: { revocadoEn: new Date() } }),
+    db.tokenRecuperacion.updateMany({
+      where: { usuarioId, usadoEn: null, revocadoEn: null },
+      data: { revocadoEn: new Date() },
+    }),
 
   vigente: (tokenHash: string, ahora: Date, db: Db = prisma) =>
     db.tokenRecuperacion.findFirst({

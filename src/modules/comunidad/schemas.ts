@@ -11,11 +11,19 @@ const nombre = (campo: string) =>
     .regex(/^[\p{L}' .-]+$/u, `${campo[0].toUpperCase()}${campo.slice(1)} solo puede tener letras`);
 
 export const RegistrarAdministradorSchema = z.object({
-  dni: z.string({ message: "Ingresa el DNI" }).trim().regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
+  dni: z
+    .string({ message: "Ingresa el DNI" })
+    .trim()
+    .regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
   nombres: nombre("los nombres"),
   apellidos: nombre("los apellidos"),
   email: z.string({ message: "Ingresa el correo" }).trim().toLowerCase().max(254).email("Ingresa un correo válido"),
-  telefono: z.string().trim().regex(/^\+?\d{6,15}$/, "Teléfono no válido").optional().nullable(),
+  telefono: z
+    .string()
+    .trim()
+    .regex(/^\+?\d{6,15}$/, "Teléfono no válido")
+    .optional()
+    .nullable(),
   cargo: z.string().trim().max(100, "Cargo demasiado largo").optional().nullable(),
 });
 

@@ -1,4 +1,4 @@
-# API · Identidad y administración de usuarios (Fase 1)
+# API · Identidad: sesión, contraseñas y acceso de las cuentas (Fase 1)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09).
@@ -56,21 +56,14 @@ Objeto `sesion`:
 Política: mínimo 8 caracteres, al menos una mayúscula y un número. Si no se cumple → `400 PASSWORD_DEBIL` con `details.requisitos` (lista de lo que falta).
 El enlace del correo apunta a `{APP_URL}/restablecer?token=…`: esa página debe llamar al `GET` para mostrar «vence en N min» o «El enlace ha expirado».
 
-### Administración de usuarios · solo `ADMINISTRADOR`
+### Acceso de las cuentas · solo `ADMINISTRADOR`
 
 | Método y ruta | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|
-| `GET /comunidad/usuarios` | `?q=&rol=&estado=&pagina=1&tamano=20` | `{ items: UsuarioListado[], paginacion: { pagina, tamano, total, paginas } }` |
-| `GET /comunidad/usuarios/resumen` | — | `{ todos, administradores, docentes, apoderados, alumnos, suspendidos }` |
-| `POST /comunidad/administradores` | `{ dni, nombres, apellidos, email, telefono?, cargo? }` | `201 { personaId, usuarioId, nombreCompleto, email, personaExistia, cuentaCreada, correoEnviado, passwordTemporal }` |
 | `POST /identidad/usuarios/{usuarioId}/suspender` | `{ motivo, detalle?, notificar? }` | `{ usuarioId, estado: "SUSPENDIDO" }` |
 | `POST /identidad/usuarios/{usuarioId}/reactivar` | `{ motivo? }` | `{ usuarioId, estado }` |
 
-- `q` busca por nombre, apellido, DNI (desde el inicio) o correo; varias palabras se combinan.
-- `rol`: `ADMINISTRADOR` · `DOCENTE` · `APODERADO` · `ALUMNO`. `estado`: `ACTIVO` · `PENDIENTE_ACTIVACION` · `SUSPENDIDO` · `SIN_CUENTA`.
-- `UsuarioListado`: `{ personaId, usuarioId, nombreCompleto, iniciales, email, dni, roles, detalle, estado, ultimoAccesoEn }`.
-- `passwordTemporal` solo se devuelve en esa respuesta (para entregarla si el correo no llega). No se guarda en ningún lugar.
-- Si el DNI ya existe, se reutiliza la persona (RF46) y solo se agrega el perfil.
+El listado de usuarios, su resumen y el registro de administradores son del módulo comunidad: ver [comunidad.md](comunidad.md).
 
 ## Códigos de error
 
@@ -84,7 +77,7 @@ El enlace del correo apunta a `{APP_URL}/restablecer?token=…`: esa página deb
 | `CAMBIO_PASSWORD_REQUERIDO` | 403 | Primer ingreso de una cuenta creada por el administrador |
 | `ACCESO_DENEGADO` | 403 | El rol activo no tiene permiso (AC-07) |
 | `NO_ENCONTRADO` | 404 | El usuario no existe |
-| `USUARIO_YA_SUSPENDIDO` · `USUARIO_NO_SUSPENDIDO` · `YA_ES_ADMINISTRADOR` · `EMAIL_EN_USO` | 409 | Conflictos de estado o datos duplicados |
+| `USUARIO_YA_SUSPENDIDO` · `USUARIO_NO_SUSPENDIDO` | 409 | Conflictos de estado al suspender o reactivar |
 | `ENLACE_EXPIRADO` | 410 | Enlace de recuperación vencido, usado o inválido (AC-06) |
 | `OPERACION_NO_PERMITIDA` | 422 | Por ejemplo, suspender tu propia cuenta |
 | `CUENTA_BLOQUEADA` | 423 | Superó los intentos (AC-03). `details: { minutosRestantes, bloqueadoHasta }` para el contador |
@@ -92,4 +85,4 @@ El enlace del correo apunta a `{APP_URL}/restablecer?token=…`: esa página deb
 
 ## Auditoría (RF03)
 
-Se registran en `registro_auditoria`: `SUSPENDER_USUARIO`, `REACTIVAR_USUARIO`, `REGISTRAR_ADMINISTRADOR` y `REACTIVAR_PERFIL_ADMINISTRADOR`, con el administrador responsable, valor anterior y nuevo, motivo, IP y requestId.
+Se registran en `registro_auditoria`: `SUSPENDER_USUARIO` y `REACTIVAR_USUARIO`, con el administrador responsable, valor anterior y nuevo, motivo, IP y requestId. Las acciones de comunidad están en [comunidad.md](comunidad.md).

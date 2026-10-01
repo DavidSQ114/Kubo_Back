@@ -6,7 +6,13 @@ import { enviarCorreo } from "@/platform/correo";
 import { logger } from "@/platform/logger";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import { erroresIdentidad as E } from "../domain/errores";
-import { MINUTOS_ENLACE_RECUPERACION, incumplimientosPassword, minutosRestantes, normalizarEmail, puedeIniciarSesion } from "../domain/reglas";
+import {
+  MINUTOS_ENLACE_RECUPERACION,
+  incumplimientosPassword,
+  minutosRestantes,
+  normalizarEmail,
+  puedeIniciarSesion,
+} from "../domain/reglas";
 import { sesiones, tokensRecuperacion, usuarios } from "../infrastructure/repositorio";
 import type { Autenticado } from "./sesion";
 

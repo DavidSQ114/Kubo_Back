@@ -115,7 +115,12 @@ export async function asegurarCuenta(
 }
 
 /** Correo de bienvenida con la contraseña temporal. Se envía después de confirmar la transacción. */
-export async function enviarBienvenida(datos: { email: string; nombres: string; passwordTemporal: string; urlBase: string }) {
+export async function enviarBienvenida(datos: {
+  email: string;
+  nombres: string;
+  passwordTemporal: string;
+  urlBase: string;
+}) {
   return enviarCorreo({
     para: datos.email,
     asunto: "Kubo · Tu cuenta fue creada",

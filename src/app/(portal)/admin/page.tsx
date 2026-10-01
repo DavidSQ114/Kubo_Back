@@ -22,12 +22,15 @@ export default function InicioAdminPage() {
               <Icono nombre="kpi-users" size={20} />
             </div>
             <p className="text-[16px] font-semibold text-texto">Usuarios</p>
-            <p className="text-[14px] leading-[1.4] text-texto-2">Busca usuarios, registra administradores y suspende o reactiva accesos.</p>
+            <p className="text-[14px] leading-[1.4] text-texto-2">
+              Busca usuarios, registra administradores y suspende o reactiva accesos.
+            </p>
           </Tarjeta>
         </Link>
       </div>
       <Alerta tipo="info" titulo="Más módulos en camino">
-        Año y bimestres, matrícula, pensiones, horarios, notas y auditoría se habilitarán en el menú a medida que se construyan.
+        Año y bimestres, matrícula, pensiones, horarios, notas y auditoría se habilitarán en el menú a medida que se
+        construyan.
       </Alerta>
     </>
   );

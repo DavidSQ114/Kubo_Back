@@ -31,10 +31,14 @@ function AccesoDenegado() {
         <div className="flex size-16 items-center justify-center rounded-full bg-[rgba(214,69,69,0.08)]">
           <Icono nombre="denegado-lock" size={32} />
         </div>
-        <h1 className="text-[20px] font-semibold leading-[1.3] text-texto">No tiene permisos para acceder a este recurso.</h1>
+        <h1 className="text-[20px] font-semibold leading-[1.3] text-texto">
+          No tiene permisos para acceder a este recurso.
+        </h1>
         <p className="max-w-[420px] text-[14px] leading-[1.4] text-texto-2">
-          {perfil ? `Tu perfil de ${perfil} no tiene acceso a este módulo.` : "Tu perfil no tiene acceso a este módulo."} Si crees que se trata de
-          un error, comunícate con la administración del colegio.
+          {perfil
+            ? `Tu perfil de ${perfil} no tiene acceso a este módulo.`
+            : "Tu perfil no tiene acceso a este módulo."}{" "}
+          Si crees que se trata de un error, comunícate con la administración del colegio.
         </p>
         <Link
           href={sesion ? inicioPorRol(sesion.rolActivo) : "/login"}
@@ -45,8 +49,12 @@ function AccesoDenegado() {
         </Link>
       </div>
       <div className="flex items-center gap-2">
-        <Badge tono="gris" punto>Código 403</Badge>
-        <span className="text-[12px] leading-[1.4] text-texto-3">{[ruta, carga?.momento].filter(Boolean).join(" · ")}</span>
+        <Badge tono="gris" punto>
+          Código 403
+        </Badge>
+        <span className="text-[12px] leading-[1.4] text-texto-3">
+          {[ruta, carga?.momento].filter(Boolean).join(" · ")}
+        </span>
       </div>
     </section>
   );

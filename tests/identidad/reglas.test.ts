@@ -17,7 +17,11 @@ describe("política de contraseñas (AC-06)", () => {
     expect(incumplimientosPassword("Colegio2026")).toEqual([]);
   });
   it("informa cada requisito que falta", () => {
-    expect(incumplimientosPassword("abc")).toEqual(["Mínimo 8 caracteres", "Al menos una mayúscula", "Al menos un número"]);
+    expect(incumplimientosPassword("abc")).toEqual([
+      "Mínimo 8 caracteres",
+      "Al menos una mayúscula",
+      "Al menos un número",
+    ]);
     expect(incumplimientosPassword("colegio2026")).toEqual(["Al menos una mayúscula"]);
     expect(incumplimientosPassword("ColegioKubo")).toEqual(["Al menos un número"]);
   });

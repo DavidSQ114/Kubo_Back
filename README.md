@@ -31,6 +31,7 @@ Sistema web para la gestión integral de un colegio de secundaria: matrícula y 
 9. [Qué se sube al repositorio y qué no](#9-qué-se-sube-al-repositorio-y-qué-no)
 10. [Flujo de trabajo con Git](#10-flujo-de-trabajo-con-git)
 11. [Convenciones](#11-convenciones)
+12. [Estándar de programación](#12-estándar-de-programación)
 
 ---
 
@@ -278,6 +279,10 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run dev` | Inicia la aplicación en modo desarrollo (http://localhost:3000) |
 | `npm run build` / `npm start` | Compila y ejecuta la versión de producción |
 | `npm run lint` | Revisa el código con ESLint |
+| `npm run format` / `npm run format:check` | Formatea todo el proyecto con Prettier, o solo verifica el formato |
+| `npm run typecheck` | Revisa los tipos con TypeScript |
+| `npm test` | Ejecuta las pruebas con Vitest |
+| `npm run check` | Formato, lint, tipos, pruebas y build: lo mismo que ejecuta el CI |
 | `npm run db:up` / `npm run db:down` | Enciende o apaga PostgreSQL en Docker |
 | `npm run db:migrate` | Crea o aplica migraciones (`prisma migrate dev`) |
 | `npm run db:seed` | Carga los datos iniciales |
@@ -331,3 +336,15 @@ Prefijos de commit: `feat` (nueva función), `fix` (corrección), `docs`, `refac
 - **Nombres:** `PascalCase` para componentes y modelos, `camelCase` para variables y funciones, `kebab-case` para carpetas de rutas (`aula-virtual`), `UPPER_SNAKE_CASE` para códigos de error (`SECCION_SIN_VACANTES`).
 - **Formato:** Prettier y ESLint antes de cada commit; sin `console.log` en el código final (usar el logger de `platform`).
 - **Fuente de verdad:** si el código y un documento no coinciden, se corrige el que esté mal y se avisa al equipo. El orden es Requisitos v4.2 → diagrama de clases v4.2 → este repositorio.
+
+---
+
+## 12. Estándar de programación
+
+Todo el código sigue el [estándar de programación del equipo](docs/ESTANDAR-PROGRAMACION.md): nombres, estructura de módulos, API, frontend, base de datos, pruebas y flujo de Git.
+
+Antes de abrir un pull request debe pasar:
+
+```powershell
+npm run check                 # formato, lint, tipos, pruebas y build
+```
