@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="btn/notificaciones">
+<rect x="0.5" y="0.5" width="39" height="39" rx="7.5" stroke="#E1E4E8"/>
+<g id="icon/bell">
+<path id="Vector" d="M15 23.3333V19.1667C15 17.8406 15.5268 16.5688 16.4645 15.6311C17.4021 14.6935 18.6739 14.1667 20 14.1667C21.3261 14.1667 22.5979 14.6935 23.5355 15.6311C24.4732 16.5688 25 17.8406 25 19.1667V23.3333L26.6667 25H13.3333L15 23.3333Z" stroke="#4A4F55" stroke-width="1.45833" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M18.3333 27.5C18.3333 27.942 18.5089 28.366 18.8215 28.6785C19.134 28.9911 19.558 29.1667 20 29.1667C20.442 29.1667 20.8659 28.9911 21.1785 28.6785C21.4911 28.366 21.6667 27.942 21.6667 27.5" stroke="#4A4F55" stroke-width="1.45833" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<circle id="indicador" cx="29" cy="11" r="4" fill="#D64545" stroke="white" stroke-width="2"/>
+</g>
+</svg>
