@@ -1,26 +1,34 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Tokens del prototipo Figma "Kubo – Prototipo" (guía de estilos). */
+@theme {
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+
+  --color-kubo-azul: #1b4d89;
+  --color-kubo-azul-oscuro: #163f70;
+  --color-texto: #1f2328;
+  --color-texto-2: #4a4f55;
+  --color-texto-3: #8b939b;
+  --color-borde: #e1e4e8;
+  --color-fondo: #f5f6f8;
+  --color-verde: #2e9e6b;
+  --color-verde-oscuro: #1e6e4a;
+  --color-rojo: #d64545;
+  --color-rojo-oscuro: #a33434;
+  --color-ambar: #e8a93b;
+  --color-celeste: #4a90d9;
+
+  --shadow-tarjeta: 0 1px 1.5px rgba(31, 36, 41, 0.05);
+  --shadow-modal: 0 16px 40px rgba(31, 36, 41, 0.22);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-fondo);
+  color: var(--color-texto);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
