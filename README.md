@@ -283,6 +283,10 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run db:seed` | Carga los datos iniciales |
 | `npm run db:studio` | Abre Prisma Studio para ver los datos |
 | `npm run db:reset` | Borra la base, la recrea y vuelve a cargar los datos iniciales (solo en desarrollo) |
+| `npm run db:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` sin borrar nada (base remota) |
+| `npm run db:seed:remoto` | Carga los datos iniciales en la base de `DATABASE_URL` sin usar Docker (base remota) |
+
+`npm install` ejecuta `prisma generate` automáticamente (`postinstall`). El despliegue está descrito en `docs/DESPLIEGUE.md`.
 
 ---
 

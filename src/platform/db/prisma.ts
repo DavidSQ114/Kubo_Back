@@ -5,7 +5,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function crearCliente() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+  // La sesión debe ir en UTC: @prisma/adapter-pg envía las fechas en UTC sin desplazamiento y, al leer,
+  // asume que el servidor responde en UTC. Con la zona del servidor (America/Lima) quedaban 5 h adelantadas.
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL!, options: "-c timezone=UTC" });
   return new PrismaClient({ adapter });
 }
 
