@@ -7,7 +7,6 @@ services:
       POSTGRES_USER: kubo
       POSTGRES_PASSWORD: kubo
       POSTGRES_DB: kubo_dev
-      TZ: America/Lima
     ports:
       # Host 5433: el 5432 lo ocupa el PostgreSQL instalado en Windows (servicio postgresql-x64-18).
       - "5433:5432"

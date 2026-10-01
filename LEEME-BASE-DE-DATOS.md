@@ -66,4 +66,12 @@ Los triggers devuelven mensajes con un código al inicio (`AFORO_EXCEDE_AULA`, `
 
 - **`npx prisma validate` da error:** este schema está escrito para **Prisma 7** (generador `prisma-client` y conexión en `prisma.config.ts`). Con Prisma 6, agrega `url = env("DATABASE_URL")` dentro de `datasource db` en `prisma/schema/schema.prisma`.
 - **Una migración futura quiere borrar índices `uq_…` o restricciones `ck_…`:** Prisma no conoce los índices parciales. Crea esa migración con `--create-only`, borra esas líneas `DROP …` del SQL y luego aplícala.
+- **Las fechas que guarda la app no coinciden con `now()` (5 horas de diferencia):** la base y la conexión trabajan en UTC, porque el adaptador `@prisma/adapter-pg` envía las fechas en UTC sin desplazamiento. Lo fijan `src/platform/db/prisma.ts` (`options: "-c timezone=UTC"`) y `DATABASE_URL` (`&options=-c%20TimeZone%3DUTC`, ver `.env.example`); no quitar esa opción ni crear otro cliente sin ella. La hora de Lima solo se aplica al mostrar las fechas (`src/lib/formato.ts`).
+- **Tu base se creó cuando `docker-compose.yml` tenía `TZ: America/Lima`:** quedó con esa zona por defecto. Pásala a UTC una sola vez y actualiza `DATABASE_URL` en tu `.env` como en `.env.example`:
+
+  ```powershell
+  docker compose exec db psql -U kubo -d kubo_dev -c "ALTER DATABASE kubo_dev SET timezone TO 'UTC';"
+  # Opcional: las filas que la app guardó antes del cambio quedaron 5 horas adelantadas; esto vuelve al seed
+  npm run db:reset
+  ```
 - **Cambiaste el modelo:** cambia el diagrama y el `.prisma` a la vez (regla de la guía de arquitectura), y crea una migración nueva; nunca edites una migración ya aplicada.
