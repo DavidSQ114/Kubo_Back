@@ -279,6 +279,10 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run dev` | Inicia la aplicación en modo desarrollo (http://localhost:3000) |
 | `npm run build` / `npm start` | Compila y ejecuta la versión de producción |
 | `npm run lint` | Revisa el código con ESLint |
+| `npm run format` / `npm run format:check` | Formatea todo el proyecto con Prettier, o solo verifica el formato |
+| `npm run typecheck` | Revisa los tipos con TypeScript |
+| `npm test` | Ejecuta las pruebas con Vitest |
+| `npm run check` | Formato, lint, tipos, pruebas y build: lo mismo que ejecuta el CI |
 | `npm run db:up` / `npm run db:down` | Enciende o apaga PostgreSQL en Docker |
 | `npm run db:migrate` | Crea o aplica migraciones (`prisma migrate dev`) |
 | `npm run db:seed` | Carga los datos iniciales |
