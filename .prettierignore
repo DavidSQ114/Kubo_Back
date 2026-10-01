@@ -1,0 +1,10 @@
+node_modules
+.next
+src/generated
+coverage
+package-lock.json
+prisma/migrations
+public
+docs/figma
+*.md
+.claude/worktrees

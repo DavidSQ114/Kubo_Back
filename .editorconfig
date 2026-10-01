@@ -1,0 +1,14 @@
+# Sangría, codificación y fin de línea en cualquier editor (estándar de programación, sección 4.2)
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# En Markdown, dos espacios al final de una línea son un salto de línea
+[*.md]
+trim_trailing_whitespace = false
