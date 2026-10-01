@@ -5,6 +5,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "docker compose exec db psql -U kubo -d kubo_dev -v ON_ERROR_STOP=1 -f /kubo-prisma/seed.sql",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run db:seed",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed:remoto": "prisma db execute --file prisma/seed.sql"
   }
 }
