@@ -1,41 +1,39 @@
-// AD-01 · Inicio del Administrador
+// DO-01 · Inicio del docente
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useSesion } from "@/components/admin/PortalAdmin";
+import { useSesionDocente } from "@/components/docente/PortalDocente";
 import { Alerta, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
 import { alertaError } from "@/lib/portal";
 import { API } from "@/lib/rutasApi";
 
 const ACCESOS = [
+  { href: "/docente/horario", titulo: "Mi horario", texto: "Consulta tus clases del bimestre.", icono: "nav-calendar" },
   {
-    href: "/admin/usuarios",
-    titulo: "Usuarios",
-    texto: "Registra administradores y controla accesos.",
-    icono: "kpi-users",
+    href: "/docente/asistencia",
+    titulo: "Asistencia",
+    texto: "Registra la asistencia de tus estudiantes.",
+    icono: "nav-usercheck",
   },
   {
-    href: "/admin/anio-bimestres",
-    titulo: "Año y bimestres",
-    texto: "Periodos lectivos y evaluación.",
-    icono: "nav-calendar",
+    href: "/docente/notas",
+    titulo: "Registro de notas",
+    texto: "Ingresa calificaciones por competencia.",
+    icono: "nav-award",
   },
-  { href: "/admin/matricula", titulo: "Matrícula", texto: "Altas, traslados y retiros.", icono: "nav-clipboard" },
-  { href: "/admin/pensiones", titulo: "Pensiones", texto: "Conceptos y pagos.", icono: "nav-wallet" },
-  { href: "/admin/horarios", titulo: "Horarios", texto: "Matriz e importación CSV.", icono: "nav-grid" },
-  { href: "/admin/notas", titulo: "Notas", texto: "Supervisión y rectificaciones.", icono: "nav-award" },
+  { href: "/docente/cursos", titulo: "Mis cursos", texto: "Materiales, enlaces y aula virtual.", icono: "nav-book" },
 ];
 
-export default function InicioAdminPage() {
-  const sesion = useSesion();
+export default function InicioDocentePage() {
+  const sesion = useSesionDocente();
   const [resumen, setResumen] = useState<unknown>(null);
   const [errorResumen, setErrorResumen] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    api<unknown>(API.portal.adminResumen)
+    api<unknown>(API.portal.docenteResumen)
       .then((d) => {
         setResumen(d);
         setErrorResumen(null);
@@ -49,17 +47,17 @@ export default function InicioAdminPage() {
       <div className="flex flex-col gap-1.5">
         <p className="text-[14px] leading-[1.4] text-texto-3">Inicio</p>
         <h1 className="text-[32px] font-bold leading-[1.2] text-texto">Hola, {sesion.usuario.nombres}</h1>
-        <p className="text-[16px] leading-[1.5] text-texto-2">Este es tu panel de administración de Kubo.</p>
+        <p className="text-[16px] leading-[1.5] text-texto-2">Este es tu espacio de trabajo docente en Kubo.</p>
       </div>
 
       {cargando && (
-        <div className="flex justify-center py-6">
+        <div className="flex justify-center py-8">
           <Spinner claro={false} />
         </div>
       )}
       {!cargando && errorResumen && (
         <Alerta tipo="info" titulo="Indicadores del día">
-          {errorResumen} Los accesos rápidos siguen disponibles mientras se implementa el módulo portal.
+          {errorResumen} Cuando el módulo portal esté disponible, verás aquí tus clases y pendientes.
         </Alerta>
       )}
       {!cargando && !errorResumen && resumen !== null && (
@@ -68,7 +66,7 @@ export default function InicioAdminPage() {
         </Tarjeta>
       )}
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {ACCESOS.map((a) => (
           <Link key={a.href} href={a.href} className="group">
             <Tarjeta className="flex h-full flex-col gap-3 p-5 transition group-hover:border-kubo-azul">

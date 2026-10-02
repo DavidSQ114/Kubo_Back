@@ -149,11 +149,11 @@ function Usuarios({ qInicial }: { qInicial: string }) {
           variante="secundario"
           icono="icon-userplus"
           disabled
-          title="Disponible cuando se construya el módulo comunidad (RF12)"
+          title="Requiere POST /api/v1/comunidad/apoderados (AD-08)"
         >
           Registrar apoderado
         </Boton>
-        <Boton icono="icon-userplus-blanco" disabled title="Disponible cuando se construya el módulo comunidad (RF11)">
+        <Boton icono="icon-userplus-blanco" disabled title="Requiere POST /api/v1/comunidad/docentes (AD-07)">
           Registrar docente
         </Boton>
       </div>

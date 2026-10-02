@@ -15,7 +15,8 @@ export default function InicioPage() {
     api<Sesion>("/identidad/sesion")
       .then((s) => {
         if (s.debeCambiarPassword) router.replace("/cambiar-password");
-        else if (s.rolActivo === "ADMINISTRADOR") router.replace(inicioPorRol(s.rolActivo));
+        else if (s.rolActivo === "ADMINISTRADOR" || s.rolActivo === "DOCENTE")
+          router.replace(inicioPorRol(s.rolActivo));
         else setSesion(s);
       })
       .catch((e) => router.replace(destinoPorErrorDeSesion(e) ?? "/login"));

@@ -75,7 +75,9 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintentar =
 
 /** A dónde va cada perfil después de iniciar sesión. */
 export function inicioPorRol(rol: Rol): string {
-  return rol === "ADMINISTRADOR" ? "/admin/usuarios" : "/inicio";
+  if (rol === "ADMINISTRADOR") return "/admin/usuarios";
+  if (rol === "DOCENTE") return "/docente";
+  return "/inicio";
 }
 
 export const NOMBRE_ROL: Record<Rol, string> = {

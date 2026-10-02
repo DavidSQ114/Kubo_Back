@@ -6,16 +6,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Icono, Spinner } from "@/components/ui";
-import {
-  api,
-  ApiError,
-  cerrarSesion,
-  destinoPorErrorDeSesion,
-  inicioPorRol,
-  NOMBRE_ROL,
-  type Rol,
-  type Sesion,
-} from "@/lib/api";
+import { api, cerrarSesion, destinoPorErrorDeSesion, inicioPorRol, NOMBRE_ROL, type Rol, type Sesion } from "@/lib/api";
+import { alertaError } from "@/lib/portal";
 
 const SesionContext = createContext<Sesion | null>(null);
 
@@ -36,35 +28,35 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
   {
     grupo: "CONFIGURACIÓN",
     items: [
-      { texto: "Año y bimestres", icono: "nav-calendar" },
-      { texto: "Grados, secciones y aulas", icono: "nav-layers" },
-      { texto: "Cursos y competencias", icono: "nav-book" },
-      { texto: "Reglas de evaluación", icono: "nav-sliders" },
+      { texto: "Año y bimestres", icono: "nav-calendar", href: "/admin/anio-bimestres" },
+      { texto: "Grados, secciones y aulas", icono: "nav-layers", href: "/admin/grados-secciones" },
+      { texto: "Cursos y competencias", icono: "nav-book", href: "/admin/cursos" },
+      { texto: "Reglas de evaluación", icono: "nav-sliders", href: "/admin/reglas-evaluacion" },
     ],
   },
   {
     grupo: "COMUNIDAD",
     items: [
       { texto: "Usuarios", icono: "nav-users", href: "/admin/usuarios" },
-      { texto: "Matrícula", icono: "nav-clipboard" },
+      { texto: "Matrícula", icono: "nav-clipboard", href: "/admin/matricula" },
     ],
   },
   {
     grupo: "TESORERÍA",
     items: [
-      { texto: "Pensiones y pagos", icono: "nav-wallet" },
-      { texto: "Morosidad", icono: "nav-alert" },
+      { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/admin/pensiones" },
+      { texto: "Morosidad", icono: "nav-alert", href: "/admin/morosidad" },
     ],
   },
   {
     grupo: "ACADÉMICO",
     items: [
-      { texto: "Horarios", icono: "nav-grid" },
-      { texto: "Asistencia docente", icono: "nav-usercheck" },
-      { texto: "Notas y rectificaciones", icono: "nav-award" },
+      { texto: "Horarios", icono: "nav-grid", href: "/admin/horarios" },
+      { texto: "Asistencia docente", icono: "nav-usercheck", href: "/admin/asistencia-docente" },
+      { texto: "Notas y rectificaciones", icono: "nav-award", href: "/admin/notas" },
     ],
   },
-  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield" }] },
+  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield", href: "/admin/auditoria" }] },
 ];
 
 export function PortalAdmin({ children }: { children: ReactNode }) {
@@ -288,9 +280,4 @@ function BarraSuperior() {
   );
 }
 
-/** Errores de sesión en cualquier acción del portal: redirige; los demás se devuelven para mostrarlos. */
-export function alertaError(e: unknown): string {
-  const destino = destinoPorErrorDeSesion(e);
-  if (destino && typeof window !== "undefined") window.location.assign(destino);
-  return e instanceof ApiError || e instanceof Error ? e.message : "Ocurrió un error inesperado.";
-}
+export { alertaError } from "@/lib/portal";
