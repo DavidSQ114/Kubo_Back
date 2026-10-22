@@ -122,3 +122,88 @@ POST {{base}}/academico/anios/{{anio}}/estado
 Content-Type: application/json
 
 { "estado": "CERRADO" }
+
+# ===================================================================
+# Grados, secciones y aulas (US08, US09). Usa el año {{anio}} creado arriba.
+# ===================================================================
+
+### 20. Grados → 200 (1° a 5° de secundaria). Copia el id de 1° y de 3°.
+GET {{base}}/academico/grados
+
+###
+@grado1 = PEGAR-ID-DE-1°
+@grado3 = PEGAR-ID-DE-3°
+
+### 21. Registrar el Aula 101 → 201
+# @name aula101
+POST {{base}}/academico/aulas
+Content-Type: application/json
+
+{ "nombre": "Aula 101", "ubicacion": "Pabellón A · 1er piso", "aforo": 30 }
+
+###
+@aula = {{aula101.response.body.$.data.id}}
+
+### 22. Aula con aforo 0 → 400 «El aforo debe ser un número entero mayor a 0»
+POST {{base}}/academico/aulas
+Content-Type: application/json
+
+{ "nombre": "Aula 305", "ubicacion": "Pabellón C · 3er piso", "aforo": 0 }
+
+### 23. Aula con nombre repetido → 409 AULA_DUPLICADA
+POST {{base}}/academico/aulas
+Content-Type: application/json
+
+{ "nombre": "Aula 101", "aforo": 30 }
+
+### 24. Docentes activos para tutor → 200 (puede estar vacío)
+GET {{base}}/comunidad/docentes
+
+### 25. Crear 1° A en el Aula 101 → 201 (vacantes 0/30)
+# @name seccion1A
+POST {{base}}/academico/secciones
+Content-Type: application/json
+
+{ "anioAcademicoId": "{{anio}}", "gradoId": "{{grado1}}", "nombre": "A", "aforoMaximo": 30, "aulaId": "{{aula}}" }
+
+###
+@seccion = {{seccion1A.response.body.$.data.id}}
+
+### 26. Otra 1° A → 409 «Ya existe una sección con ese nombre en este grado»
+POST {{base}}/academico/secciones
+Content-Type: application/json
+
+{ "anioAcademicoId": "{{anio}}", "gradoId": "{{grado1}}", "nombre": "a", "aforoMaximo": 30 }
+
+### 27. 3° A con aforo 40 en el Aula 101 (30) → 422 AFORO_EXCEDE_AULA (trigger)
+POST {{base}}/academico/secciones
+Content-Type: application/json
+
+{ "anioAcademicoId": "{{anio}}", "gradoId": "{{grado3}}", "nombre": "A", "aforoMaximo": 40, "aulaId": "{{aula}}" }
+
+### 28. Secciones del año con vacantes → 200
+GET {{base}}/academico/secciones?anioId={{anio}}
+
+### 29. Bajar el Aula 101 a aforo 25 → 422 AFORO_MENOR_QUE_SECCIONES
+PATCH {{base}}/academico/aulas/{{aula}}
+Content-Type: application/json
+
+{ "aforo": 25 }
+
+### 30. Desactivar el Aula 101 (la usa 1° A) → 409 AULA_EN_USO
+POST {{base}}/academico/aulas/{{aula}}/estado
+Content-Type: application/json
+
+{ "activo": false }
+
+### 31. Inactivar 1° A → 200 INACTIVA
+POST {{base}}/academico/secciones/{{seccion}}/estado
+Content-Type: application/json
+
+{ "estado": "INACTIVA" }
+
+### 32. Eliminar 1° A (sin matrículas) → 200; con matriculados sería 409 SECCION_CON_MATRICULADOS
+DELETE {{base}}/academico/secciones/{{seccion}}
+
+### 33. Aulas con sección asignada y ocupación del año → 200
+GET {{base}}/academico/aulas?anioId={{anio}}

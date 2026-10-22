@@ -13,6 +13,7 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 |---|---|---|
 | `GET /comunidad/usuarios` | `?q=&rol=&estado=&pagina=1&tamano=20` | `{ items: UsuarioListado[], paginacion: { pagina, tamano, total, paginas } }` |
 | `GET /comunidad/usuarios/resumen` | — | `{ todos, administradores, docentes, apoderados, alumnos, suspendidos }` |
+| `GET /comunidad/docentes` | — | `{ id, nombreCompleto, nombreCorto, activo }[]`: docentes activos, para elegir tutor de sección (US08) |
 | `POST /comunidad/administradores` | `{ dni, nombres, apellidos, email, telefono?, cargo? }` | `201 { personaId, usuarioId, nombreCompleto, email, personaExistia, cuentaCreada, correoEnviado, passwordTemporal }` |
 
 - `q` busca por nombre, apellido, DNI (desde el inicio) o correo; varias palabras se combinan.
