@@ -1,9 +1,11 @@
 // academico/infrastructure: único lugar que consulta las tablas de académico: anio_academico, periodo_evaluacion,
-// grado, seccion y aula (el módulo es su dueño).
+// grado, seccion, aula, area_curricular, competencia, curso, plan_estudio, competencia_plan y asignacion_docente
+// (el módulo es su dueño).
 // Las columnas DATE se convierten aquí a texto "AAAA-MM-DD": el resto del módulo no ve objetos Date.
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import type { AnioExistente, PeriodoGuardado } from "../domain/reglas";
+import type { EstadoCurso } from "../domain/cursos";
 import type { EstadoSeccion } from "../domain/secciones";
 import type { EstadoAnio, EstadoPeriodo } from "../domain/tipos";
 
@@ -271,4 +273,227 @@ export const aulas = {
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM aula WHERE id = ${id}::uuid FOR UPDATE`;
   },
+};
+
+// ---------- Currículo: áreas, competencias, cursos y planes (US10, US11) ----------
+
+const selectCompetencia = { id: true, areaCurricularId: true, codigo: true, nombre: true, activo: true } as const;
+
+export interface CompetenciaFila {
+  id: string;
+  areaCurricularId: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+}
+
+export const areas = {
+  /** Áreas activas con las competencias del catálogo (activas o no), por código. */
+  conCompetencias: (db: Db = prisma) =>
+    db.areaCurricular.findMany({
+      where: { activo: true },
+      orderBy: { nombre: "asc" },
+      select: {
+        id: true,
+        codigo: true,
+        nombre: true,
+        competencias: { orderBy: { codigo: "asc" }, select: selectCompetencia },
+      },
+    }),
+
+  porId: (id: string, db: Db = prisma) =>
+    db.areaCurricular.findUnique({ where: { id }, select: { id: true, codigo: true, nombre: true, activo: true } }),
+};
+
+export const competencias = {
+  delArea: (areaCurricularId: string, db: Db = prisma): Promise<CompetenciaFila[]> =>
+    db.competencia.findMany({ where: { areaCurricularId }, orderBy: { codigo: "asc" }, select: selectCompetencia }),
+
+  porIds: (ids: string[], db: Db = prisma): Promise<CompetenciaFila[]> =>
+    db.competencia.findMany({ where: { id: { in: ids } }, select: selectCompetencia }),
+};
+
+const selectCurso = {
+  id: true,
+  codigo: true,
+  nombre: true,
+  descripcion: true,
+  estado: true,
+  areaCurricular: { select: { id: true, codigo: true, nombre: true } },
+} as const;
+
+export interface CursoFila {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  estado: EstadoCurso;
+  areaCurricular: { id: string; codigo: string; nombre: string };
+}
+
+/** Cuenta pares únicos «curso|otro» por curso: docentes o secciones distintas de cada curso. */
+function contarPorCurso(pares: Iterable<[string, string]>): Record<string, number> {
+  const unicos = new Set([...pares].map(([cursoId, otro]) => `${cursoId}|${otro}`));
+  const conteo: Record<string, number> = {};
+  for (const par of unicos) {
+    const cursoId = par.split("|")[0];
+    conteo[cursoId] = (conteo[cursoId] ?? 0) + 1;
+  }
+  return conteo;
+}
+
+export const cursos = {
+  todos: (filtro: { areaId?: string; estado?: EstadoCurso }, db: Db = prisma) =>
+    db.curso.findMany({
+      where: { areaCurricularId: filtro.areaId, estado: filtro.estado },
+      orderBy: [{ estado: "asc" }, { nombre: "asc" }],
+      select: selectCurso,
+    }) as Promise<CursoFila[]>,
+
+  porId: (id: string, db: Db = prisma) =>
+    db.curso.findUnique({ where: { id }, select: selectCurso }) as Promise<CursoFila | null>,
+
+  crear: (
+    data: { codigo: string; nombre: string; descripcion: string | null; areaCurricularId: string },
+    db: Db = prisma,
+  ) => db.curso.create({ data, select: selectCurso }) as Promise<CursoFila>,
+
+  actualizar: (
+    id: string,
+    data: {
+      codigo?: string;
+      nombre?: string;
+      descripcion?: string | null;
+      areaCurricularId?: string;
+      estado?: EstadoCurso;
+    },
+    db: Db = prisma,
+  ) => db.curso.update({ where: { id }, data, select: selectCurso }) as Promise<CursoFila>,
+
+  eliminar: (id: string, db: Db = prisma) => db.curso.delete({ where: { id }, select: { id: true } }),
+
+  /** Docentes distintos con alguna asignación del curso, por curso (de cualquier año, activa o no). */
+  async docentesAsignados(cursoIds: string[], db: Db = prisma): Promise<Record<string, number>> {
+    if (cursoIds.length === 0) return {};
+    const filas = await db.asignacionDocente.findMany({
+      where: { planEstudio: { cursoId: { in: cursoIds } } },
+      distinct: ["planEstudioId", "docenteId"],
+      select: { docenteId: true, planEstudio: { select: { cursoId: true } } },
+    });
+    return contarPorCurso(filas.map((f) => [f.planEstudio.cursoId, f.docenteId]));
+  },
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM curso WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+};
+
+const selectPlan = {
+  id: true,
+  anioAcademicoId: true,
+  cursoId: true,
+  horasSemanales: true,
+  grado: { select: { id: true, numero: true, nombre: true } },
+  competenciasPlan: {
+    orderBy: { orden: "asc" },
+    select: { id: true, orden: true, peso: true, competencia: { select: { id: true, codigo: true, nombre: true } } },
+  },
+  _count: { select: { asignacionesDocente: true } },
+} as const;
+
+export interface CompetenciaPlanFila {
+  id: string;
+  orden: number;
+  peso: number | null;
+  competencia: { id: string; codigo: string; nombre: string };
+}
+
+export interface PlanFila {
+  id: string;
+  anioAcademicoId: string;
+  cursoId: string;
+  horasSemanales: number;
+  grado: GradoFila;
+  competencias: CompetenciaPlanFila[];
+  /** Asignaciones docentes del plan: con alguna, el grado no se quita del curso. */
+  asignaciones: number;
+}
+
+function filaPlan(p: {
+  id: string;
+  anioAcademicoId: string;
+  cursoId: string;
+  horasSemanales: number;
+  grado: GradoFila;
+  competenciasPlan: {
+    id: string;
+    orden: number;
+    peso: { toNumber(): number } | null;
+    competencia: CompetenciaPlanFila["competencia"];
+  }[];
+  _count: { asignacionesDocente: number };
+}): PlanFila {
+  const { competenciasPlan, _count, ...resto } = p;
+  return {
+    ...resto,
+    competencias: competenciasPlan.map((c) => ({ ...c, peso: c.peso === null ? null : c.peso.toNumber() })),
+    asignaciones: _count.asignacionesDocente,
+  };
+}
+
+export const planes = {
+  /** Planes del año de varios cursos, ordenados por grado. */
+  async delAnio(anioAcademicoId: string, cursoIds: string[], db: Db = prisma): Promise<PlanFila[]> {
+    const filas = await db.planEstudio.findMany({
+      where: { anioAcademicoId, cursoId: { in: cursoIds } },
+      orderBy: { grado: { numero: "asc" } },
+      select: selectPlan,
+    });
+    return filas.map(filaPlan);
+  },
+
+  async porId(id: string, db: Db = prisma): Promise<PlanFila | null> {
+    const p = await db.planEstudio.findUnique({ where: { id }, select: selectPlan });
+    return p && filaPlan(p);
+  },
+
+  /** Competencias configuradas en los planes del curso, de cualquier año (para cambiar su área). */
+  competenciasDelCurso: (cursoId: string, db: Db = prisma) =>
+    db.competenciaPlan.count({ where: { planEstudio: { cursoId } } }),
+
+  /** Planes del curso de cualquier año (para eliminarlo). */
+  idsDelCurso: async (cursoId: string, db: Db = prisma) =>
+    (await db.planEstudio.findMany({ where: { cursoId }, select: { id: true } })).map((p) => p.id),
+
+  crear: (
+    data: { anioAcademicoId: string; cursoId: string; gradoId: string; horasSemanales: number },
+    db: Db = prisma,
+  ) => db.planEstudio.create({ data, select: { id: true } }),
+
+  actualizarHoras: (id: string, horasSemanales: number, db: Db = prisma) =>
+    db.planEstudio.update({ where: { id }, data: { horasSemanales }, select: { id: true } }),
+
+  /** Borra planes con sus competencias (competencia_plan se borra en cascada). */
+  eliminar: (ids: string[], db: Db = prisma) => db.planEstudio.deleteMany({ where: { id: { in: ids } } }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM plan_estudio WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+};
+
+export const competenciasPlan = {
+  idsDePlanes: async (planIds: string[], db: Db = prisma) =>
+    (await db.competenciaPlan.findMany({ where: { planEstudioId: { in: planIds } }, select: { id: true } })).map(
+      (c) => c.id,
+    ),
+
+  crear: (
+    data: { planEstudioId: string; competenciaId: string; orden: number; peso: number | null },
+    db: Db = prisma,
+  ) => db.competenciaPlan.create({ data, select: { id: true } }),
+
+  actualizar: (id: string, data: { orden: number; peso: number | null }, db: Db = prisma) =>
+    db.competenciaPlan.update({ where: { id }, data, select: { id: true } }),
+
+  eliminar: (ids: string[], db: Db = prisma) => db.competenciaPlan.deleteMany({ where: { id: { in: ids } } }),
 };
