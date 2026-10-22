@@ -16,6 +16,17 @@ export default function InicioAdminPage() {
         <p className="text-[16px] leading-[1.5] text-texto-2">Este es tu panel de administración de Kubo.</p>
       </div>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <Link href="/admin/anio" className="group">
+          <Tarjeta className="flex h-full flex-col gap-3 p-5 transition group-hover:border-kubo-azul">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-kubo-azul/10">
+              <Icono nombre="icon-calendar" size={20} />
+            </div>
+            <p className="text-[16px] font-semibold text-texto">Año y bimestres</p>
+            <p className="text-[14px] leading-[1.4] text-texto-2">
+              Crea el año académico, registra sus bimestres y abre la matrícula.
+            </p>
+          </Tarjeta>
+        </Link>
         <Link href="/admin/usuarios" className="group">
           <Tarjeta className="flex h-full flex-col gap-3 p-5 transition group-hover:border-kubo-azul">
             <div className="flex size-10 items-center justify-center rounded-lg bg-[rgba(27,77,137,0.12)]">
@@ -29,8 +40,7 @@ export default function InicioAdminPage() {
         </Link>
       </div>
       <Alerta tipo="info" titulo="Más módulos en camino">
-        Año y bimestres, matrícula, pensiones, horarios, notas y auditoría se habilitarán en el menú a medida que se
-        construyan.
+        Matrícula, pensiones, horarios, notas y auditoría se habilitarán en el menú a medida que se construyan.
       </Alerta>
     </>
   );

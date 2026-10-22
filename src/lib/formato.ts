@@ -40,3 +40,9 @@ export function cuentaRegresiva(hasta: Date, ahora: Date): string {
   const s = Math.max(0, Math.round((hasta.getTime() - ahora.getTime()) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** "2026-03-02" → "02/03/2026". Fechas sin hora (año académico y bimestres): no se convierten de zona horaria. */
+export function fechaDia(fecha: string): string {
+  const [anio, mes, dia] = fecha.split("-");
+  return `${dia}/${mes}/${anio}`;
+}
