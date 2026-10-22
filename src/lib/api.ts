@@ -36,7 +36,7 @@ function renovarSesion(): Promise<boolean> {
 }
 
 interface Opciones {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
 }
 
