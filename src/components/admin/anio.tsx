@@ -1,5 +1,5 @@
-// Piezas de AD-02 Año académico y bimestres (US06, US07): tipos, badges, línea de estados,
-// formulario de los 4 bimestres y los modales de crear año y de cambio de estado.
+// Piezas de AD-02 Año académico y bimestres (US06, US07): tipos, badges, formulario «Registrar año académico»,
+// tabla «Periodos de evaluación» y el modal que confirma cada cambio de estado del año.
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -32,6 +32,8 @@ export interface AnioAcademico {
 export const ESTADOS_ANIO: EstadoAnio[] = ["PLANIFICADO", "EN_MATRICULA", "EN_CURSO", "EN_CIERRE", "CERRADO"];
 export const CANTIDAD_BIMESTRES = 4;
 const NUMERALES = ["I", "II", "III", "IV"];
+const MS_POR_DIA = 86_400_000;
+const DIAS_POR_SEMANA = 7;
 
 const ESTILO_ESTADO_ANIO: Record<EstadoAnio, { texto: string; tono: "azul" | "celeste" | "verde" | "ambar" | "gris" }> =
   {
@@ -43,16 +45,16 @@ const ESTILO_ESTADO_ANIO: Record<EstadoAnio, { texto: string; tono: "azul" | "ce
   };
 
 const ESTILO_ESTADO_PERIODO: Record<EstadoPeriodo, { texto: string; tono: "azul" | "verde" | "ambar" | "gris" }> = {
-  INACTIVO: { texto: "Inactivo", tono: "gris" },
+  INACTIVO: { texto: "Inactivo", tono: "azul" },
   ACTIVO: { texto: "Activo", tono: "verde" },
   EN_CIERRE: { texto: "En cierre", tono: "ambar" },
-  FINALIZADO: { texto: "Finalizado", tono: "azul" },
+  FINALIZADO: { texto: "Finalizado", tono: "gris" },
 };
 
-/** Cada transición es un botón con su confirmación. EN_MATRICULA = «Abrir matrícula» (US06). */
+/** Cada transición es un botón en la fila del año, con su confirmación. EN_MATRICULA = «Abrir matrícula» (US06). */
 export const TRANSICIONES: Record<
   Exclude<EstadoAnio, "PLANIFICADO">,
-  { accion: string; titulo: string; detalle: (anio: number) => string; peligro?: boolean }
+  { accion: string; titulo: string; detalle: (anio: number) => string; secundaria?: boolean; peligro?: boolean }
 > = {
   EN_MATRICULA: {
     accion: "Abrir matrícula",
@@ -70,6 +72,7 @@ export const TRANSICIONES: Record<
     accion: "Iniciar cierre",
     titulo: "Iniciar el cierre del año",
     detalle: (anio) => `El año ${anio} pasará a «En cierre» para que se terminen de publicar las notas.`,
+    secundaria: true,
   },
   CERRADO: {
     accion: "Cerrar año",
@@ -77,6 +80,7 @@ export const TRANSICIONES: Record<
     detalle: (anio) =>
       `El año ${anio} quedará cerrado y ya no se podrá modificar. ` +
       "Solo se puede cerrar si todas las notas de sus bimestres están publicadas.",
+    secundaria: true,
     peligro: true,
   },
 };
@@ -88,6 +92,9 @@ export function siguienteEstado(estado: EstadoAnio): Exclude<EstadoAnio, "PLANIF
   return siguiente && siguiente !== "PLANIFICADO" ? siguiente : null;
 }
 
+/** La matrícula está habilitada mientras el año está En matrícula o En curso. */
+export const matriculaHabilitada = (estado: EstadoAnio) => estado === "EN_MATRICULA" || estado === "EN_CURSO";
+
 export function BadgeEstadoAnio({ estado }: { estado: EstadoAnio }) {
   const e = ESTILO_ESTADO_ANIO[estado];
   return (
@@ -97,9 +104,13 @@ export function BadgeEstadoAnio({ estado }: { estado: EstadoAnio }) {
   );
 }
 
-export function BadgeEstadoPeriodo({ estado }: { estado: EstadoPeriodo }) {
+function BadgeEstadoPeriodo({ estado }: { estado: EstadoPeriodo }) {
   const e = ESTILO_ESTADO_PERIODO[estado];
-  return <Badge tono={e.tono}>{e.texto}</Badge>;
+  return (
+    <Badge tono={e.tono} punto>
+      {e.texto}
+    </Badge>
+  );
 }
 
 /** Mensaje del backend tal cual; si son errores de formulario, se agregan los de cada campo. */
@@ -110,39 +121,114 @@ function mensajeDe(e: unknown): string {
   return alertaError(e);
 }
 
-// ---------- Línea de estados del año ----------
+// ---------- Registrar año académico ----------
 
-export function LineaEstados({ estado }: { estado: EstadoAnio }) {
-  const actual = ESTADOS_ANIO.indexOf(estado);
+const VACIO = { anio: "", fechaInicio: "", fechaFin: "" };
+
+/** Errores del backend que corresponden a un campo del formulario. */
+const CAMPO_DEL_ERROR: Record<string, keyof typeof VACIO> = {
+  FECHAS_INVALIDAS: "fechaFin",
+  ANIO_NO_COINCIDE: "anio",
+};
+
+/** Id del campo «Año»: el botón «Nuevo año académico» del encabezado lo enfoca. */
+export const ID_CAMPO_ANIO = "anio-nuevo";
+
+export function FormularioAnio({ onCreado }: { onCreado: (anio: AnioAcademico) => void }) {
+  const [datos, setDatos] = useState(VACIO);
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  const cambiar = (campo: keyof typeof VACIO) => (e: { target: { value: string } }) =>
+    setDatos((d) => ({ ...d, [campo]: e.target.value }));
+
+  function limpiar() {
+    setDatos(VACIO);
+    setErrores({});
+    setAviso(null);
+  }
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setErrores({});
+    setAviso(null);
+    try {
+      const creado = await api<AnioAcademico>("/academico/anios", {
+        method: "POST",
+        body: { anio: Number(datos.anio) || undefined, fechaInicio: datos.fechaInicio, fechaFin: datos.fechaFin },
+      });
+      limpiar();
+      onCreado(creado);
+    } catch (err) {
+      const campo = err instanceof ApiError ? CAMPO_DEL_ERROR[err.codigo] : undefined;
+      if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
+        setErrores(err.detalles as Record<string, string>);
+      else if (err instanceof ApiError && campo) setErrores({ [campo]: err.message });
+      else setAviso(alertaError(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   return (
-    <ol className="flex flex-wrap items-center gap-2" aria-label="Estados del año académico">
-      {ESTADOS_ANIO.map((e, i) => {
-        const hecho = i < actual;
-        const esActual = i === actual;
-        return (
-          <li key={e} className="flex items-center gap-2">
-            {i > 0 && <span aria-hidden className={`h-px w-6 ${hecho || esActual ? "bg-kubo-azul" : "bg-borde"}`} />}
-            <span
-              aria-current={esActual ? "step" : undefined}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] leading-[1.4] ${
-                esActual
-                  ? "bg-kubo-azul font-semibold text-white"
-                  : hecho
-                    ? "bg-kubo-azul/10 font-medium text-kubo-azul"
-                    : "border border-borde font-medium text-texto-3"
-              }`}
-            >
-              {hecho && <Icono nombre="icon-check-verde" size={14} />}
-              {ESTILO_ESTADO_ANIO[e].texto}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+    <form onSubmit={guardar} className="flex flex-col gap-5" noValidate>
+      <EncabezadoTarjeta titulo="Registrar año académico" subtitulo="Los campos con * son obligatorios" />
+      <Campo
+        id={ID_CAMPO_ANIO}
+        etiqueta="Año"
+        obligatorio
+        inputMode="numeric"
+        maxLength={4}
+        placeholder="Ej.: 2027"
+        value={datos.anio}
+        onChange={cambiar("anio")}
+        error={errores.anio}
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Campo
+          etiqueta="Fecha de inicio"
+          obligatorio
+          type="date"
+          icono="icon-calendar-gris"
+          value={datos.fechaInicio}
+          onChange={cambiar("fechaInicio")}
+          error={errores.fechaInicio}
+        />
+        <Campo
+          etiqueta="Fecha de fin"
+          obligatorio
+          type="date"
+          icono="icon-calendar-gris"
+          value={datos.fechaFin}
+          onChange={cambiar("fechaFin")}
+          error={errores.fechaFin}
+        />
+      </div>
+      {aviso && <Alerta tipo="aviso" icono="alerta-warn-lock" titulo={aviso} />}
+      <div className="flex justify-end gap-3">
+        <Boton type="button" variante="secundario" onClick={limpiar} disabled={enviando}>
+          Cancelar
+        </Boton>
+        <Boton type="submit" icono="check-blanco" cargando={enviando}>
+          Guardar año
+        </Boton>
+      </div>
+    </form>
   );
 }
 
-// ---------- Formulario de los 4 bimestres (US07) ----------
+export function EncabezadoTarjeta({ titulo, subtitulo }: { titulo: string; subtitulo: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 className="text-[20px] font-semibold leading-[1.3] text-texto">{titulo}</h2>
+      <p className="text-[14px] leading-[1.4] text-texto-3">{subtitulo}</p>
+    </div>
+  );
+}
+
+// ---------- Periodos de evaluación (US07) ----------
 
 interface FilaBimestre {
   numero: number;
@@ -157,8 +243,25 @@ function filasIniciales(anio: AnioAcademico): FilaBimestre[] {
   });
 }
 
+/** Semanas redondeadas entre inicio y fin ("—" si faltan fechas o no son válidas). */
+function semanas(f: FilaBimestre): string {
+  if (!f.fechaInicio || !f.fechaFin || f.fechaFin <= f.fechaInicio) return "—";
+  const dias = (Date.parse(f.fechaFin) - Date.parse(f.fechaInicio)) / MS_POR_DIA;
+  return String(Math.round(dias / DIAS_POR_SEMANA));
+}
+
+/** Columna «Registro de notas» según el estado del bimestre guardado. */
+function registroNotas(p: Periodo | undefined): string {
+  if (!p) return "—";
+  const corta = (fecha: string) => fechaDia(fecha).slice(0, 5);
+  if (p.estado === "FINALIZADO") return "Notas publicadas";
+  if (p.estado === "ACTIVO") return `Habilitado hasta ${corta(p.fechaFin)}`;
+  if (p.estado === "EN_CIERRE") return "En cierre";
+  return `Se habilita el ${corta(p.fechaInicio)}`;
+}
+
 /**
- * Se guardan los 4 juntos. Para reiniciarlo con datos nuevos, el padre cambia su key (estándar 6.5).
+ * Los 4 bimestres se guardan juntos. Para reiniciarlo con datos nuevos, el padre cambia su key (estándar 6.5).
  * Los bimestres FINALIZADOS y los años CERRADOS se muestran sin edición.
  */
 export function FormularioBimestres({
@@ -172,7 +275,6 @@ export function FormularioBimestres({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const soloLectura = anio.estado === "CERRADO";
-  const sinGuardar = anio.periodos.length < CANTIDAD_BIMESTRES;
 
   function cambiar(numero: number, campo: "fechaInicio" | "fechaFin", valor: string) {
     setFilas((actuales) => actuales.map((f) => (f.numero === numero ? { ...f, [campo]: valor } : f)));
@@ -197,55 +299,72 @@ export function FormularioBimestres({
   }
 
   return (
-    <form onSubmit={guardar} className="flex flex-col gap-4" noValidate>
-      <div className="flex flex-col gap-1">
-        <h2 className="text-[20px] font-semibold leading-[1.3] text-texto">Bimestres</h2>
-        <p className="text-[14px] leading-[1.4] text-texto-2">
-          Cada bimestre debe estar dentro del año ({fechaDia(anio.fechaInicio)} al {fechaDia(anio.fechaFin)}) y no puede
-          solaparse con otro. Un bimestre finalizado ya no se edita.
-        </p>
+    <form onSubmit={guardar} className="flex flex-col gap-5" noValidate>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-[260px] flex-1">
+          <EncabezadoTarjeta
+            titulo={`Periodos de evaluación · ${anio.anio}`}
+            subtitulo="Divide el año en 4 bimestres sin solapamientos"
+          />
+        </div>
+        {!soloLectura && (
+          <>
+            <Boton
+              type="button"
+              variante="secundario"
+              icono="icon-plus-gris"
+              disabled
+              title="El año se divide siempre en 4 bimestres"
+            >
+              Agregar bimestre
+            </Boton>
+            <Boton type="submit" icono="check-blanco" cargando={guardando}>
+              Guardar configuración
+            </Boton>
+          </>
+        )}
       </div>
 
-      {sinGuardar && !soloLectura && (
-        <Alerta tipo="info" titulo="Bimestres pendientes">
-          Registra las fechas de los 4 bimestres para que el año pueda usarse en notas y asistencia.
-        </Alerta>
-      )}
+      {error && <Alerta tipo="error" titulo={error} />}
 
       <div className="overflow-x-auto rounded-lg border border-borde">
-        <table className="w-full min-w-[640px] border-collapse bg-white text-left">
+        <table className="w-full min-w-[880px] border-collapse bg-white text-left">
           <thead>
             <tr className="border-b border-borde bg-fondo text-[13px] font-semibold leading-[1.4] text-texto-2">
-              <th className="w-[160px] px-4 py-2.5 font-semibold">Bimestre</th>
-              <th className="px-4 py-2.5 font-semibold">Fecha de inicio</th>
-              <th className="px-4 py-2.5 font-semibold">Fecha de fin</th>
-              <th className="w-[130px] px-4 py-2.5 font-semibold">Estado</th>
+              <th className="w-[150px] px-4 py-3 font-semibold">Periodo</th>
+              <th className="w-[220px] px-4 py-3 font-semibold">Fecha de inicio</th>
+              <th className="w-[220px] px-4 py-3 font-semibold">Fecha de fin</th>
+              <th className="w-[110px] px-4 py-3 font-semibold">Semanas</th>
+              <th className="px-4 py-3 font-semibold">Registro de notas</th>
+              <th className="w-[130px] px-4 py-3 font-semibold">Estado</th>
             </tr>
           </thead>
           <tbody>
             {filas.map((f) => {
               const guardado = anio.periodos.find((p) => p.numero === f.numero);
-              const bloqueado = soloLectura || guardado?.estado === "FINALIZADO";
+              const editable = !soloLectura && guardado?.estado !== "FINALIZADO";
               const nombre = nombreBimestre(f.numero);
               return (
-                <tr key={f.numero} className="border-b border-borde text-[14px] text-texto last:border-b-0">
+                <tr
+                  key={f.numero}
+                  className="border-b border-borde text-[14px] leading-[1.4] text-texto last:border-b-0"
+                >
                   <td className="px-4 py-3 font-semibold">{nombre}</td>
-                  <td className="px-4 py-2">
-                    <CampoFecha
-                      etiqueta={`${nombre}: fecha de inicio`}
-                      valor={f.fechaInicio}
-                      deshabilitado={bloqueado}
-                      onCambiar={(v) => cambiar(f.numero, "fechaInicio", v)}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <CampoFecha
-                      etiqueta={`${nombre}: fecha de fin`}
-                      valor={f.fechaFin}
-                      deshabilitado={bloqueado}
-                      onCambiar={(v) => cambiar(f.numero, "fechaFin", v)}
-                    />
-                  </td>
+                  {(["fechaInicio", "fechaFin"] as const).map((campo) => (
+                    <td key={campo} className={`px-4 ${editable ? "py-2" : "py-3"}`}>
+                      {editable ? (
+                        <CampoFecha
+                          etiqueta={`${nombre}: ${campo === "fechaInicio" ? "fecha de inicio" : "fecha de fin"}`}
+                          valor={f[campo]}
+                          onCambiar={(v) => cambiar(f.numero, campo, v)}
+                        />
+                      ) : (
+                        fechaDia(f[campo])
+                      )}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3">{semanas(f)}</td>
+                  <td className="px-4 py-3">{registroNotas(guardado)}</td>
                   <td className="px-4 py-3">
                     {guardado ? (
                       <BadgeEstadoPeriodo estado={guardado.estado} />
@@ -260,147 +379,38 @@ export function FormularioBimestres({
         </table>
       </div>
 
-      {error && <Alerta tipo="error" titulo={error} />}
-
-      {!soloLectura && (
-        <div className="flex justify-end">
-          <Boton type="submit" cargando={guardando}>
-            Guardar bimestres
-          </Boton>
-        </div>
-      )}
+      <div className="flex items-start gap-2">
+        <Icono nombre="icon-info" size={16} className="mt-px" />
+        <p className="text-[13px] leading-[1.4] text-texto-3">
+          Fuera del rango de un bimestre, el registro de notas se muestra en modo solo lectura con el mensaje «Este
+          periodo de evaluación no está activo».
+        </p>
+      </div>
     </form>
   );
 }
 
-/** Selector de fecha compacto para la tabla de bimestres (la etiqueta queda para lectores de pantalla). */
+/** Selector de fecha de la tabla de bimestres (la etiqueta queda para lectores de pantalla). */
 function CampoFecha({
   etiqueta,
   valor,
-  deshabilitado,
   onCambiar,
 }: {
   etiqueta: string;
   valor: string;
-  deshabilitado: boolean;
   onCambiar: (valor: string) => void;
 }) {
   return (
-    <input
-      type="date"
-      aria-label={etiqueta}
-      value={valor}
-      disabled={deshabilitado}
-      onChange={(e) => onCambiar(e.target.value)}
-      className="w-full rounded-lg border border-borde bg-white px-3 py-2 text-[15px] leading-[1.4] text-texto outline-none focus:border-kubo-azul focus:ring-1 focus:ring-kubo-azul disabled:bg-fondo disabled:text-texto-2"
-    />
-  );
-}
-
-// ---------- Crear año académico ----------
-
-const VACIO = { anio: "", fechaInicio: "", fechaFin: "" };
-
-export function ModalCrearAnio({
-  abierto,
-  onCerrar,
-  onCreado,
-}: {
-  abierto: boolean;
-  onCerrar: () => void;
-  onCreado: (anio: AnioAcademico) => void;
-}) {
-  const [datos, setDatos] = useState(VACIO);
-  const [errores, setErrores] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  const cambiar = (campo: keyof typeof VACIO) => (e: { target: { value: string } }) =>
-    setDatos((d) => ({ ...d, [campo]: e.target.value }));
-
-  function cerrar() {
-    setDatos(VACIO);
-    setErrores({});
-    setError(null);
-    onCerrar();
-  }
-
-  async function crear(e?: FormEvent) {
-    e?.preventDefault();
-    setEnviando(true);
-    setErrores({});
-    setError(null);
-    try {
-      const creado = await api<AnioAcademico>("/academico/anios", {
-        method: "POST",
-        body: { anio: Number(datos.anio) || undefined, fechaInicio: datos.fechaInicio, fechaFin: datos.fechaFin },
-      });
-      setDatos(VACIO);
-      onCreado(creado);
-    } catch (err) {
-      if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
-        setErrores(err.detalles as Record<string, string>);
-      else setError(alertaError(err));
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <Modal
-      abierto={abierto}
-      onCerrar={cerrar}
-      icono="icon-calendar"
-      tonoIcono="azul"
-      titulo="Crear año académico"
-      subtitulo="Se crea en estado «Planificado». Después podrás registrar sus bimestres y abrir la matrícula."
-      pie={
-        <>
-          <Boton variante="secundario" onClick={cerrar} disabled={enviando}>
-            Cancelar
-          </Boton>
-          <Boton onClick={() => crear()} cargando={enviando}>
-            Crear año
-          </Boton>
-        </>
-      }
-    >
-      <form onSubmit={crear} className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
-        <Campo
-          etiqueta="Año"
-          obligatorio
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="Ej.: 2026"
-          value={datos.anio}
-          onChange={cambiar("anio")}
-          error={errores.anio}
-          className="sm:col-span-2"
-        />
-        <Campo
-          etiqueta="Fecha de inicio"
-          obligatorio
-          type="date"
-          value={datos.fechaInicio}
-          onChange={cambiar("fechaInicio")}
-          error={errores.fechaInicio}
-        />
-        <Campo
-          etiqueta="Fecha de fin"
-          obligatorio
-          type="date"
-          value={datos.fechaFin}
-          onChange={cambiar("fechaFin")}
-          error={errores.fechaFin}
-        />
-        <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
-        {error && (
-          <div className="sm:col-span-2">
-            <Alerta tipo="error" titulo={error} />
-          </div>
-        )}
-      </form>
-    </Modal>
+    <label className="flex w-full items-center gap-2 rounded-lg border border-borde bg-white px-4 py-3 focus-within:border-kubo-azul focus-within:ring-1 focus-within:ring-kubo-azul">
+      <Icono nombre="icon-calendar-gris" size={18} />
+      <input
+        type="date"
+        aria-label={etiqueta}
+        value={valor}
+        onChange={(e) => onCambiar(e.target.value)}
+        className="min-w-0 flex-1 bg-transparent text-[16px] leading-[1.4] text-texto outline-none"
+      />
+    </label>
   );
 }
 
