@@ -45,4 +45,44 @@ export const erroresAcademico = {
       "Los bimestres registrados quedarían fuera de las nuevas fechas del año. Ajusta primero los bimestres.",
       422,
     ),
+  // ---------- Secciones y aulas (US08, US09) ----------
+  aforoInvalido: () => new ErrorApp("AFORO_INVALIDO", "El aforo debe ser un número entero mayor a 0", 400),
+  nombreSeccionInvalido: () =>
+    new ErrorApp("NOMBRE_SECCION_INVALIDO", "El nombre de la sección debe ser una o más letras (A, B, C…)", 400),
+  seccionDuplicada: () => new ErrorApp("SECCION_DUPLICADA", "Ya existe una sección con ese nombre en este grado", 409),
+  seccionConMatriculados: (matriculas: number) =>
+    new ErrorApp(
+      "SECCION_CON_MATRICULADOS",
+      "No se puede eliminar una sección con alumnos matriculados. Puedes inactivarla para que no reciba nuevas matrículas.",
+      409,
+      { matriculas },
+    ),
+  seccionConRegistros: () =>
+    new ErrorApp(
+      "SECCION_CON_REGISTROS",
+      "No se puede eliminar la sección porque ya tiene cursos, horarios u otros registros. Puedes inactivarla.",
+      409,
+    ),
+  seccionSinVacantes: (matriculados: number, aforo: number) =>
+    new ErrorApp("SECCION_SIN_VACANTES", `Sección sin vacantes disponibles (${matriculados}/${aforo})`, 409, {
+      matriculados,
+      aforo,
+    }),
+  seccionInactiva: () =>
+    new ErrorApp("SECCION_INACTIVA", "La sección está inactiva y no recibe nuevas matrículas.", 409),
+  aulaDuplicada: () => new ErrorApp("AULA_DUPLICADA", "Ya existe un aula con ese nombre", 409),
+  aulaInactiva: () => new ErrorApp("AULA_INACTIVA", "El aula está inactiva. Actívala o elige otra.", 422),
+  aulaEnUso: (secciones: string) =>
+    new ErrorApp(
+      "AULA_EN_USO",
+      `El aula está asignada a ${secciones}. Quítala de esas secciones antes de inactivarla.`,
+      409,
+    ),
+  aforoMenorQueSecciones: (maximo: number) =>
+    new ErrorApp(
+      "AFORO_MENOR_QUE_SECCIONES",
+      `El aforo del aula no puede ser menor que el de sus secciones (máximo ${maximo}).`,
+      422,
+    ),
+  tutorNoDisponible: () => new ErrorApp("TUTOR_NO_DISPONIBLE", "El tutor debe ser un docente activo.", 422),
 };
