@@ -461,6 +461,13 @@ export const planes = {
   competenciasDelCurso: (cursoId: string, db: Db = prisma) =>
     db.competenciaPlan.count({ where: { planEstudio: { cursoId } } }),
 
+  /** Plan del curso para un grado y año (US14: el curso debe dictarse en el grado de la sección). */
+  delCursoEnGrado: (cursoId: string, gradoId: string, anioAcademicoId: string, db: Db = prisma) =>
+    db.planEstudio.findUnique({
+      where: { anioAcademicoId_gradoId_cursoId: { anioAcademicoId, gradoId, cursoId } },
+      select: { id: true, gradoId: true, anioAcademicoId: true },
+    }),
+
   /** Planes del curso de cualquier año (para eliminarlo). */
   idsDelCurso: async (cursoId: string, db: Db = prisma) =>
     (await db.planEstudio.findMany({ where: { cursoId }, select: { id: true } })).map((p) => p.id),
@@ -496,4 +503,78 @@ export const competenciasPlan = {
     db.competenciaPlan.update({ where: { id }, data, select: { id: true } }),
 
   eliminar: (ids: string[], db: Db = prisma) => db.competenciaPlan.deleteMany({ where: { id: { in: ids } } }),
+};
+
+// ---------- Asignaciones de cursos a docentes (US14) ----------
+
+const selectAsignacion = {
+  id: true,
+  docenteId: true,
+  activo: true,
+  planEstudio: {
+    select: {
+      id: true,
+      horasSemanales: true,
+      anioAcademico: { select: { id: true, anio: true, estado: true } },
+      curso: { select: { id: true, codigo: true, nombre: true } },
+    },
+  },
+  seccion: { select: { id: true, nombre: true, grado: { select: { id: true, numero: true, nombre: true } } } },
+} as const;
+
+export interface AsignacionFila {
+  id: string;
+  docenteId: string;
+  activo: boolean;
+  planEstudio: {
+    id: string;
+    horasSemanales: number;
+    anioAcademico: { id: string; anio: number; estado: EstadoAnio };
+    curso: { id: string; codigo: string; nombre: string };
+  };
+  seccion: { id: string; nombre: string; grado: GradoFila };
+}
+
+export const asignaciones = {
+  /** Asignaciones activas de un docente (de un año, o de todos), por año, grado, sección y curso. */
+  activasDelDocente: (docenteId: string, anioAcademicoId: string | undefined, db: Db = prisma) =>
+    db.asignacionDocente.findMany({
+      where: { docenteId, activo: true, ...(anioAcademicoId ? { planEstudio: { anioAcademicoId } } : {}) },
+      orderBy: [
+        { planEstudio: { anioAcademico: { anio: "desc" } } },
+        { seccion: { grado: { numero: "asc" } } },
+        { seccion: { nombre: "asc" } },
+        { planEstudio: { curso: { nombre: "asc" } } },
+      ],
+      select: selectAsignacion,
+    }) as Promise<AsignacionFila[]>,
+
+  porId: (id: string, db: Db = prisma) =>
+    db.asignacionDocente.findUnique({ where: { id }, select: selectAsignacion }) as Promise<AsignacionFila | null>,
+
+  /** La asignación activa del curso del plan en la sección, si hay (uq_asignacion_activa). */
+  activaDe: (planEstudioId: string, seccionId: string, db: Db = prisma) =>
+    db.asignacionDocente.findFirst({
+      where: { planEstudioId, seccionId, activo: true },
+      select: { id: true, docenteId: true },
+    }),
+
+  /** Una asignación desactivada del mismo docente, curso y sección: se reactiva en vez de duplicarla. */
+  inactivaDe: (planEstudioId: string, seccionId: string, docenteId: string, db: Db = prisma) =>
+    db.asignacionDocente.findFirst({
+      where: { planEstudioId, seccionId, docenteId, activo: false },
+      select: { id: true },
+    }),
+
+  crear: (data: { planEstudioId: string; seccionId: string; docenteId: string }, db: Db = prisma) =>
+    db.asignacionDocente.create({ data, select: { id: true } }),
+
+  cambiarActivo: (id: string, activo: boolean, db: Db = prisma) =>
+    db.asignacionDocente.update({ where: { id }, data: { activo }, select: { id: true } }),
+
+  eliminar: (id: string, db: Db = prisma) => db.asignacionDocente.delete({ where: { id }, select: { id: true } }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM asignacion_docente WHERE id = ${id}::uuid FOR UPDATE`;
+  },
 };

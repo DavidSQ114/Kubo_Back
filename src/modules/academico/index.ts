@@ -1,5 +1,5 @@
 // academico: interfaz pública. Otros módulos y las rutas importan SOLO desde aquí
-// (US06 año, US07 periodos, US08 grados y secciones, US09 aulas, US10 cursos, US11 competencias).
+// (US06 año, US07 periodos, US08 grados y secciones, US09 aulas, US10 cursos, US11 competencias, US14 asignaciones).
 export { ESTADOS_ANIO, NOMBRE_ESTADO_ANIO, ESTADOS_PERIODO, type EstadoAnio, type EstadoPeriodo } from "./domain/tipos";
 export { ESTADOS_SECCION, verificarVacantes, type EstadoSeccion, type Vacantes } from "./domain/secciones";
 export { ESTADOS_CURSO, verificarCompetenciasConfiguradas, type EstadoCurso } from "./domain/cursos";
@@ -54,4 +54,11 @@ export {
   competenciasDelPlan,
   type CompetenciaDelPlan,
 } from "./application/competencias";
+export {
+  listarAsignaciones,
+  misCursos,
+  asignarCurso,
+  quitarAsignacion,
+  type AsignacionVista,
+} from "./application/asignaciones";
 export * as esquemasAcademico from "./schemas";

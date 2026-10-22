@@ -11,6 +11,8 @@ export interface CierresProvider {
   resumenCierres(anioAcademicoId: string): Promise<ResumenCierres>;
   /** Notas registradas por competencia del plan (US11: no se quita una competencia con notas). Sin notas no aparece. */
   notasPorCompetenciaPlan(competenciaPlanIds: string[]): Promise<Record<string, number>>;
+  /** Notas registradas por asignación docente (US14: con notas, la asignación se desactiva en vez de borrarse). */
+  notasPorAsignacion(asignacionIds: string[]): Promise<Record<string, number>>;
 }
 
 let cierres: CierresProvider | null = null;
@@ -61,6 +63,8 @@ export interface DocenteResumen {
 export interface DocentesProvider {
   /** Docentes por id, activos o no (para mostrar el tutor y validar que esté activo). */
   docentesPorId(ids: string[]): Promise<DocenteResumen[]>;
+  /** Perfil Docente de la persona en sesión, o null (US14: «Mis cursos»). */
+  docentePorPersona(personaId: string): Promise<DocenteResumen | null>;
 }
 
 let docentes: DocentesProvider | null = null;
@@ -81,6 +85,8 @@ export function docentesProvider(): DocentesProvider {
 export interface HorariosProvider {
   /** Secciones que tienen el curso en un horario PUBLICADO (US10: un curso así no se elimina). */
   seccionesConHorarioPublicado(cursoIds: string[]): Promise<Record<string, number>>;
+  /** Bloques de horario de cada asignación docente y si alguno está en un horario PUBLICADO (US14). */
+  horariosPorAsignacion(asignacionIds: string[]): Promise<Record<string, { bloques: number; publicado: boolean }>>;
 }
 
 let horarios: HorariosProvider | null = null;
