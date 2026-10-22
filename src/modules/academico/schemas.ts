@@ -1,6 +1,7 @@
 // academico/schemas: validación de entradas de año académico y periodos (RNF16). Mensajes en español (RNF09).
 import { z } from "zod";
 import { CANTIDAD_BIMESTRES } from "./domain/reglas";
+import { ESTADOS_SECCION } from "./domain/secciones";
 import { ESTADOS_ANIO } from "./domain/tipos";
 
 const ANIO_MINIMO = 2000;
@@ -51,3 +52,44 @@ export const PeriodosSchema = z.object({
 });
 
 export const IdSchema = z.string().uuid("Identificador no válido");
+
+// ---------- Secciones y aulas (US08, US09) ----------
+
+const MENSAJE_AFORO = "El aforo debe ser un número entero mayor a 0";
+const aforo = z.number({ message: MENSAJE_AFORO }).int(MENSAJE_AFORO).positive(MENSAJE_AFORO);
+const idOpcional = (que: string) => z.string().uuid(`${que} no válido`).nullable().optional();
+
+export const SeccionSchema = z.object({
+  anioAcademicoId: z.string({ message: "Elige el año académico" }).uuid("Año académico no válido"),
+  gradoId: z.string({ message: "Elige el grado" }).uuid("Grado no válido"),
+  nombre: z
+    .string({ message: "Ingresa el nombre de la sección" })
+    .trim()
+    .min(1, "Ingresa el nombre de la sección")
+    .max(3),
+  aforoMaximo: aforo,
+  aulaId: idOpcional("Aula"),
+  tutorId: idOpcional("Tutor"),
+});
+
+export const EditarSeccionSchema = SeccionSchema.omit({ anioAcademicoId: true })
+  .partial()
+  .refine((d) => Object.values(d).some((v) => v !== undefined), { message: "Indica qué quieres cambiar" });
+
+export const EstadoSeccionSchema = z.object({
+  estado: z.enum(ESTADOS_SECCION, { message: "Estado no válido" }),
+});
+
+export const AulaSchema = z.object({
+  nombre: z.string({ message: "Ingresa el nombre del aula" }).trim().min(1, "Ingresa el nombre del aula").max(60),
+  ubicacion: z.string().trim().max(100, "Ubicación demasiado larga").nullable().optional(),
+  aforo,
+});
+
+export const EditarAulaSchema = AulaSchema.partial().refine((d) => Object.values(d).some((v) => v !== undefined), {
+  message: "Indica qué quieres cambiar",
+});
+
+export const EstadoAulaSchema = z.object({ activo: z.boolean({ message: "Indica si el aula queda activa" }) });
+
+export const ConsultaAnioSchema = z.object({ anioId: z.string().uuid("Año académico no válido").optional() });

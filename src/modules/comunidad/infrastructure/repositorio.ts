@@ -147,3 +147,23 @@ export async function contarUsuarios() {
   ]);
   return { todos, administradores, docentes, apoderados, alumnos, suspendidos };
 }
+
+// ---------- Docentes (tutores de sección, US08) ----------
+
+const selectDocente = {
+  id: true,
+  activo: true,
+  persona: { select: { nombres: true, apellidos: true, activo: true } },
+} as const;
+
+export const docentes = {
+  activos: (db: Db = prisma) =>
+    db.docente.findMany({
+      where: { activo: true, persona: { activo: true } },
+      orderBy: [{ persona: { apellidos: "asc" } }, { persona: { nombres: "asc" } }],
+      select: selectDocente,
+    }),
+
+  porIds: (ids: string[], db: Db = prisma) =>
+    db.docente.findMany({ where: { id: { in: ids } }, select: selectDocente }),
+};
