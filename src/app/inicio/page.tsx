@@ -1,4 +1,5 @@
 // Inicio temporal para Docente, Apoderado y Alumno hasta que se construyan sus portales.
+// El Docente ve aquí «Mis cursos»: sus cursos y secciones asignados (US14, criterio 1).
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -6,6 +7,50 @@ import { useEffect, useState } from "react";
 import { PaginaCentrada, TarjetaAcceso } from "@/components/acceso";
 import { Alerta, Boton, Spinner } from "@/components/ui";
 import { api, cerrarSesion, destinoPorErrorDeSesion, inicioPorRol, NOMBRE_ROL, type Rol, type Sesion } from "@/lib/api";
+
+interface MiCurso {
+  id: string;
+  anio: { anio: number };
+  curso: { nombre: string };
+  grado: { numero: number };
+  seccion: { nombre: string };
+  horasSemanales: number;
+}
+
+/** Cursos y secciones asignados al docente en sesión. */
+function MisCursos() {
+  const [cursos, setCursos] = useState<MiCurso[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<MiCurso[]>("/academico/mis-cursos")
+      .then(setCursos)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  if (error) return <Alerta tipo="error" titulo={error} />;
+  if (!cursos) return <Spinner claro={false} />;
+  return (
+    <section className="flex w-full flex-col gap-2" aria-label="Mis cursos">
+      <h2 className="text-[18px] font-semibold text-texto">Mis cursos</h2>
+      {cursos.length === 0 ? (
+        <p className="text-[14px] text-texto-3">Aún no tienes cursos asignados. Consulta con el administrador.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-borde rounded-lg border border-borde">
+          {cursos.map((c) => (
+            <li key={c.id} className="flex items-center gap-3 px-4 py-3 text-[14px]">
+              <span className="flex-1 font-semibold text-texto">{c.curso.nombre}</span>
+              <span className="text-texto-2">
+                {c.grado.numero}° {c.seccion.nombre}
+              </span>
+              <span className="text-texto-3">{c.anio.anio}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function InicioPage() {
   const router = useRouter();
@@ -44,6 +89,7 @@ export default function InicioPage() {
         >
           Tu sesión está activa. Estamos construyendo las pantallas de horarios, notas, asistencia y pagos.
         </Alerta>
+        {sesion.rolActivo === "DOCENTE" && <MisCursos />}
         {sesion.perfiles
           .filter((p) => p !== sesion.rolActivo)
           .map((p) => (

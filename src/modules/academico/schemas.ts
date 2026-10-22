@@ -166,3 +166,16 @@ export const CompetenciasPlanSchema = z.object({
     )
     .max(20),
 });
+
+// ---------- Asignación de cursos a docentes (US14) ----------
+
+export const AsignacionSchema = z.object({
+  docenteId: z.string({ message: "Elige el docente" }).uuid("Docente no válido"),
+  seccionId: z.string({ message: "Elige la sección" }).uuid("Sección no válida"),
+  cursoId: z.string({ message: "Elige el curso" }).uuid("Curso no válido"),
+});
+
+export const ConsultaAsignacionesSchema = z.object({
+  docenteId: z.string({ message: "Indica el docente" }).uuid("Docente no válido"),
+  anioId: z.string().uuid("Año académico no válido").optional(),
+});

@@ -1,4 +1,4 @@
-// academico/domain: errores del módulo (US06 año, US07 periodos, US08 secciones, US09 aulas, US10 cursos, US11 competencias).
+// academico/domain: errores del módulo (US06 año, US07 periodos, US08 secciones, US09 aulas, US10 cursos, US11 competencias, US14 asignación de cursos).
 import { ErrorApp } from "@/platform/http/errores";
 import { fechaCorta, NOMBRE_ESTADO_ANIO, type EstadoAnio, type RangoFechas } from "./tipos";
 
@@ -131,4 +131,15 @@ export const erroresAcademico = {
       "Este curso no tiene competencias configuradas. Contacte al administrador.",
       422,
     ),
+  // ---------- Asignación de cursos a docentes (US14) ----------
+  asignacionDuplicada: () =>
+    new ErrorApp("ASIGNACION_DUPLICADA", "Este docente ya tiene asignado este curso en esta sección", 409),
+  cursoConDocente: () =>
+    new ErrorApp("CURSO_CON_DOCENTE", "Este curso ya tiene otro docente asignado en esta sección", 409),
+  cursoNoCorresponde: () => new ErrorApp("CURSO_NO_CORRESPONDE", "El curso no corresponde al grado de la sección", 422),
+  docenteInactivo: () => new ErrorApp("DOCENTE_INACTIVO", "El docente está inactivo y no puede recibir cursos.", 422),
+  seccionInactivaParaAsignar: () =>
+    new ErrorApp("SECCION_INACTIVA", "La sección está inactiva. Actívala antes de asignarle cursos.", 422),
+  cursoInactivo: () =>
+    new ErrorApp("CURSO_INACTIVO", "El curso está inactivo. Actívalo en «Cursos y competencias» para asignarlo.", 422),
 };

@@ -22,3 +22,35 @@ POST {{base}}/comunidad/administradores
 Content-Type: application/json
 
 { "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "otro@kubo.edu.pe" }
+
+# ===================================================================
+# Docentes (US13). Datos ficticios.
+# ===================================================================
+
+### 5. Registrar docente (persona nueva) → 201 con passwordTemporal
+# @name docente
+POST {{base}}/comunidad/docentes
+Content-Type: application/json
+
+{ "dni": "45872136", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "juan.perez@kubo.edu.pe", "especialidad": "Matemática", "telefono": "987 654 321", "fechaNacimiento": "1986-06-14" }
+
+### 6. Mismo DNI otra vez → 409 «Ya existe un usuario registrado con este DNI»
+POST {{base}}/comunidad/docentes
+Content-Type: application/json
+
+{ "dni": "45872136", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "otro@kubo.edu.pe", "especialidad": "Matemática" }
+
+### 7. Correo con formato inválido → 400 «Formato de correo electrónico inválido»
+POST {{base}}/comunidad/docentes
+Content-Type: application/json
+
+{ "dni": "45872137", "nombres": "Ana", "apellidos": "Torres", "email": "ana.torres@", "especialidad": "Arte y Cultura" }
+
+### 8. DNI de la administradora del bloque 3 → 201 con personaExistia: true (se agrega el perfil Docente)
+POST {{base}}/comunidad/docentes
+Content-Type: application/json
+
+{ "dni": "45678912", "nombres": "Rosa", "apellidos": "Huamán Torres", "email": "rosa.huaman@kubo.edu.pe", "especialidad": "Comunicación" }
+
+### 9. Docentes activos (también los lista el selector «Tutor» de AD-03) → 200
+GET {{base}}/comunidad/docentes

@@ -34,3 +34,34 @@ export const FiltroUsuariosSchema = z.object({
   pagina: z.coerce.number().int().min(1).default(1),
   tamano: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+// ---------- Docentes (US13) ----------
+
+const MENSAJE_EMAIL = "Formato de correo electrónico inválido";
+
+export const RegistrarDocenteSchema = z.object({
+  dni: z
+    .string({ message: "Ingresa el DNI" })
+    .trim()
+    .regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
+  nombres: nombre("los nombres"),
+  apellidos: nombre("los apellidos"),
+  email: z.string({ message: "Ingresa el correo" }).trim().toLowerCase().max(254).email(MENSAJE_EMAIL),
+  especialidad: z
+    .string({ message: "Elige la especialidad" })
+    .trim()
+    .min(2, "Elige la especialidad")
+    .max(100, "Especialidad demasiado larga"),
+  telefono: z
+    .string()
+    .transform((t) => t.replace(/[\s-]/g, ""))
+    .pipe(z.string().regex(/^\d{9}$/, "El teléfono debe tener 9 dígitos"))
+    .optional()
+    .nullable(),
+  fechaNacimiento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha de nacimiento debe tener el formato AAAA-MM-DD")
+    .optional()
+    .nullable(),
+  enviarCorreo: z.boolean().optional(),
+});

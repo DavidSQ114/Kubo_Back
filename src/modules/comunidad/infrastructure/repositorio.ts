@@ -51,7 +51,14 @@ export const personas = {
     db.persona.findUnique({ where: { dni }, select: { id: true, nombres: true, apellidos: true, email: true } }),
 
   crear: (
-    data: { dni: string; nombres: string; apellidos: string; email: string; telefono?: string | null },
+    data: {
+      dni: string;
+      nombres: string;
+      apellidos: string;
+      email: string;
+      telefono?: string | null;
+      fechaNacimiento?: Date | null;
+    },
     db: Db = prisma,
   ) => db.persona.create({ data, select: { id: true, nombres: true, apellidos: true, email: true } }),
 
@@ -67,6 +74,15 @@ export const personas = {
       data: { activo: true, ...(cargo ? { cargo } : {}) },
       select: { id: true },
     }),
+
+  docenteDe: (personaId: string, db: Db = prisma) =>
+    db.docente.findUnique({ where: { personaId }, select: { id: true, activo: true } }),
+
+  crearDocente: (data: { personaId: string; especialidad: string }, db: Db = prisma) =>
+    db.docente.create({ data, select: { id: true } }),
+
+  reactivarDocente: (id: string, especialidad: string, db: Db = prisma) =>
+    db.docente.update({ where: { id }, data: { activo: true, especialidad }, select: { id: true } }),
 };
 
 // ---------- Listado de usuarios (AD-06) ----------
@@ -148,7 +164,7 @@ export async function contarUsuarios() {
   return { todos, administradores, docentes, apoderados, alumnos, suspendidos };
 }
 
-// ---------- Docentes (tutores de sección, US08) ----------
+// ---------- Docentes (tutores de sección US08, asignación de cursos US14) ----------
 
 const selectDocente = {
   id: true,
@@ -166,4 +182,7 @@ export const docentes = {
 
   porIds: (ids: string[], db: Db = prisma) =>
     db.docente.findMany({ where: { id: { in: ids } }, select: selectDocente }),
+
+  porPersona: (personaId: string, db: Db = prisma) =>
+    db.docente.findUnique({ where: { personaId }, select: selectDocente }),
 };
