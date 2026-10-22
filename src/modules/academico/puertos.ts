@@ -1,5 +1,5 @@
 // academico/puertos: lo que académico necesita de módulos superiores, sin importarlos.
-// evaluacion (dueño de cierre_calificacion) implementa CierresProvider y src/server/wiring.ts lo conecta.
+// evaluacion (dueño de cierre_calificacion y nota) implementa CierresProvider y src/server/wiring.ts lo conecta.
 
 export interface ResumenCierres {
   total: number;
@@ -9,6 +9,8 @@ export interface ResumenCierres {
 export interface CierresProvider {
   /** Cuántos cierres de calificación tienen los periodos del año y cuántos están PUBLICADOS (US06, cerrar año). */
   resumenCierres(anioAcademicoId: string): Promise<ResumenCierres>;
+  /** Notas registradas por competencia del plan (US11: no se quita una competencia con notas). Sin notas no aparece. */
+  notasPorCompetenciaPlan(competenciaPlanIds: string[]): Promise<Record<string, number>>;
 }
 
 let cierres: CierresProvider | null = null;
@@ -72,4 +74,24 @@ export function docentesProvider(): DocentesProvider {
     throw new Error("DocentesProvider no configurado: falta importar '@/server/wiring' en la ruta");
   }
   return docentes;
+}
+
+// ---------- Horarios (dueño: horarios) ----------
+
+export interface HorariosProvider {
+  /** Secciones que tienen el curso en un horario PUBLICADO (US10: un curso así no se elimina). */
+  seccionesConHorarioPublicado(cursoIds: string[]): Promise<Record<string, number>>;
+}
+
+let horarios: HorariosProvider | null = null;
+
+export function configurarHorariosProvider(p: HorariosProvider) {
+  horarios = p;
+}
+
+export function horariosProvider(): HorariosProvider {
+  if (!horarios) {
+    throw new Error("HorariosProvider no configurado: falta importar '@/server/wiring' en la ruta");
+  }
+  return horarios;
 }

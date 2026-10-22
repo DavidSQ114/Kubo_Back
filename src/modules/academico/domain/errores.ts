@@ -1,4 +1,4 @@
-// academico/domain: errores del módulo (US06 año académico, US07 periodos de evaluación).
+// academico/domain: errores del módulo (US06 año, US07 periodos, US08 secciones, US09 aulas, US10 cursos, US11 competencias).
 import { ErrorApp } from "@/platform/http/errores";
 import { fechaCorta, NOMBRE_ESTADO_ANIO, type EstadoAnio, type RangoFechas } from "./tipos";
 
@@ -85,4 +85,50 @@ export const erroresAcademico = {
       422,
     ),
   tutorNoDisponible: () => new ErrorApp("TUTOR_NO_DISPONIBLE", "El tutor debe ser un docente activo.", 422),
+  // ---------- Cursos y competencias (US10, US11) ----------
+  codigoCursoInvalido: () =>
+    new ErrorApp(
+      "CODIGO_CURSO_INVALIDO",
+      "El código del curso debe tener de 2 a 12 letras, números o guiones (por ejemplo, ART-2)",
+      400,
+    ),
+  cursoDuplicado: () => new ErrorApp("CURSO_DUPLICADO", "Ya existe un curso registrado con ese código", 409),
+  areaRequerida: () => new ErrorApp("AREA_REQUERIDA", "Debe seleccionar el área curricular del curso", 400),
+  cursoAsignado: (uso: { docentes: number; seccionesConHorario: number }) =>
+    new ErrorApp("CURSO_ASIGNADO", "No se puede eliminar un curso asignado; desactívalo en su lugar", 409, uso),
+  areaConCompetencias: () =>
+    new ErrorApp(
+      "AREA_CON_COMPETENCIAS",
+      "No se puede cambiar el área: el curso ya tiene competencias del área actual. Quítalas primero.",
+      409,
+    ),
+  horasInvalidas: () =>
+    new ErrorApp("HORAS_INVALIDAS", "Las horas semanales deben ser un número entero mayor a 0", 400),
+  gradoRepetido: () => new ErrorApp("GRADO_REPETIDO", "Cada grado se indica una sola vez", 400),
+  planEnUso: (grado: string) =>
+    new ErrorApp(
+      "PLAN_EN_USO",
+      `No se puede quitar ${grado}: el curso ya tiene docentes asignados o notas en ese grado.`,
+      409,
+    ),
+  competenciasRequeridas: () =>
+    new ErrorApp("COMPETENCIAS_REQUERIDAS", "Debes seleccionar al menos una competencia", 400),
+  competenciaDuplicada: () =>
+    new ErrorApp("COMPETENCIA_DUPLICADA", "Una competencia no puede repetirse en el mismo curso y grado", 400),
+  competenciaFueraDelArea: () =>
+    new ErrorApp("COMPETENCIA_FUERA_DEL_AREA", "La competencia no pertenece al área del curso", 422),
+  competenciaInactiva: () =>
+    new ErrorApp("COMPETENCIA_INACTIVA", "La competencia está desactivada en el catálogo oficial", 422),
+  pesoInvalido: () => new ErrorApp("PESO_INVALIDO", "El peso debe ser un número mayor a 0", 400),
+  competenciaConNotas: (nombre: string, notas: number) =>
+    new ErrorApp("COMPETENCIA_CON_NOTAS", "No se puede eliminar una competencia con notas registradas.", 409, {
+      competencia: nombre,
+      notas,
+    }),
+  cursoSinCompetencias: () =>
+    new ErrorApp(
+      "CURSO_SIN_COMPETENCIAS",
+      "Este curso no tiene competencias configuradas. Contacte al administrador.",
+      422,
+    ),
 };

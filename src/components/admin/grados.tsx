@@ -54,7 +54,7 @@ export const nombreSeccion = (s: { grado: { numero: number } | number; nombre: s
   `${typeof s.grado === "number" ? s.grado : s.grado.numero}° ${s.nombre}`;
 
 /** Errores de formulario: DATOS_INVALIDOS por campo; los demás, el mensaje del backend tal cual. */
-function separarErrores(e: unknown, campoDe: Record<string, string> = {}) {
+export function separarErrores(e: unknown, campoDe: Record<string, string> = {}) {
   if (e instanceof ApiError && e.codigo === "DATOS_INVALIDOS") {
     return { campos: e.detalles as Record<string, string>, general: null };
   }

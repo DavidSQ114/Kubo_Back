@@ -486,3 +486,13 @@ export function ModalCambioEstado({
     </Modal>
   );
 }
+
+/** Año activo por defecto: el que está en curso, si no el que está en matrícula, si no el más reciente abierto. */
+export function anioPorDefecto(anios: AnioAcademico[]): AnioAcademico | undefined {
+  return (
+    anios.find((a) => a.estado === "EN_CURSO") ??
+    anios.find((a) => a.estado === "EN_MATRICULA") ??
+    anios.find((a) => a.estado !== "CERRADO") ??
+    anios[0]
+  );
+}

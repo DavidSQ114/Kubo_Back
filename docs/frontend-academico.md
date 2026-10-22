@@ -1,4 +1,4 @@
-# Frontend · Académico: año y bimestres (AD-02), grados, secciones y aulas (AD-03)
+# Frontend · Académico: año y bimestres (AD-02), grados, secciones y aulas (AD-03), cursos y competencias (AD-04)
 
 # AD-02 · Año académico y bimestres
 
@@ -71,4 +71,47 @@ public/figma/act-trash.svg               Acción «Eliminar» de la fila
 | Papelera en las aulas | Desactivar/activar | US09: las aulas se desactivan, no se borran |
 | Fila de la sección: editar y bloquear | Editar, inactivar/activar y eliminar | Eliminar (sin matrículas) también es parte de US08 |
 | Fila «Lab. de Ciencias · Uso compartido · Por horario» | «Sin sección» y «—» | El uso por horario llegará con el módulo de horarios |
+| Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Es de la barra superior común del portal |
+
+---
+
+# AD-04 · Cursos y competencias
+
+Pantalla `/admin/cursos` (US10, US11), según el frame **AD-04 · Cursos y competencias** del Figma «Kubo – Prototipo» (captura en `docs/figma/AD-04-cursos-competencias.png`). Se llega por el ítem «Cursos y competencias» del menú lateral.
+
+## Archivos
+
+```
+src/app/(portal)/admin/cursos/page.tsx   AD-04: pestañas, malla curricular con filtros y bloques del curso elegido
+src/components/admin/cursos.tsx          Tipos, ítem de la malla, detalle, grados y horas, competencias por grado,
+                                         formulario «Registrar nuevo curso», eliminar y catálogo oficial
+src/components/admin/anio.tsx            anioPorDefecto (ahora compartido con AD-03)
+public/figma/icon-award.svg              Ícono de «Competencias del curso» (marca-award en azul)
+public/figma/alerta-warn.svg             Triángulo ámbar de los avisos (alerta-err en ámbar)
+```
+
+## Qué muestra
+
+- **Pestañas** «Malla curricular» y «Catálogo oficial», con el selector de año a la derecha (por defecto el año en curso).
+- **Malla curricular:** cursos con código, nombre, «1° a 5° · 6 h/sem» y competencias, o «Inactivo». Búsqueda por nombre o código y filtros por área y estado.
+- **Detalle del curso:** estado, código y área; grados, horas, docentes asignados y horarios publicados. «Desactivar»/«Activar», «Editar» y «Eliminar» (solo si no está en uso; si lo está, el aviso «Este curso no puede eliminarse»).
+- **Grados y horas semanales** del año elegido: cada grado con su casilla y sus horas.
+- **Competencias del curso:** un botón por grado del curso; las competencias del área con «N notas» o «Sin notas» y el contador «n de m seleccionadas». Una competencia con notas no se desmarca: aparece la alerta del frame.
+- **Registrar nuevo curso / Editar:** código, nombre, área (determina las competencias), grados, horas, descripción y competencias del área. Los errores del backend aparecen bajo su campo.
+- **Catálogo oficial:** las 11 áreas con sus competencias, solo lectura.
+- **Estados:** cargando, error, vacío («Aún no hay cursos» / «Ningún curso coincide») y con datos; año cerrado en solo lectura.
+
+## Diferencias con el Figma (y por qué)
+
+| En el Figma | En el código | Motivo |
+|---|---|---|
+| Solo búsqueda en la malla | Búsqueda más filtros de área y estado | Pedido en US10 |
+| Competencias por curso | Competencias por curso **y grado** (un botón por grado) | El modelo guarda las competencias por plan de estudio (curso + grado + año) |
+| Sin bloque de grados y horas | Bloque «Grados y horas semanales» | US10: los grados del curso son los planes del año con sus horas |
+| «Grados» como lista desplegable | Botones 1° a 5° (varios a la vez) | Un `select` simple no permite elegir varios grados |
+| Sin selector de año | Selector a la derecha de las pestañas | Los planes son de un año, como en AD-03 |
+| Sin «Eliminar» ni descripción | «Eliminar» (si el curso no se usa) y «Descripción (opcional)» | Parte de US10 |
+| «4 de 4 seleccionadas» junto al título | Sobre la lista de competencias | Depende del grado elegido, que se elige debajo del título |
+| «Catálogo oficial» editable (frame AD-04b) | Solo lectura | Gestionar el catálogo no es parte de US10 ni US11 |
+| Peso de cada competencia | No se edita en pantalla (sí por API) | El frame no lo muestra; se conserva el que ya tenga |
 | Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Es de la barra superior común del portal |

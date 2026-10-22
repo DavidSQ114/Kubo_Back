@@ -38,7 +38,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
     items: [
       { texto: "Año y bimestres", icono: "nav-calendar", href: "/admin/anio" },
       { texto: "Grados, secciones y aulas", icono: "nav-layers", href: "/admin/grados" },
-      { texto: "Cursos y competencias", icono: "nav-book" },
+      { texto: "Cursos y competencias", icono: "nav-book", href: "/admin/cursos" },
       { texto: "Reglas de evaluación", icono: "nav-sliders" },
     ],
   },

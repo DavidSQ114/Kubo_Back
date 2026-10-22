@@ -1,7 +1,7 @@
-# Casos de prueba · Año académico (US06), periodos (US07), secciones (US08) y aulas (US09)
+# Casos de prueba · Año (US06), periodos (US07), secciones (US08), aulas (US09), cursos (US10) y competencias (US11)
 
-Pantallas AD-02 «Año académico y bimestres» (`/admin/anio`) y AD-03 «Grados, secciones y aulas» (`/admin/grados`) y API [academico.md](../api/academico.md).
-Las reglas puras se prueban además en `tests/academico/reglas.test.ts` y `tests/academico/secciones.test.ts`.
+Pantallas AD-02 «Año académico y bimestres» (`/admin/anio`), AD-03 «Grados, secciones y aulas» (`/admin/grados`) y AD-04 «Cursos y competencias» (`/admin/cursos`), y la API [academico.md](../api/academico.md).
+Las reglas puras se prueban además en `tests/academico/reglas.test.ts`, `tests/academico/secciones.test.ts` y `tests/academico/cursos.test.ts`.
 
 **Precondición común (PC):** sesión iniciada como Administrador (`admin@kubo.edu.pe`) con la contraseña ya cambiada, base de pruebas sin años académicos.
 Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepción** (el sistema rechaza la operación y muestra el mensaje).
@@ -92,3 +92,40 @@ Precondición adicional: año 2026 «En matrícula» y las aulas de los casos re
 | CP-US09-07 | US09 | básico | Aula 206 sin secciones activas | 1. Desactivar el Aula 206. | — | Queda «desactivada» en la lista (no se borra) y ya no aparece al elegir aula. Auditoría `DESACTIVAR_AULA`. |
 | CP-US09-08 | US09 | alterno | Aula 206 desactivada | 1. Activarla con el ícono de la fila. | — | Vuelve a estar disponible. Auditoría `ACTIVAR_AULA`. |
 | CP-US09-09 | US09 | básico | 1° A usa el Aula 101 con alumnos matriculados | 1. Ver «Aulas físicas». | — | El Aula 101 muestra «Sección asignada» 1° A y su ocupación (matriculados/aforo del aula). |
+
+## US10 · Registro de cursos
+
+Precondición adicional: año 2026 creado (no cerrado) y el seed cargado (11 áreas, 28 competencias y 10 cursos).
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US10-01 | US10 | básico | PC | 1. Ir a «Cursos y competencias». 2. Llenar «Registrar nuevo curso». 3. «Guardar curso». | ART-2, Arte y Cultura II, área Arte y Cultura, 4° y 5°, 2 h, competencia C1 | Aviso «Se registró el curso Arte y Cultura II.». Aparece en la malla con «4° y 5° · 2 h/sem · 1 comp.» y queda elegido. Auditoría `CREAR_CURSO`, `GUARDAR_PLAN_ESTUDIO` y `GUARDAR_COMPETENCIAS_PLAN`. |
+| CP-US10-02 | US10 | alterno | PC | 1. Registrar un curso sin elegir grados. | TUT, Tutoría, área DPCC | Se registra con «Sin grados este año»; los grados y competencias se agregan después en sus bloques. |
+| CP-US10-03 | US10 | excepción | Existe MAT | 1. Registrar un curso con el código MAT (o «mat»). | MAT | No se registra. Mensaje bajo el código: «Ya existe un curso registrado con ese código». |
+| CP-US10-04 | US10 | excepción | PC | 1. Registrar un curso sin área curricular. | ART-2, sin área | No se registra. Mensaje bajo el área: «Debe seleccionar el área curricular del curso». |
+| CP-US10-05 | US10 | excepción | PC | 1. Registrar un curso con código «M» (API). | M | 400. Mensaje: «El código del curso debe tener de 2 a 12 letras, números o guiones (por ejemplo, ART-2)». |
+| CP-US10-06 | US10 | básico | Matemática sin grados en 2026 | 1. En «Grados y horas semanales», marcar 1° a 5° con 6 h. 2. «Guardar grados». | 6 h | La malla muestra «1° a 5° · 6 h/sem». Auditoría `GUARDAR_PLAN_ESTUDIO`. |
+| CP-US10-07 | US10 | excepción | PC | 1. Guardar grados con 0 horas. | 0 h | No se guarda. Mensaje: «Las horas semanales deben ser un número entero mayor a 0». |
+| CP-US10-08 | US10 | excepción | Matemática 1° con un docente asignado o notas | 1. Desmarcar 1° y guardar. | — | 409. Mensaje: «No se puede quitar 1° de secundaria: el curso ya tiene docentes asignados o notas en ese grado.» |
+| CP-US10-09 | US10 | excepción | Matemática con un docente asignado y un horario publicado | 1. Ver el detalle de Matemática. 2. Eliminar (API). | — | El detalle muestra «Este curso no puede eliminarse» con los docentes y horarios, y no ofrece «Eliminar». La API responde 409: «No se puede eliminar un curso asignado; desactívalo en su lugar». |
+| CP-US10-10 | US10 | básico | ART-2 sin docentes ni horarios | 1. «Eliminar» y confirmar. | — | Aviso «Se eliminó el curso Arte y Cultura II.». Se borran también sus grados y competencias. Auditoría `ELIMINAR_CURSO`. |
+| CP-US10-11 | US10 | básico | Matemática activa | 1. «Desactivar». 2. «Activar». | — | Queda «Inactivo» (gris en la malla) y luego «Activo». Auditoría `DESACTIVAR_CURSO` y `ACTIVAR_CURSO`. |
+| CP-US10-12 | US10 | excepción | Matemática con competencias configuradas | 1. Editar y cambiar el área a Ciencia y Tecnología. | — | No se guarda. Mensaje bajo el área: «No se puede cambiar el área: el curso ya tiene competencias del área actual. Quítalas primero.» |
+| CP-US10-13 | US10 | básico | Cursos de varias áreas | 1. Filtrar por área y por estado; buscar por código. | Matemática / Inactivos / «com» | La malla solo muestra los cursos que cumplen los filtros. |
+| CP-US10-14 | US10 | excepción | Año 2025 «Cerrado» | 1. Guardar grados de un curso en 2025 (API; en pantalla el bloque queda de solo lectura). | — | 422. Mensaje: «El año académico está cerrado y ya no se puede modificar.» |
+
+## US11 · Competencias por curso
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US11-01 | US11 | básico | Matemática en 1° | 1. En «Competencias del curso», elegir 1°. 2. Marcar C1 a C4. 3. «Guardar competencias». | — | Aviso «Se guardaron las competencias de 1° de secundaria.». «4 de 4 seleccionadas». Auditoría `GUARDAR_COMPETENCIAS_PLAN`. |
+| CP-US11-02 | US11 | alterno | Matemática 1° con C1 a C4 | 1. Desmarcar C4 (sin notas) y guardar. | — | Se guarda con C1 a C3. |
+| CP-US11-03 | US11 | excepción | Matemática 1° | 1. Desmarcar todas y guardar. | — | No se guarda. Mensaje: «Debes seleccionar al menos una competencia». |
+| CP-US11-04 | US11 | excepción | Matemática 1° | 1. Enviar una competencia de Ciencia y Tecnología (API; en pantalla solo se listan las del área). | CYT-C1 | 422. Mensaje: «La competencia no pertenece al área del curso». |
+| CP-US11-05 | US11 | excepción | Matemática 1° | 1. Enviar la misma competencia dos veces (API). | MAT-C1 dos veces | 400. Mensaje: «Una competencia no puede repetirse en el mismo curso y grado». |
+| CP-US11-06 | US11 | excepción | Matemática 1° | 1. Enviar un peso de 0 (API). | peso 0 | 400. Mensaje: «El peso debe ser un número mayor a 0». |
+| CP-US11-07 | US11 | básico | Matemática 1° | 1. Enviar C4 con peso 1.5 (API). | peso 1.5 | Se guarda el peso; el orden sigue la lista. |
+| CP-US11-08 | US11 | excepción | MAT-C1 de 1° con notas registradas | 1. Desmarcar C1. | — | No se desmarca. Alerta «No se puede desmarcar una competencia con notas registradas» con «“Resuelve problemas de cantidad” tiene N notas registradas.». Por API: 409 «No se puede eliminar una competencia con notas registradas.» |
+| CP-US11-09 | US11 | excepción | Registrar un curso con grados | 1. Marcar grados y no marcar competencias. | ART-2, 4° | Aviso «Debes seleccionar al menos una competencia» y no se guarda. |
+| CP-US11-10 | US11 | alterno | Comunicación en 1° sin competencias | 1. El registro de notas llama a `competenciasDelPlan` y `verificarCompetenciasConfiguradas`. | — | Se rechaza con «Este curso no tiene competencias configuradas. Contacte al administrador.» |
+| CP-US11-11 | US11 | básico | PC | 1. Abrir la pestaña «Catálogo oficial». | — | Se ven las 11 áreas con sus competencias del CNEB (solo lectura). |

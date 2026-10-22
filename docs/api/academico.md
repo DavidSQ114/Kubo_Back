@@ -1,4 +1,4 @@
-# API · Académico: año académico, periodos, grados, secciones y aulas (US06–US09)
+# API · Académico: año, periodos, grados, secciones, aulas, cursos y competencias (US06–US11)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -157,3 +157,91 @@ Pantalla: AD-03 (`/admin/grados`). Todas las rutas exigen el rol `ADMINISTRADOR`
 
 - Las vacantes y el bloqueo al eliminar leen `matricula` (de `matricula`) por el puerto `MatriculasProvider`, que implementa un módulo `matricula` mínimo.
 - El tutor se valida y se muestra con `DocentesProvider`, que implementa `comunidad` (dueño de `docente`).
+
+---
+
+# Cursos y competencias (US10, US11)
+
+Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`. Un **plan de estudio** es curso + grado + año, con sus horas semanales; sus competencias son las que se evalúan con la escala AD, A, B y C.
+
+## Endpoints · solo `ADMINISTRADOR`
+
+| Método y ruta | Cuerpo / consulta | Respuesta `data` |
+|---|---|---|
+| `GET /academico/areas` | — | `Area[]` activas: `{ id, codigo, nombre, competencias: { id, areaCurricularId, codigo, nombre, activo }[] }` |
+| `GET /academico/cursos` | `?areaId=&estado=ACTIVO\|INACTIVO&anioId=` (todos opcionales) | `Curso[]`, activos primero y por nombre |
+| `POST /academico/cursos` | `{ codigo, nombre, descripcion?, areaCurricularId, plan? }` | `201 Curso` `ACTIVO` |
+| `PATCH /academico/cursos/{id}` | `{ codigo?, nombre?, descripcion?, areaCurricularId? }` (al menos uno) | `Curso` |
+| `DELETE /academico/cursos/{id}` | — | `{ cursoId, eliminado: true }` |
+| `POST /academico/cursos/{id}/estado` | `{ estado: "ACTIVO" \| "INACTIVO" }` | `Curso` |
+| `GET /academico/cursos/{id}/planes` | `?anioId=` (obligatorio) | `{ cursoId, anioAcademicoId, grados: { grado, plan: PlanResumen \| null }[] }`, los 5 grados |
+| `PUT /academico/cursos/{id}/planes` | `?anioId=` y `{ planes: { gradoId, horasSemanales }[] }` | Igual que el GET |
+| `GET /academico/planes/{id}/competencias` | — | `{ plan, competencias, disponibles }` |
+| `PUT /academico/planes/{id}/competencias` | `{ competencias: { competenciaId, orden?, peso? }[] }` | Igual que el GET |
+
+- `Curso`: `{ id, codigo, nombre, descripcion, estado, areaCurricular: { id, codigo, nombre }, planes: PlanResumen[], competencias, uso }`. Con `anioId`, `planes` trae los grados de ese año y `competencias` cuenta las competencias distintas que evalúa; sin `anioId`, `planes` viene vacío.
+- `uso`: `{ docentes, seccionesConHorario }`: docentes distintos con alguna asignación del curso y secciones con el curso en un horario publicado (de cualquier año). Son los datos «Docentes asignados» y «Horarios publicados» de AD-04.
+- `PlanResumen`: `{ id, grado: { id, numero, nombre }, horasSemanales, competencias, asignaciones }`.
+- `plan` (opcional en `POST /cursos`): `{ anioAcademicoId, grados: { gradoId, horasSemanales }[], competencias: competenciaId[] }`. Crea el curso, sus grados del año y las mismas competencias en cada grado, todo en una transacción (formulario «Registrar nuevo curso»).
+- `PUT /cursos/{id}/planes` deja el curso exactamente en los grados enviados: agrega los nuevos, cambia horas y quita los que faltan (con sus competencias).
+- `GET /planes/{id}/competencias`: `plan` = `{ id, anioAcademicoId, grado, horasSemanales, curso: { id, codigo, nombre, area } }`; `competencias` = `{ id, orden, peso, notas, competencia: { id, codigo, nombre } }[]` (el `id` es el de `competencia_plan`, que usan las notas); `disponibles` = competencias del área del curso.
+- `PUT /planes/{id}/competencias` reemplaza la lista: el orden, si falta, es la posición en la lista; el `peso` es opcional.
+
+## Reglas
+
+**Cursos (US10)**
+
+- Código único, de 2 a 12 letras, números o guiones; se guarda en mayúsculas («Ya existe un curso registrado con ese código»).
+- Nombre obligatorio, descripción opcional y área curricular obligatoria y activa («Debe seleccionar el área curricular del curso»).
+- El área no cambia mientras el curso tenga competencias configuradas (de su área actual).
+- Un curso con docentes asignados o en un horario publicado no se elimina: «No se puede eliminar un curso asignado; desactívalo en su lugar». Sin uso, se elimina junto con sus planes de todos los años.
+- Se desactiva y se activa con `/estado`: un curso inactivo conserva sus planes y notas.
+
+**Grados del curso (plan de estudio del año)**
+
+- Cada grado una vez, con horas semanales enteras de 1 a 40.
+- Solo en un año que no esté `CERRADO`.
+- No se quita un grado con docentes asignados o con notas registradas (`PLAN_EN_USO`).
+
+**Competencias del plan (US11, RF09)**
+
+- Una o más («Debes seleccionar al menos una competencia»), sin repetir.
+- Solo del área curricular del curso: «La competencia no pertenece al área del curso».
+- Una competencia desactivada en el catálogo no se agrega, pero puede quedarse si ya estaba.
+- Peso opcional y mayor a 0. El orden es la posición en la lista si no se envía.
+- No se quita una competencia con notas registradas: «No se puede eliminar una competencia con notas registradas.»
+- Solo en un año que no esté `CERRADO`.
+
+**Para el registro de notas.** `competenciasDelPlan(planEstudioId)` (en `@/modules/academico`) devuelve `{ competenciaPlanId, competenciaId, codigo, nombre, orden, peso }[]` en orden. `verificarCompetenciasConfiguradas(lista)` rechaza una lista vacía con `422 CURSO_SIN_COMPETENCIAS`: «Este curso no tiene competencias configuradas. Contacte al administrador.»
+
+## Códigos de error
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Falta un campo o tiene formato incorrecto (sin área: «Debe seleccionar el área curricular del curso»; horas o peso no válidos) |
+| `CODIGO_CURSO_INVALIDO` | 400 | El código no tiene de 2 a 12 letras, números o guiones |
+| `GRADO_REPETIDO` | 400 | Un grado aparece dos veces en los planes |
+| `HORAS_INVALIDAS` | 400 | Horas semanales que no son un entero mayor a 0 |
+| `COMPETENCIAS_REQUERIDAS` | 400 | La lista de competencias está vacía |
+| `COMPETENCIA_DUPLICADA` | 400 | Una competencia aparece dos veces |
+| `PESO_INVALIDO` | 400 | Peso de 0 o negativo |
+| `AREA_REQUERIDA` | 400 | El área no existe o está desactivada |
+| `NO_ENCONTRADO` | 404 | El curso, el año, el grado o el plan no existen |
+| `CURSO_DUPLICADO` | 409 | «Ya existe un curso registrado con ese código» |
+| `CURSO_ASIGNADO` | 409 | Eliminar un curso con docentes asignados o en un horario publicado (`details`: `{ docentes, seccionesConHorario }`) |
+| `AREA_CON_COMPETENCIAS` | 409 | Cambiar el área de un curso que ya tiene competencias |
+| `PLAN_EN_USO` | 409 | Quitar un grado con docentes asignados o notas |
+| `COMPETENCIA_CON_NOTAS` | 409 | Quitar una competencia con notas (`details`: `{ competencia, notas }`) |
+| `COMPETENCIA_FUERA_DEL_AREA` | 422 | La competencia no es del área del curso (RF09) |
+| `COMPETENCIA_INACTIVA` | 422 | Agregar una competencia desactivada en el catálogo |
+| `ANIO_CERRADO` | 422 | El año del plan está cerrado |
+
+## Auditoría (RF03)
+
+`CREAR_CURSO`, `EDITAR_CURSO`, `ACTIVAR_CURSO`, `DESACTIVAR_CURSO`, `ELIMINAR_CURSO` (entidad `curso`), `GUARDAR_PLAN_ESTUDIO` (entidad `curso`, con los grados y horas antes y después) y `GUARDAR_COMPETENCIAS_PLAN` (entidad `plan_estudio`, con los códigos antes y después), en la misma transacción que el cambio.
+
+## Dependencias entre módulos
+
+- Las notas por competencia se leen de `evaluacion` (dueño de `nota`) por el mismo puerto `CierresProvider`, que suma `notasPorCompetenciaPlan`.
+- Las secciones con el curso en un horario publicado se leen de `horarios` (dueño de `horario` y `detalle_horario`) por el puerto nuevo `HorariosProvider`, que implementa un módulo `horarios` mínimo.
+- Las asignaciones docentes (`asignacion_docente`) son de `academico`, así que se leen en su propio repositorio.
