@@ -160,10 +160,10 @@ src/modules/identidad/
 |---|---|---|---|
 | **identidad** | identidad.prisma | Cuentas, sesiones, contraseñas, bloqueo | Implementado |
 | **comunidad** | comunidad.prisma | Personas, perfiles (administrador, docente, apoderado, alumno) | Implementado |
-| **academico** | academico.prisma | Año, periodos, grados, secciones, aulas, currículo | Siguiente |
+| **academico** | academico.prisma | Año, periodos, grados, secciones, aulas, currículo | En curso: año académico y periodos de evaluación (US06, US07) |
 | **matricula** | matricula.prisma | Matrícula, pensiones y pagos | Pendiente |
 | **horarios** | horarios.prisma | Bloques, horarios y asistencia | Pendiente |
-| **evaluacion** | evaluacion.prisma | Notas por competencia, cierres, rectificaciones | Pendiente |
+| **evaluacion** | evaluacion.prisma | Notas por competencia, cierres, rectificaciones | Pendiente (ya implementa el puerto `CierresProvider` de academico) |
 | **aula-virtual** | aula-virtual.prisma | Material de estudio y trabajos | Pendiente |
 
 ### 3.5 Cómo crear un módulo nuevo

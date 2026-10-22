@@ -1,0 +1,124 @@
+# Pruebas manuales de la API de académico: año académico (US06) y periodos de evaluación (US07).
+# Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
+# Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
+# (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
+# Pensado para una base sin años académicos. Ejecuta los bloques en orden.
+
+@base = http://localhost:3000/api/v1
+
+### 1. Listar años → 200 (vacío al inicio)
+GET {{base}}/academico/anios
+
+### 2. Crear con fin antes del inicio → 400 FECHAS_INVALIDAS
+POST {{base}}/academico/anios
+Content-Type: application/json
+
+{ "anio": 2026, "fechaInicio": "2026-12-18", "fechaFin": "2026-03-02" }
+
+### 3. Crear 2026 → 201 PLANIFICADO
+# @name crear2026
+POST {{base}}/academico/anios
+Content-Type: application/json
+
+{ "anio": 2026, "fechaInicio": "2026-03-02", "fechaFin": "2026-12-18" }
+
+###
+@anio = {{crear2026.response.body.$.data.id}}
+
+### 4. Crear otro año que se cruza con 2026 → 409 ANIO_SOLAPADO (se detecta antes que el número repetido)
+POST {{base}}/academico/anios
+Content-Type: application/json
+
+{ "anio": 2026, "fechaInicio": "2026-06-01", "fechaFin": "2026-11-30" }
+
+### 5. Número de año distinto al de la fecha de inicio → 400 ANIO_NO_COINCIDE
+POST {{base}}/academico/anios
+Content-Type: application/json
+
+{ "anio": 2028, "fechaInicio": "2027-03-01", "fechaFin": "2027-12-17" }
+
+### 6. Detalle del año → 200
+GET {{base}}/academico/anios/{{anio}}
+
+### 7. Bimestres que se solapan (II empieza el día que termina I) → 422 PERIODOS_SOLAPADOS
+PUT {{base}}/academico/anios/{{anio}}/periodos
+Content-Type: application/json
+
+{ "periodos": [
+  { "numero": 1, "fechaInicio": "2026-03-02", "fechaFin": "2026-05-08" },
+  { "numero": 2, "fechaInicio": "2026-05-08", "fechaFin": "2026-07-24" },
+  { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
+  { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-18" }
+] }
+
+### 8. Bimestre IV fuera del año → 422 PERIODO_FUERA_DEL_ANIO
+PUT {{base}}/academico/anios/{{anio}}/periodos
+Content-Type: application/json
+
+{ "periodos": [
+  { "numero": 1, "fechaInicio": "2026-03-02", "fechaFin": "2026-05-08" },
+  { "numero": 2, "fechaInicio": "2026-05-18", "fechaFin": "2026-07-24" },
+  { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
+  { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-30" }
+] }
+
+### 8b. Bimestres sin solaparse pero desordenados (I y II intercambiados) → 422 PERIODOS_DESORDENADOS
+PUT {{base}}/academico/anios/{{anio}}/periodos
+Content-Type: application/json
+
+{ "periodos": [
+  { "numero": 1, "fechaInicio": "2026-05-18", "fechaFin": "2026-07-24" },
+  { "numero": 2, "fechaInicio": "2026-03-02", "fechaFin": "2026-05-08" },
+  { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
+  { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-18" }
+] }
+
+### 9. Guardar los 4 bimestres → 200
+PUT {{base}}/academico/anios/{{anio}}/periodos
+Content-Type: application/json
+
+{ "periodos": [
+  { "numero": 1, "fechaInicio": "2026-03-02", "fechaFin": "2026-05-08" },
+  { "numero": 2, "fechaInicio": "2026-05-18", "fechaFin": "2026-07-24" },
+  { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
+  { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-18" }
+] }
+
+### 10. Ver bimestres → 200 (Bimestre I … IV, INACTIVO)
+GET {{base}}/academico/anios/{{anio}}/periodos
+
+### 11. Acortar el año dejando fuera el Bimestre IV → 422 PERIODOS_FUERA_DEL_ANIO
+PATCH {{base}}/academico/anios/{{anio}}
+Content-Type: application/json
+
+{ "fechaFin": "2026-12-01" }
+
+### 12. Saltar de PLANIFICADO a EN_CURSO → 422 TRANSICION_NO_PERMITIDA
+POST {{base}}/academico/anios/{{anio}}/estado
+Content-Type: application/json
+
+{ "estado": "EN_CURSO" }
+
+### 13. Abrir matrícula → 200 EN_MATRICULA
+POST {{base}}/academico/anios/{{anio}}/estado
+Content-Type: application/json
+
+{ "estado": "EN_MATRICULA" }
+
+### 14. Iniciar clases → 200 EN_CURSO
+POST {{base}}/academico/anios/{{anio}}/estado
+Content-Type: application/json
+
+{ "estado": "EN_CURSO" }
+
+### 15. Iniciar cierre → 200 EN_CIERRE
+POST {{base}}/academico/anios/{{anio}}/estado
+Content-Type: application/json
+
+{ "estado": "EN_CIERRE" }
+
+### 16. Cerrar sin notas publicadas → 422 NOTAS_SIN_PUBLICAR
+POST {{base}}/academico/anios/{{anio}}/estado
+Content-Type: application/json
+
+{ "estado": "CERRADO" }
