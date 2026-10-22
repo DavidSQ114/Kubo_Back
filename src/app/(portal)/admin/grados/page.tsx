@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AnioAcademico } from "@/components/admin/anio";
+import { anioPorDefecto, type AnioAcademico } from "@/components/admin/anio";
 import {
   BadgeEstadoSeccion,
   BarraOcupacion,
@@ -35,16 +35,6 @@ interface Catalogos {
   anios: AnioAcademico[];
   grados: Grado[];
   docentes: Docente[];
-}
-
-/** Año activo por defecto: el que está en curso, si no el que está en matrícula, si no el más reciente abierto. */
-function anioPorDefecto(anios: AnioAcademico[]): AnioAcademico | undefined {
-  return (
-    anios.find((a) => a.estado === "EN_CURSO") ??
-    anios.find((a) => a.estado === "EN_MATRICULA") ??
-    anios.find((a) => a.estado !== "CERRADO") ??
-    anios[0]
-  );
 }
 
 export default function GradosSeccionesPage() {
