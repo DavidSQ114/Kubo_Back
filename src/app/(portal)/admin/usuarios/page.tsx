@@ -1,7 +1,7 @@
 // AD-06 · Usuarios (RF05, RF46)
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { alertaError, useSesion } from "@/components/admin/PortalAdmin";
 import {
@@ -43,6 +43,7 @@ const ESTADOS = [
 
 function Usuarios({ qInicial }: { qInicial: string }) {
   const sesion = useSesion();
+  const router = useRouter();
   const [rol, setRolEstado] = useState<Rol | undefined>();
   const [q, setQ] = useState(qInicial);
   const [qDebounced, setQDebounced] = useState(q);
@@ -153,7 +154,7 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         >
           Registrar apoderado
         </Boton>
-        <Boton icono="icon-userplus-blanco" disabled title="Disponible cuando se construya el módulo comunidad (RF11)">
+        <Boton icono="icon-userplus-blanco" onClick={() => router.push("/admin/usuarios/registrar-docente")}>
           Registrar docente
         </Boton>
       </div>

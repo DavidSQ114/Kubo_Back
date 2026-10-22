@@ -183,7 +183,7 @@ export function Casilla({
 // ---------- Botones ----------
 
 interface BotonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variante?: "primario" | "secundario" | "peligro";
+  variante?: "primario" | "secundario" | "peligro" | "exito";
   tamano?: "md" | "lg";
   icono?: string;
   cargando?: boolean;
@@ -209,6 +209,8 @@ export function Boton({
     // El borde va por dentro (ring-inset) para medir lo mismo que el botón primario, como en el Figma.
     secundario: "bg-white text-texto ring-1 ring-inset ring-borde hover:bg-fondo disabled:text-texto-3",
     peligro: "bg-rojo text-white hover:bg-rojo-oscuro disabled:bg-rojo/60",
+    // «+ Asignar» de AD-07
+    exito: "bg-verde-oscuro text-white hover:bg-verde-oscuro/90 disabled:bg-verde-oscuro/60",
   }[variante];
   return (
     <button
