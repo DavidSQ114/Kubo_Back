@@ -75,3 +75,42 @@ scripts/descargar-assets-figma.mjs   Descarga esos SVG desde el Figma
 
 - Next.js con **Tailwind CSS v4**, que es lo que instala `create-next-app`. Si el proyecto usara Tailwind v3, hay que mover los tokens de `@theme` a `tailwind.config`.
 - La fuente IBM Plex Sans se descarga de Google Fonts la primera vez que se compila, así que necesita internet.
+
+---
+
+# AD-07 · Registrar docente y asignar cursos (US13, US14)
+
+Pantalla `/admin/usuarios/registrar-docente`, según el frame **AD-07 · Registrar docente y asignar cursos** del Figma (captura en `docs/figma/AD-07-registrar-docente.png`). Se llega con el botón «Registrar docente» de AD-06, que ya está habilitado.
+
+## Archivos
+
+```
+src/app/(portal)/admin/usuarios/registrar-docente/page.tsx   AD-07: registro y orden de los bloques
+src/components/admin/docentes.tsx                             Datos personales, acceso al sistema, vista previa
+                                                              del correo y carga académica
+src/app/inicio/page.tsx                                       «Mis cursos» del docente (US14, criterio 1)
+src/components/ui/index.tsx                                   Boton variante «exito» (verde, «+ Asignar»)
+```
+
+## Qué muestra
+
+- **1 · Datos personales:** nombres, apellidos, DNI, fecha de nacimiento, correo institucional («Aquí se enviarán las credenciales de acceso.»), teléfono celular y especialidad. Los errores aparecen bajo cada campo, también los del backend («Ya existe un usuario registrado con este DNI»).
+- **Acceso al sistema:** avatar, nombre, correo y perfil Docente; «Temporal · se genera al guardar»; la casilla «Enviar correo de bienvenida con credenciales» y los avisos del primer ingreso. Al registrar se muestra una sola vez la contraseña temporal.
+- **Vista previa del correo:** el mismo texto que envía identidad, con la contraseña oculta.
+- **2 · Carga académica:**
+  - Se elige docente (el recién registrado u otro ya existente), año, sección y curso, y luego «Asignar».
+  - La tabla muestra curso, sección, horas por semana, horario («Publicado» o «Sin horario») y la papelera.
+  - Un contador muestra «n secciones · h h/sem».
+  - Los errores del backend aparecen en una alerta, como en el frame.
+
+## Diferencias con el Figma (y por qué)
+
+| En el Figma | En el código | Motivo |
+|---|---|---|
+| Carga académica editable antes de registrar | Se habilita al registrar (o al elegir un docente existente) | La asignación necesita al docente ya creado; así cada asignación se valida y audita por separado |
+| Sin selector de docente ni de año | «Docente» y «Año académico» en la carga académica | US14: asignar cursos a cualquier docente y elegir el año (por defecto, el de `anioPorDefecto`) |
+| Orden «Curso» y luego «Sección» | «Sección» y luego «Curso» | El curso se elige entre los del plan de estudios del grado de la sección |
+| Alerta de choque de horario con «Ver horario» | Alerta con el mensaje del backend, sin «Ver horario» | El módulo de horarios aún no existe |
+| Especialidad libre en un desplegable | Desplegable con las áreas curriculares | No hay catálogo de especialidades; las áreas cubren las del colegio |
+| «Registrar docente» abajo, una sola vez | Tras registrar cambia a «Terminar» | La pantalla sigue abierta para asignar cursos |
+| Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Es de la barra superior común del portal |

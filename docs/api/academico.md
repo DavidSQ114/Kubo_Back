@@ -1,4 +1,4 @@
-# API · Académico: año, periodos, grados, secciones, aulas, cursos y competencias (US06–US11)
+# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias y asignaciones (US06–US11, US14)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -245,3 +245,58 @@ Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`
 - Las notas por competencia se leen de `evaluacion` (dueño de `nota`) por el mismo puerto `CierresProvider`, que suma `notasPorCompetenciaPlan`.
 - Las secciones con el curso en un horario publicado se leen de `horarios` (dueño de `horario` y `detalle_horario`) por el puerto nuevo `HorariosProvider`, que implementa un módulo `horarios` mínimo.
 - Las asignaciones docentes (`asignacion_docente`) son de `academico`, así que se leen en su propio repositorio.
+
+---
+
+# Asignación de cursos a docentes (US14)
+
+Pantalla: AD-07 (`/admin/usuarios/registrar-docente`), bloque «Carga académica». El docente ve lo suyo en «Mis cursos» (`/inicio`). Una asignación es plan de estudio (curso + grado + año) + sección + docente, con `activo`.
+
+## Endpoints
+
+| Método y ruta | Rol | Cuerpo / consulta | Respuesta `data` |
+|---|---|---|---|
+| `GET /academico/asignaciones` | `ADMINISTRADOR` | `?docenteId=` (obligatorio) `&anioId=` (opcional) | `Asignacion[]` activas, por año, grado, sección y curso |
+| `POST /academico/asignaciones` | `ADMINISTRADOR` | `{ docenteId, seccionId, cursoId }` | `201 Asignacion` |
+| `DELETE /academico/asignaciones/{id}` | `ADMINISTRADOR` | — | `{ asignacionId, resultado: "ELIMINADA" \| "DESACTIVADA" }` |
+| `GET /academico/mis-cursos` | `DOCENTE` | — | `Asignacion[]` activas del docente en sesión, de todos los años |
+
+- `Asignacion`: `{ id, docenteId, anio: { id, anio }, curso: { id, codigo, nombre }, grado: { id, numero, nombre }, seccion: { id, nombre }, horasSemanales, horarioPublicado }`.
+- El curso se busca en el plan de estudios del grado y año de la sección: la asignación guarda ese `plan_estudio`.
+
+## Reglas
+
+- El año de la sección no puede estar `CERRADO`. El docente, la sección y el curso deben estar activos.
+- El curso debe dictarse en el grado y año de la sección (tener plan de estudio): si no, «El curso no corresponde al grado de la sección».
+- Un curso tiene un solo docente activo por sección (índice `uq_asignacion_activa`):
+  - Si es el mismo docente: «Este docente ya tiene asignado este curso en esta sección».
+  - Si es otro docente: «Este curso ya tiene otro docente asignado en esta sección». Si dos administradores asignan a la vez, el índice deja pasar solo una asignación y la otra recibe este mismo mensaje, no un 500.
+  - Si el mismo docente tenía esa asignación desactivada, se reactiva en vez de crear otra fila.
+- Al quitar una asignación:
+  - Con notas u horarios, se desactiva (`activo = false`) y conserva su historia.
+  - Sin ellos, se elimina.
+  - Si otra tabla todavía la referencia (cierres, material…), también se desactiva.
+
+## Códigos de error
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Falta el docente, la sección o el curso, o un id no es válido |
+| `NO_ENCONTRADO` | 404 | El docente, la sección, el curso o la asignación no existen |
+| `ASIGNACION_DUPLICADA` | 409 | «Este docente ya tiene asignado este curso en esta sección» |
+| `CURSO_CON_DOCENTE` | 409 | «Este curso ya tiene otro docente asignado en esta sección» |
+| `CURSO_NO_CORRESPONDE` | 422 | «El curso no corresponde al grado de la sección» |
+| `DOCENTE_INACTIVO` | 422 | «El docente está inactivo y no puede recibir cursos.» |
+| `SECCION_INACTIVA` | 422 | «La sección está inactiva. Actívala antes de asignarle cursos.» |
+| `CURSO_INACTIVO` | 422 | «El curso está inactivo. Actívalo en «Cursos y competencias» para asignarlo.» |
+| `ANIO_CERRADO` | 422 | «El año académico está cerrado y ya no se puede modificar.» |
+
+## Auditoría (RF03)
+
+`ASIGNAR_CURSO_DOCENTE` (con `reactivada` si volvió a activarse) y `QUITAR_ASIGNACION_DOCENTE` (con `resultado`: `ELIMINADA` o `DESACTIVADA`), entidad `asignacion_docente`, en la misma transacción.
+
+## Dependencias entre módulos
+
+- El docente se valida con `DocentesProvider` (comunidad), que suma `docentePorPersona` para «Mis cursos».
+- Las notas de la asignación se cuentan con `CierresProvider.notasPorAsignacion` (evaluacion).
+- Los bloques de horario y si alguno está publicado salen de `HorariosProvider.horariosPorAsignacion` (horarios).

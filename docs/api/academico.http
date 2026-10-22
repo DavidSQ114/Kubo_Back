@@ -314,3 +314,50 @@ Content-Type: application/json
 
 ### 47. Eliminar ART-2 (sin docentes ni horarios) → 200; si estuviera asignado: 409 CURSO_ASIGNADO
 DELETE {{base}}/academico/cursos/{{cursoArte}}
+
+# ===================================================================
+# Asignación de cursos a docentes (US14). Usa el año {{anio}}, la sección 1° A ({{seccion}}, antes de eliminarla
+# en el bloque 32) y Matemática con plan en 1° (bloque 39). El docente sale de comunidad.http (bloque 5).
+# ===================================================================
+
+###
+@docente = PEGAR-ID-DEL-DOCENTE
+@otroDocente = PEGAR-ID-DE-OTRO-DOCENTE
+@seccion3 = PEGAR-ID-DE-UNA-SECCION-DE-3°
+
+### 48. Asignar Matemática de 1° A al docente → 201
+# @name asignacion
+POST {{base}}/academico/asignaciones
+Content-Type: application/json
+
+{ "docenteId": "{{docente}}", "seccionId": "{{seccion}}", "cursoId": "{{matematica}}" }
+
+###
+@asignacionId = {{asignacion.response.body.$.data.id}}
+
+### 49. Repetirla → 409 «Este docente ya tiene asignado este curso en esta sección»
+POST {{base}}/academico/asignaciones
+Content-Type: application/json
+
+{ "docenteId": "{{docente}}", "seccionId": "{{seccion}}", "cursoId": "{{matematica}}" }
+
+### 50. El mismo curso y sección a otro docente → 409 «Este curso ya tiene otro docente asignado en esta sección»
+POST {{base}}/academico/asignaciones
+Content-Type: application/json
+
+{ "docenteId": "{{otroDocente}}", "seccionId": "{{seccion}}", "cursoId": "{{matematica}}" }
+
+### 51. Matemática en una sección de 3° sin plan en 3° → 422 «El curso no corresponde al grado de la sección»
+POST {{base}}/academico/asignaciones
+Content-Type: application/json
+
+{ "docenteId": "{{docente}}", "seccionId": "{{seccion3}}", "cursoId": "{{matematica}}" }
+
+### 52. Carga académica del docente en el año → 200
+GET {{base}}/academico/asignaciones?docenteId={{docente}}&anioId={{anio}}
+
+### 53. Quitar la asignación → 200 ELIMINADA (o DESACTIVADA si ya tiene notas u horarios)
+DELETE {{base}}/academico/asignaciones/{{asignacionId}}
+
+### 54. «Mis cursos»: inicia sesión como el docente (y cambia su contraseña temporal) antes de este bloque → 200
+GET {{base}}/academico/mis-cursos
