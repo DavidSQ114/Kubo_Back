@@ -207,3 +207,110 @@ DELETE {{base}}/academico/secciones/{{seccion}}
 
 ### 33. Aulas con sección asignada y ocupación del año → 200
 GET {{base}}/academico/aulas?anioId={{anio}}
+
+# ===================================================================
+# Cursos y competencias (US10, US11). Usa el año {{anio}} y los grados de arriba.
+# ===================================================================
+
+### 34. Áreas con sus competencias → 200 (11 áreas). Copia el id de Arte y Cultura, de Ciencia y Tecnología
+### y los de AYC-C1, MAT-C1, MAT-C2 y CYT-C1.
+GET {{base}}/academico/areas
+
+###
+@areaArte = PEGAR-ID-DE-AYC
+@areaCiencia = PEGAR-ID-DE-CYT
+@aycC1 = PEGAR-ID-DE-AYC-C1
+@matC1 = PEGAR-ID-DE-MAT-C1
+@matC2 = PEGAR-ID-DE-MAT-C2
+@cytC1 = PEGAR-ID-DE-CYT-C1
+@grado4 = PEGAR-ID-DE-4°
+@grado5 = PEGAR-ID-DE-5°
+
+### 35. Cursos con sus grados del año y su uso → 200. Copia el id de Matemática (MAT).
+GET {{base}}/academico/cursos?anioId={{anio}}
+
+###
+@matematica = PEGAR-ID-DE-MAT
+
+### 36. Curso sin área → 400 «Debe seleccionar el área curricular del curso»
+POST {{base}}/academico/cursos
+Content-Type: application/json
+
+{ "codigo": "ART-2", "nombre": "Arte y Cultura II" }
+
+### 37. Código repetido → 409 «Ya existe un curso registrado con ese código»
+POST {{base}}/academico/cursos
+Content-Type: application/json
+
+{ "codigo": "mat", "nombre": "Matemática II", "areaCurricularId": "{{areaCiencia}}" }
+
+### 38. Registrar ART-2 en 4° y 5° (2 h) con la competencia C1 de su área → 201
+# @name art2
+POST {{base}}/academico/cursos
+Content-Type: application/json
+
+{
+  "codigo": "ART-2",
+  "nombre": "Arte y Cultura II",
+  "areaCurricularId": "{{areaArte}}",
+  "plan": {
+    "anioAcademicoId": "{{anio}}",
+    "grados": [{ "gradoId": "{{grado4}}", "horasSemanales": 2 }, { "gradoId": "{{grado5}}", "horasSemanales": 2 }],
+    "competencias": ["{{aycC1}}"]
+  }
+}
+
+###
+@cursoArte = {{art2.response.body.$.data.id}}
+
+### 39. Matemática en 1° y 3° con 6 horas → 200. Copia el id del plan de 1°.
+PUT {{base}}/academico/cursos/{{matematica}}/planes?anioId={{anio}}
+Content-Type: application/json
+
+{ "planes": [{ "gradoId": "{{grado1}}", "horasSemanales": 6 }, { "gradoId": "{{grado3}}", "horasSemanales": 6 }] }
+
+###
+@planMat1 = PEGAR-ID-DEL-PLAN-DE-1°
+
+### 40. Horas 0 → 400 «Las horas semanales deben ser un número entero mayor a 0»
+PUT {{base}}/academico/cursos/{{matematica}}/planes?anioId={{anio}}
+Content-Type: application/json
+
+{ "planes": [{ "gradoId": "{{grado1}}", "horasSemanales": 0 }] }
+
+### 41. Competencia de Ciencia en Matemática → 422 «La competencia no pertenece al área del curso»
+PUT {{base}}/academico/planes/{{planMat1}}/competencias
+Content-Type: application/json
+
+{ "competencias": [{ "competenciaId": "{{cytC1}}" }] }
+
+### 42. Sin competencias → 400 «Debes seleccionar al menos una competencia»
+PUT {{base}}/academico/planes/{{planMat1}}/competencias
+Content-Type: application/json
+
+{ "competencias": [] }
+
+### 43. Matemática 1° evalúa C1 y C2 (C2 con peso 1.5) → 200
+PUT {{base}}/academico/planes/{{planMat1}}/competencias
+Content-Type: application/json
+
+{ "competencias": [{ "competenciaId": "{{matC1}}" }, { "competenciaId": "{{matC2}}", "peso": 1.5 }] }
+
+### 44. Competencias del plan con sus notas y las del área → 200
+### (si C1 tuviera notas, quitarla daría 409 «No se puede eliminar una competencia con notas registradas.»)
+GET {{base}}/academico/planes/{{planMat1}}/competencias
+
+### 45. Cambiar el área de Matemática (ya tiene competencias) → 409 AREA_CON_COMPETENCIAS
+PATCH {{base}}/academico/cursos/{{matematica}}
+Content-Type: application/json
+
+{ "areaCurricularId": "{{areaCiencia}}" }
+
+### 46. Desactivar ART-2 → 200 INACTIVO
+POST {{base}}/academico/cursos/{{cursoArte}}/estado
+Content-Type: application/json
+
+{ "estado": "INACTIVO" }
+
+### 47. Eliminar ART-2 (sin docentes ni horarios) → 200; si estuviera asignado: 409 CURSO_ASIGNADO
+DELETE {{base}}/academico/cursos/{{cursoArte}}
