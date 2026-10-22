@@ -53,6 +53,15 @@ function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
     DETALLE_INCOHERENTE: "La sección o el docente no coinciden con la asignación.",
     REGISTRO_AUDITORIA_INMUTABLE: "La bitácora de auditoría no se puede modificar.",
   };
+  // El trigger de aforo informa ambos números: «el aforo de la sección (32) supera el del aula (28)».
+  const aforos = m[1] === "AFORO_EXCEDE_AULA" ? texto.match(/secci\S*n \((\d+)\) supera el del aula \((\d+)\)/) : null;
+  if (aforos) {
+    const [, seccion, aula] = aforos;
+    return new ErrorApp(m[1], `El aforo de la sección (${seccion}) supera el del aula (${aula}).`, 422, {
+      aforoSeccion: Number(seccion),
+      aforoAula: Number(aula),
+    });
+  }
   return new ErrorApp(m[1], mensajes[m[1]], 422);
 }
 

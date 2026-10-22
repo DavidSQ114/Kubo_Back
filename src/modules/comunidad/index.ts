@@ -2,3 +2,5 @@
 export { listarUsuarios, resumenUsuarios, registrarAdministrador, type UsuarioListado } from "./application/usuarios";
 export { perfilesProviderComunidad } from "./infrastructure/perfilesProvider";
 export * as esquemasComunidad from "./schemas";
+export { listarDocentesActivos } from "./application/docentes";
+export { docentesProviderComunidad } from "./infrastructure/docentesProvider";

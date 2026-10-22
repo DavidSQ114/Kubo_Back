@@ -1,7 +1,7 @@
-# Casos de prueba · Año académico (US06) y periodos de evaluación (US07)
+# Casos de prueba · Año académico (US06), periodos (US07), secciones (US08) y aulas (US09)
 
-Pantalla AD-02 «Año académico y bimestres» (`/admin/anio`) y API [academico.md](../api/academico.md).
-Las reglas puras se prueban además en `tests/academico/reglas.test.ts`.
+Pantallas AD-02 «Año académico y bimestres» (`/admin/anio`) y AD-03 «Grados, secciones y aulas» (`/admin/grados`) y API [academico.md](../api/academico.md).
+Las reglas puras se prueban además en `tests/academico/reglas.test.ts` y `tests/academico/secciones.test.ts`.
 
 **Precondición común (PC):** sesión iniciada como Administrador (`admin@kubo.edu.pe`) con la contraseña ya cambiada, base de pruebas sin años académicos.
 Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepción** (el sistema rechaza la operación y muestra el mensaje).
@@ -53,3 +53,42 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 | CP-US07-13 | US07 | básico | 2026 «En curso» con sus 4 bimestres; Bimestre II no finalizado | 1. El módulo de notas llama a `periodoVigente(anioId, fecha)`. | Fecha 01/06/2026 | Devuelve el Bimestre II. |
 | CP-US07-14 | US07 | alterno | Igual que CP-US07-13 | 1. Llamar a `periodoVigente` con una fecha entre bimestres. | Fecha 01/08/2026 (vacaciones) | Devuelve `null`: no se pueden registrar notas. |
 | CP-US07-15 | US07 | alterno | 2026 «En matrícula» con sus 4 bimestres | 1. Llamar a `periodoVigente`. | Fecha 01/06/2026 | Devuelve `null`: solo hay bimestre vigente en un año «En curso». |
+
+## US08 · Grados y secciones
+
+Precondición adicional: año 2026 «En matrícula» y las aulas de los casos registradas.
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US08-01 | US08 | básico | PC; Aula 101 (aforo 30); un docente activo | 1. Ir a «Grados, secciones y aulas». 2. Llenar «Nueva sección». 3. «Guardar sección». | 1° de secundaria, A, aforo 30, Aula 101, tutor M. Torres | Aviso «Se creó la sección 1° A.». Aparece con vacantes 0/30, estado «Activa», aula y tutor. Auditoría `CREAR_SECCION`. |
+| CP-US08-02 | US08 | alterno | PC | 1. Crear una sección sin aula ni tutor. | 1°, B, aforo 30 | Se crea con «Sin aula» y «Sin tutor». |
+| CP-US08-03 | US08 | alterno | Existe 1° A | 1. Crear la sección A en otro grado. | 3°, A, aforo 25 | Se crea: el nombre solo se repite dentro del mismo grado. |
+| CP-US08-04 | US08 | excepción | Existe 1° A | 1. Crear otra sección A en 1°. | 1°, A (o «a») | No se crea. Mensaje bajo el nombre: «Ya existe una sección con ese nombre en este grado». |
+| CP-US08-05 | US08 | excepción | Aula 206 con aforo 28 | 1. Crear o editar una sección con aforo 32 y el Aula 206. | aforo 32 | No se guarda. Mensaje: «El aforo de la sección (32) supera el del aula (28).» (trigger). |
+| CP-US08-06 | US08 | excepción | PC | 1. Crear una sección con aforo 0. | aforo 0 | No se crea. Mensaje: «El aforo debe ser un número entero mayor a 0». |
+| CP-US08-07 | US08 | excepción | PC | 1. Crear una sección con nombre que no sean letras. | nombre «1» | 400. Mensaje: «El nombre de la sección debe ser una o más letras (A, B, C…)». |
+| CP-US08-08 | US08 | excepción | Docente inactivo registrado | 1. Elegir como tutor a un docente inactivo (API). | tutorId del docente inactivo | 422. Mensaje: «El tutor debe ser un docente activo.» |
+| CP-US08-09 | US08 | excepción | Aula 206 desactivada | 1. Asignar el Aula 206 a una sección (API; en pantalla no aparece). | aulaId del Aula 206 | 422. Mensaje: «El aula está inactiva. Actívala o elige otra.» |
+| CP-US08-10 | US08 | excepción | Año 2025 «Cerrado» | 1. Crear una sección en 2025 (API; en pantalla el panel queda bloqueado). | 1°, A | 422. Mensaje: «El año académico está cerrado y ya no se puede modificar.» |
+| CP-US08-11 | US08 | básico | 1° C con aforo 2 y 2 alumnos matriculados | 1. Ver la lista de secciones. | — | 1° C muestra 2/2 con barra roja, fila resaltada y estado «Aforo completo». |
+| CP-US08-12 | US08 | excepción | 1° C con alumnos matriculados | 1. Eliminar 1° C y confirmar. | — | No se elimina. Alerta «No se puede eliminar una sección con alumnos matriculados» con «1° C tiene 2 estudiantes matriculados…» y el botón «Inactivar sección». |
+| CP-US08-13 | US08 | básico | 1° C con alumnos matriculados | 1. «Inactivar sección» (alerta o ícono de la fila). | — | 1° C queda «Inactiva» y conserva a sus alumnos. Auditoría `INACTIVAR_SECCION`. |
+| CP-US08-14 | US08 | básico | 1° B sin matrículas | 1. Eliminar 1° B y confirmar. | — | Aviso «Se eliminó la sección 1° B.». Auditoría `ELIMINAR_SECCION`. |
+| CP-US08-15 | US08 | alterno | 1° B con un curso asignado o un horario, sin matrículas | 1. Eliminar 1° B. | — | 409. Mensaje: «No se puede eliminar la sección porque ya tiene cursos, horarios u otros registros. Puedes inactivarla.» |
+| CP-US08-16 | US08 | básico | Existen secciones de 2026 y 2025 | 1. Cambiar el año en el selector. | Año 2025 | Se muestran las secciones de 2025. Por defecto se abre el año en curso (o el que está en matrícula). |
+| CP-US08-17 | US08 | básico | 1° C completa (2/2) | 1. La matrícula llama a `vacantesSeccion` y `verificarVacantes`. | — | Se rechaza con «Sección sin vacantes disponibles (2/2)». |
+| CP-US08-18 | US08 | alterno | 1° C inactiva | 1. La matrícula llama a `verificarVacantes`. | — | Se rechaza con «La sección está inactiva y no recibe nuevas matrículas.» |
+
+## US09 · Aulas y aforo
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US09-01 | US09 | básico | PC | 1. En «Aulas físicas», llenar nombre, ubicación y aforo. 2. «Registrar aula». | Aula 101, Pabellón A · 1er piso, 30 | Aviso «Se registró Aula 101.». Aparece activa con aforo 30. Auditoría `CREAR_AULA`. |
+| CP-US09-02 | US09 | excepción | PC | 1. Registrar un aula con aforo 0. | Aula 305, aforo 0 | No se registra. Mensaje bajo el aforo: «El aforo debe ser un número entero mayor a 0». |
+| CP-US09-03 | US09 | excepción | PC | 1. Registrar un aula con aforo decimal (API). | aforo 25.5 | 400. Mensaje: «El aforo debe ser un número entero mayor a 0». |
+| CP-US09-04 | US09 | excepción | Existe Aula 101 | 1. Registrar otra aula con el mismo nombre. | Aula 101 | No se registra. Mensaje: «Ya existe un aula con ese nombre». |
+| CP-US09-05 | US09 | excepción | 1° A (aforo 30) usa el Aula 101 | 1. Editar el Aula 101 con aforo 25. | aforo 25 | No se guarda. Mensaje: «El aforo del aula no puede ser menor que el de sus secciones (máximo 30).» |
+| CP-US09-06 | US09 | excepción | 1° A usa el Aula 101 | 1. Desactivar el Aula 101. | — | No se desactiva. Mensaje: «El aula está asignada a 1° A. Quítala de esas secciones antes de inactivarla.» |
+| CP-US09-07 | US09 | básico | Aula 206 sin secciones activas | 1. Desactivar el Aula 206. | — | Queda «desactivada» en la lista (no se borra) y ya no aparece al elegir aula. Auditoría `DESACTIVAR_AULA`. |
+| CP-US09-08 | US09 | alterno | Aula 206 desactivada | 1. Activarla con el ícono de la fila. | — | Vuelve a estar disponible. Auditoría `ACTIVAR_AULA`. |
+| CP-US09-09 | US09 | básico | 1° A usa el Aula 101 con alumnos matriculados | 1. Ver «Aulas físicas». | — | El Aula 101 muestra «Sección asignada» 1° A y su ocupación (matriculados/aforo del aula). |

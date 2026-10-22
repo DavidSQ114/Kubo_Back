@@ -1,4 +1,4 @@
-# API · Académico: año académico y periodos de evaluación (US06, US07)
+# API · Académico: año académico, periodos, grados, secciones y aulas (US06–US09)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -84,3 +84,76 @@ Se registran en `registro_auditoria`, en la misma transacción que el cambio y c
 ## Dependencias entre módulos
 
 `academico` no lee `cierre_calificacion` (es de `evaluacion`): declara el puerto `CierresProvider` en `puertos.ts`, `evaluacion` lo implementa y `src/server/wiring.ts` los conecta.
+
+---
+
+# Grados, secciones y aulas (US08, US09)
+
+Pantalla: AD-03 (`/admin/grados`). Todas las rutas exigen el rol `ADMINISTRADOR`.
+
+## Endpoints · solo `ADMINISTRADOR`
+
+| Método y ruta | Cuerpo / consulta | Respuesta `data` |
+|---|---|---|
+| `GET /academico/grados` | — | `Grado[]` activos (`{ id, numero, nombre }`), del 1° al 5° |
+| `GET /academico/secciones` | `?anioId=` (obligatorio) | `Seccion[]` ordenadas por grado y nombre |
+| `POST /academico/secciones` | `{ anioAcademicoId, gradoId, nombre, aforoMaximo, aulaId?, tutorId? }` | `201 Seccion` en estado `ACTIVA` |
+| `PATCH /academico/secciones/{id}` | `{ gradoId?, nombre?, aforoMaximo?, aulaId?, tutorId? }` (al menos uno; `null` quita aula o tutor) | `Seccion` |
+| `DELETE /academico/secciones/{id}` | — | `{ seccionId, eliminada: true }` |
+| `POST /academico/secciones/{id}/estado` | `{ estado: "ACTIVA" \| "INACTIVA" }` | `Seccion` |
+| `GET /academico/aulas` | `?anioId=` (opcional) | `Aula[]`, activas primero |
+| `POST /academico/aulas` | `{ nombre, ubicacion?, aforo }` | `201 Aula` activa |
+| `PATCH /academico/aulas/{id}` | `{ nombre?, ubicacion?, aforo? }` (al menos uno) | `Aula` |
+| `POST /academico/aulas/{id}/estado` | `{ activo: boolean }` | `Aula` |
+| `GET /comunidad/docentes` | — | `{ id, nombreCompleto, nombreCorto, activo }[]`: docentes activos para elegir tutor |
+
+- `Seccion`: `{ id, anioAcademicoId, nombre, aforoMaximo, estado, grado, aula: { id, nombre, aforo, activo } | null, tutor: { id, nombreCompleto, nombreCorto } | null, vacantes }`.
+- `vacantes`: `{ matriculados, aforo, disponibles, completo }`. `matriculados` cuenta las matrículas en estado `MATRICULADO`; `completo` es «Aforo completo».
+- `Aula`: `{ id, nombre, ubicacion, aforo, activo, secciones }`. Con `anioId`, `secciones` lista las de ese año que usan el aula, con sus `matriculados` (columnas «Sección asignada» y «Ocupación»).
+- `ubicacion` es un texto libre con pabellón y piso, por ejemplo «Pabellón A · 1er piso».
+
+## Reglas
+
+**Aulas (US09)**
+
+- Nombre único, ubicación opcional y aforo entero mayor a 0.
+- Se desactivan, no se borran. Un aula que usan secciones activas de un año no cerrado no se desactiva hasta quitarla de ellas.
+- Su aforo no puede quedar por debajo del de esas secciones.
+- Un aula desactivada no se asigna a ninguna sección.
+
+**Secciones (US08)**
+
+- Pertenecen a un año que no esté `CERRADO` y a un grado activo. El nombre son letras (A, B, C…) y se guarda en mayúsculas.
+- El nombre no se repite en el mismo grado y año (índice único de `seccion`).
+- `aforoMaximo` es un entero mayor a 0. Si tiene aula, no puede superar su aforo: lo valida el trigger `tg_seccion_aforo_aula` y su mensaje llega con ambos números.
+- El aula y el tutor son opcionales; el tutor debe ser un docente activo.
+- Solo se elimina una sección sin matrículas (en cualquier estado) ni otros registros (cursos asignados, horarios…). Si no, se inactiva: deja de recibir matrículas y conserva a sus alumnos.
+
+**Para la matrícula.** `vacantesSeccion(seccionId)` (en `@/modules/academico`) devuelve `{ seccionId, estado, matriculados, aforo, disponibles, completo }`. `verificarVacantes(estado, vacantes)` rechaza con `409 SECCION_SIN_VACANTES` («Sección sin vacantes disponibles (30/30)») o `409 SECCION_INACTIVA`.
+
+## Códigos de error
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Falta un campo o tiene formato incorrecto. El aforo: «El aforo debe ser un número entero mayor a 0» |
+| `NOMBRE_SECCION_INVALIDO` | 400 | El nombre de la sección no son solo letras |
+| `NO_ENCONTRADO` | 404 | El año, la sección, el grado o el aula no existen |
+| `SECCION_DUPLICADA` | 409 | «Ya existe una sección con ese nombre en este grado» |
+| `SECCION_CON_MATRICULADOS` | 409 | «No se puede eliminar una sección con alumnos matriculados…» (sugiere inactivarla) |
+| `SECCION_CON_REGISTROS` | 409 | La sección tiene cursos, horarios u otros registros |
+| `AULA_DUPLICADA` | 409 | Ya existe un aula con ese nombre |
+| `AULA_EN_USO` | 409 | Se intentó desactivar un aula asignada a secciones activas |
+| `AFORO_EXCEDE_AULA` | 422 | El aforo de la sección supera el del aula (mensaje del trigger, con los dos números en `details`) |
+| `AFORO_MENOR_QUE_SECCIONES` | 422 | El aforo nuevo del aula es menor que el de sus secciones |
+| `AULA_INACTIVA` | 422 | Se intentó asignar un aula desactivada |
+| `TUTOR_NO_DISPONIBLE` | 422 | El tutor no es un docente activo |
+| `ANIO_CERRADO` | 422 | El año de la sección está cerrado |
+
+## Auditoría
+
+`CREAR_SECCION`, `EDITAR_SECCION`, `ACTIVAR_SECCION`, `INACTIVAR_SECCION`, `ELIMINAR_SECCION`, `CREAR_AULA`, `EDITAR_AULA`, `ACTIVAR_AULA` y `DESACTIVAR_AULA`, en la misma transacción que el cambio.
+
+## Dependencias entre módulos
+
+- Las vacantes y el bloqueo al eliminar leen `matricula` (de `matricula`) por el puerto `MatriculasProvider`, que implementa un módulo `matricula` mínimo.
+- El tutor se valida y se muestra con `DocentesProvider`, que implementa `comunidad` (dueño de `docente`).

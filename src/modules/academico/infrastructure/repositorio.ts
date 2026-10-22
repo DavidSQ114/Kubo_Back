@@ -1,8 +1,10 @@
-// academico/infrastructure: único lugar que consulta anio_academico y periodo_evaluacion (dueño de ambas tablas).
+// academico/infrastructure: único lugar que consulta las tablas de académico: anio_academico, periodo_evaluacion,
+// grado, seccion y aula (el módulo es su dueño).
 // Las columnas DATE se convierten aquí a texto "AAAA-MM-DD": el resto del módulo no ve objetos Date.
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import type { AnioExistente, PeriodoGuardado } from "../domain/reglas";
+import type { EstadoSeccion } from "../domain/secciones";
 import type { EstadoAnio, EstadoPeriodo } from "../domain/tipos";
 
 type Db = Tx | typeof prisma;
@@ -146,5 +148,127 @@ export const periodos = {
       update: fechas,
       select: { id: true },
     });
+  },
+};
+
+// ---------- Grados, secciones y aulas (US08, US09) ----------
+
+export interface GradoFila {
+  id: string;
+  numero: number;
+  nombre: string;
+}
+
+export interface AulaFila {
+  id: string;
+  nombre: string;
+  ubicacion: string | null;
+  aforo: number;
+  activo: boolean;
+}
+
+export interface SeccionFila {
+  id: string;
+  anioAcademicoId: string;
+  nombre: string;
+  aforoMaximo: number;
+  estado: EstadoSeccion;
+  tutorId: string | null;
+  grado: GradoFila;
+  aula: AulaFila | null;
+}
+
+const selectAula = { id: true, nombre: true, ubicacion: true, aforo: true, activo: true } as const;
+const selectSeccion = {
+  id: true,
+  anioAcademicoId: true,
+  nombre: true,
+  aforoMaximo: true,
+  estado: true,
+  tutorId: true,
+  grado: { select: { id: true, numero: true, nombre: true } },
+  aula: { select: selectAula },
+} as const;
+
+export const grados = {
+  activos: (db: Db = prisma): Promise<GradoFila[]> =>
+    db.grado.findMany({
+      where: { activo: true },
+      orderBy: { numero: "asc" },
+      select: { id: true, numero: true, nombre: true },
+    }),
+
+  porId: (id: string, db: Db = prisma) =>
+    db.grado.findUnique({ where: { id }, select: { id: true, numero: true, nombre: true, activo: true } }),
+};
+
+export const secciones = {
+  delAnio: (anioAcademicoId: string, db: Db = prisma) =>
+    db.seccion.findMany({
+      where: { anioAcademicoId },
+      orderBy: [{ grado: { numero: "asc" } }, { nombre: "asc" }],
+      select: selectSeccion,
+    }) as Promise<SeccionFila[]>,
+
+  porId: (id: string, db: Db = prisma) =>
+    db.seccion.findUnique({ where: { id }, select: selectSeccion }) as Promise<SeccionFila | null>,
+
+  /** Secciones activas de años no cerrados que usan el aula (para su aforo y para inactivarla). */
+  vigentesDelAula: (aulaId: string, db: Db = prisma) =>
+    db.seccion.findMany({
+      where: { aulaId, estado: "ACTIVA", anioAcademico: { estado: { not: "CERRADO" } } },
+      select: { id: true, nombre: true, aforoMaximo: true, grado: { select: { numero: true } } },
+    }),
+
+  crear: (
+    data: {
+      anioAcademicoId: string;
+      gradoId: string;
+      nombre: string;
+      aforoMaximo: number;
+      aulaId: string | null;
+      tutorId: string | null;
+    },
+    db: Db = prisma,
+  ) => db.seccion.create({ data, select: selectSeccion }) as Promise<SeccionFila>,
+
+  actualizar: (
+    id: string,
+    data: {
+      gradoId?: string;
+      nombre?: string;
+      aforoMaximo?: number;
+      aulaId?: string | null;
+      tutorId?: string | null;
+      estado?: EstadoSeccion;
+    },
+    db: Db = prisma,
+  ) => db.seccion.update({ where: { id }, data, select: selectSeccion }) as Promise<SeccionFila>,
+
+  eliminar: (id: string, db: Db = prisma) => db.seccion.delete({ where: { id }, select: { id: true } }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM seccion WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+};
+
+export const aulas = {
+  todas: (db: Db = prisma): Promise<AulaFila[]> =>
+    db.aula.findMany({ orderBy: [{ activo: "desc" }, { nombre: "asc" }], select: selectAula }),
+
+  porId: (id: string, db: Db = prisma): Promise<AulaFila | null> =>
+    db.aula.findUnique({ where: { id }, select: selectAula }),
+
+  crear: (data: { nombre: string; ubicacion: string | null; aforo: number }, db: Db = prisma) =>
+    db.aula.create({ data, select: selectAula }),
+
+  actualizar: (
+    id: string,
+    data: { nombre?: string; ubicacion?: string | null; aforo?: number; activo?: boolean },
+    db: Db = prisma,
+  ) => db.aula.update({ where: { id }, data, select: selectAula }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM aula WHERE id = ${id}::uuid FOR UPDATE`;
   },
 };
