@@ -6,6 +6,7 @@ export const erroresAcademico = {
   fechasInvalidas: () =>
     new ErrorApp("FECHAS_INVALIDAS", "La fecha de fin debe ser posterior a la fecha de inicio", 400),
   anioSolapado: () => new ErrorApp("ANIO_SOLAPADO", "Ya existe un año académico activo en ese rango de fechas", 409),
+  anioNoCoincide: () => new ErrorApp("ANIO_NO_COINCIDE", "El año debe coincidir con la fecha de inicio", 400),
   anioDuplicado: (anio: number) => new ErrorApp("ANIO_DUPLICADO", `Ya existe el año académico ${anio}.`, 409),
   otroAnioEnCurso: () =>
     new ErrorApp(
@@ -35,6 +36,7 @@ export const erroresAcademico = {
       422,
     ),
   periodosSolapados: () => new ErrorApp("PERIODOS_SOLAPADOS", "Los periodos de evaluación no pueden solaparse", 422),
+  periodosDesordenados: () => new ErrorApp("PERIODOS_DESORDENADOS", "Los bimestres deben registrarse en orden", 422),
   periodoFinalizado: (nombre: string) =>
     new ErrorApp("PERIODO_FINALIZADO", `No se puede editar el ${nombre} porque ya está finalizado.`, 422),
   periodosFueraDelNuevoRango: () =>

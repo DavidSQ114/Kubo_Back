@@ -22,7 +22,7 @@ function esperarError(fn: () => void, codigo: string) {
   expect(fn).toThrowError(expect.objectContaining({ codigo }));
 }
 
-const ANIO_2026 = { fechaInicio: "2026-03-01", fechaFin: "2026-12-18" };
+const ANIO_2026 = { anio: 2026, fechaInicio: "2026-03-01", fechaFin: "2026-12-18" };
 
 const BIMESTRES_2026: PeriodoEntrada[] = [
   { numero: 1, fechaInicio: "2026-03-01", fechaFin: "2026-05-08" },
@@ -45,26 +45,39 @@ describe("año académico: fechas y solapamiento (US06)", () => {
   });
   it("rechaza fin igual o anterior al inicio", () => {
     esperarError(
-      () => verificarRangoAnio({ fechaInicio: "2026-03-01", fechaFin: "2026-03-01" }, []),
+      () => verificarRangoAnio({ anio: 2026, fechaInicio: "2026-03-01", fechaFin: "2026-03-01" }, []),
       "FECHAS_INVALIDAS",
     );
     esperarError(
-      () => verificarRangoAnio({ fechaInicio: "2026-12-18", fechaFin: "2026-03-01" }, []),
+      () => verificarRangoAnio({ anio: 2026, fechaInicio: "2026-12-18", fechaFin: "2026-03-01" }, []),
       "FECHAS_INVALIDAS",
     );
   });
   it("rechaza solaparse con un año no CERRADO", () => {
     esperarError(
-      () => verificarRangoAnio({ fechaInicio: "2026-03-01", fechaFin: "2027-03-01" }, otros),
+      () => verificarRangoAnio({ anio: 2026, fechaInicio: "2026-03-01", fechaFin: "2027-03-01" }, otros),
       "ANIO_SOLAPADO",
     );
   });
   it("permite solaparse con un año CERRADO", () => {
-    expect(() => verificarRangoAnio({ fechaInicio: "2025-12-01", fechaFin: "2026-12-18" }, otros)).not.toThrow();
+    expect(() =>
+      verificarRangoAnio({ anio: 2025, fechaInicio: "2025-12-01", fechaFin: "2026-12-18" }, otros),
+    ).not.toThrow();
   });
   it("al editar no se compara consigo mismo", () => {
     expect(() =>
-      verificarRangoAnio({ fechaInicio: "2027-02-15", fechaFin: "2027-12-17" }, otros, "a2027"),
+      verificarRangoAnio({ anio: 2027, fechaInicio: "2027-02-15", fechaFin: "2027-12-17" }, otros, "a2027"),
+    ).not.toThrow();
+  });
+  it("exige que el número del año coincida con el año de la fecha de inicio", () => {
+    expect(() =>
+      verificarRangoAnio({ anio: 2029, fechaInicio: "2026-03-01", fechaFin: "2026-12-18" }, []),
+    ).toThrowError(
+      expect.objectContaining({ codigo: "ANIO_NO_COINCIDE", message: "El año debe coincidir con la fecha de inicio" }),
+    );
+    // Un año puede terminar al año siguiente: solo cuenta la fecha de inicio.
+    expect(() =>
+      verificarRangoAnio({ anio: 2026, fechaInicio: "2026-03-01", fechaFin: "2027-01-15" }, []),
     ).not.toThrow();
   });
   it("los rangos son inclusivos: compartir un día es solaparse", () => {
@@ -129,6 +142,26 @@ describe("periodos de evaluación (US07)", () => {
         message: "Los periodos de evaluación no pueden solaparse",
       }),
     );
+  });
+
+  it("exige los bimestres en orden: cada uno empieza después de que termina el anterior", () => {
+    // II e I intercambiados: no se solapan, pero el Bimestre II quedaría antes del I.
+    const desordenados = BIMESTRES_2026.map((p) =>
+      p.numero === 1
+        ? { ...p, fechaInicio: "2026-05-18", fechaFin: "2026-07-24" }
+        : p.numero === 2
+          ? { ...p, fechaInicio: "2026-03-01", fechaFin: "2026-05-08" }
+          : p,
+    );
+    expect(() => verificarPeriodos(ANIO_2026, desordenados)).toThrowError(
+      expect.objectContaining({
+        codigo: "PERIODOS_DESORDENADOS",
+        message: "Los bimestres deben registrarse en orden",
+      }),
+    );
+  });
+  it("el orden se valida por número aunque lleguen mezclados en la lista", () => {
+    expect(() => verificarPeriodos(ANIO_2026, [...BIMESTRES_2026].reverse())).not.toThrow();
   });
 
   const guardados: PeriodoGuardado[] = BIMESTRES_2026.map((p) => ({

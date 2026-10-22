@@ -25,17 +25,17 @@ Content-Type: application/json
 ###
 @anio = {{crear2026.response.body.$.data.id}}
 
-### 4. Crear 2027 solapado con 2026 → 409 ANIO_SOLAPADO
+### 4. Crear otro año que se cruza con 2026 → 409 ANIO_SOLAPADO (se detecta antes que el número repetido)
 POST {{base}}/academico/anios
 Content-Type: application/json
 
-{ "anio": 2027, "fechaInicio": "2026-12-01", "fechaFin": "2027-12-17" }
+{ "anio": 2026, "fechaInicio": "2026-06-01", "fechaFin": "2026-11-30" }
 
-### 5. Crear 2026 otra vez (otras fechas) → 409 ANIO_DUPLICADO
+### 5. Número de año distinto al de la fecha de inicio → 400 ANIO_NO_COINCIDE
 POST {{base}}/academico/anios
 Content-Type: application/json
 
-{ "anio": 2026, "fechaInicio": "2027-03-01", "fechaFin": "2027-12-17" }
+{ "anio": 2028, "fechaInicio": "2027-03-01", "fechaFin": "2027-12-17" }
 
 ### 6. Detalle del año → 200
 GET {{base}}/academico/anios/{{anio}}
@@ -60,6 +60,17 @@ Content-Type: application/json
   { "numero": 2, "fechaInicio": "2026-05-18", "fechaFin": "2026-07-24" },
   { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
   { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-30" }
+] }
+
+### 8b. Bimestres sin solaparse pero desordenados (I y II intercambiados) → 422 PERIODOS_DESORDENADOS
+PUT {{base}}/academico/anios/{{anio}}/periodos
+Content-Type: application/json
+
+{ "periodos": [
+  { "numero": 1, "fechaInicio": "2026-05-18", "fechaFin": "2026-07-24" },
+  { "numero": 2, "fechaInicio": "2026-03-02", "fechaFin": "2026-05-08" },
+  { "numero": 3, "fechaInicio": "2026-08-10", "fechaFin": "2026-10-09" },
+  { "numero": 4, "fechaInicio": "2026-10-19", "fechaFin": "2026-12-18" }
 ] }
 
 ### 9. Guardar los 4 bimestres → 200

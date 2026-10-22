@@ -11,6 +11,10 @@ export interface AnioExistente extends RangoFechas {
   estado: EstadoAnio;
 }
 
+export interface DatosAnio extends RangoFechas {
+  anio: number;
+}
+
 export interface PeriodoEntrada extends RangoFechas {
   numero: number;
 }
@@ -40,9 +44,13 @@ export const contiene = (exterior: RangoFechas, interior: RangoFechas) =>
 /** Todo año nace PLANIFICADO; la matrícula se abre después (EN_MATRICULA). */
 export const ESTADO_INICIAL_ANIO: EstadoAnio = "PLANIFICADO";
 
-/** Fechas del año válidas y sin chocar con otro año que siga abierto (los CERRADO no cuentan). */
-export function verificarRangoAnio(rango: RangoFechas, otros: AnioExistente[], exceptoId?: string) {
+/**
+ * Fechas del año válidas, número del año igual al año de la fecha de inicio y sin chocar con otro año
+ * que siga abierto (los CERRADO no cuentan).
+ */
+export function verificarRangoAnio(rango: DatosAnio, otros: AnioExistente[], exceptoId?: string) {
   if (!tieneFechasValidas(rango)) throw E.fechasInvalidas();
+  if (Number(rango.fechaInicio.slice(0, 4)) !== rango.anio) throw E.anioNoCoincide();
   const choca = otros.some((o) => o.id !== exceptoId && o.estado !== "CERRADO" && seSolapan(rango, o));
   if (choca) throw E.anioSolapado();
 }
@@ -62,7 +70,10 @@ export const puedeCerrarse = (cierres: { total: number; publicados: number }) =>
 
 // ---------- Periodos de evaluación (US07) ----------
 
-/** Los 4 bimestres juntos: numerados del 1 al 4, con fechas válidas, dentro del año y sin solaparse. */
+/**
+ * Los 4 bimestres juntos: numerados del 1 al 4, con fechas válidas, dentro del año, sin solaparse
+ * y en orden (cada uno empieza después de que termina el anterior).
+ */
 export function verificarPeriodos(anio: RangoFechas, periodos: PeriodoEntrada[]) {
   const numeros = new Set(periodos.map((p) => p.numero));
   const completos =
@@ -78,6 +89,8 @@ export function verificarPeriodos(anio: RangoFechas, periodos: PeriodoEntrada[])
   }
   const haySolapamiento = ordenados.some((p, i) => ordenados.slice(i + 1).some((q) => seSolapan(p, q)));
   if (haySolapamiento) throw E.periodosSolapados();
+  const enOrden = ordenados.every((p, i) => i === 0 || p.fechaInicio > ordenados[i - 1].fechaFin);
+  if (!enOrden) throw E.periodosDesordenados();
 }
 
 /** Un bimestre FINALIZADO no se edita: sus fechas deben llegar iguales. */
