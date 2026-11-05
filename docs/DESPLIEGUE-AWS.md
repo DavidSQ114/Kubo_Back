@@ -53,6 +53,8 @@ En el servidor:
 
 Antes de empezar: **Start Lab** en el Learner Lab, espera a que el círculo esté en verde y abre **AWS** (la consola). Verifica arriba a la derecha que la región sea **N. Virginia (us-east-1)**.
 
+> **Respeta los límites del Learner Lab.** Usa solo los tipos, tamaños y servicios de esta guía. Exceder los límites del lab (tipos de instancia o de almacenamiento no permitidos, demasiadas instancias o gastar el crédito) puede desactivar la cuenta, y con ella se pierden la EC2, la base de datos y sus datos.
+
 ### 1. Grupos de seguridad
 
 EC2 → Network & Security → **Security Groups** → **Create security group**, en la VPC por defecto:
@@ -73,7 +75,7 @@ RDS → **Create database**:
 3. DB instance identifier: `kubo-db`.
 4. Master username: `kubo_admin`. Credentials management: **Self managed**. Escribe una contraseña larga y guárdala en un lugar seguro, fuera del repositorio. Evita `@ : / ? # & %`, o tendrás que codificarlos en la URL.
 5. Instance configuration: **db.t4g.micro**.
-6. Storage: **gp3, 20 GB**. Desmarca *Enable storage autoscaling*.
+6. Storage: **General Purpose SSD (gp2), 20 GB**. El Learner Lab solo admite gp2 en RDS; la EC2 sí puede usar gp3. Desmarca *Enable storage autoscaling*.
 7. Availability: **Single-AZ** (sin standby).
 8. Connectivity:
    - VPC por defecto.
