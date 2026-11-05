@@ -1,0 +1,226 @@
+# Kubo · Despliegue en AWS Academy (Learner Lab)
+
+Guía paso a paso para correr Kubo en **una EC2 Ubuntu 24.04 con PostgreSQL en RDS**, con HTTPS y despliegue automático desde `main`. Todo se hace en la consola de AWS, región **us-east-1 (N. Virginia)**.
+
+**Solo datos de prueba (RNF14).** No se cargan datos reales de alumnos, apoderados ni docentes.
+
+## Cómo funciona
+
+| Pieza | Dónde | Detalle |
+|---|---|---|
+| Aplicación (frontend + API) | EC2 `t3.small` (2 GB de RAM + 2 GB de swap), Ubuntu 24.04 | `kubo.service` ejecuta `next start` en `127.0.0.1:3000` desde `/opt/kubo/current` |
+| HTTPS | Caddy en la misma EC2 | Certificado automático de Let's Encrypt para `<ip-con-guiones>.sslip.io` (la Elastic IP) |
+| Base de datos | RDS PostgreSQL `db.t4g.micro` | Sin acceso público: solo la EC2 llega al puerto 5432; conexión cifrada (`sslmode=require`) |
+| Despliegue | La propia EC2 | `kubo-desplegar.timer` revisa `main` al arrancar y cada 5 minutos, y ejecuta `deploy/aws/desplegar.sh` |
+| Acceso al servidor | Session Manager | Sin SSH ni puerto 22 abierto; sin llaves |
+
+**Sin credenciales de AWS en GitHub.** Las del Learner Lab caducan en cada sesión, así que GitHub no despliega: es la EC2 la que hace `git fetch` del repositorio público. Cada push o PR unido a `main` llega solo en menos de 5 minutos.
+
+### Qué hace cada despliegue
+
+1. Si `origin/main` es distinto del commit en uso, lo clona en `/opt/kubo/releases/<sha>`.
+2. Ejecuta `npm ci --include=dev`, `npm run build` y `prisma migrate deploy` con `/etc/kubo/kubo.env`. Con `NODE_ENV=production`, npm omitiría las devDependencies, que el build y Prisma necesitan.
+3. Si algo de lo anterior falla, **no toca** `current`: la versión en uso sigue funcionando.
+4. Cambia el symlink `current`, reinicia `kubo.service` y consulta `GET /api/v1/salud`. Si no responde `"estado":"ok"` con el commit nuevo, **vuelve al release anterior**.
+5. Conserva los últimos 3 releases. Un candado evita dos despliegues a la vez. Todo queda en `/opt/kubo/shared/logs/despliegue.log`.
+
+Un commit que falló no se reintenta cada 5 minutos: se espera al siguiente commit en `main`. Para forzarlo, ver «Problemas comunes».
+
+### Archivos
+
+```
+deploy/aws/instalar.sh             Prepara la EC2 una sola vez (idempotente)
+deploy/aws/desplegar.sh            El despliegue (se instala en /opt/kubo/bin)
+deploy/aws/kubo.env.ejemplo        Plantilla de /etc/kubo/kubo.env (sin valores)
+deploy/aws/Caddyfile               Proxy inverso con HTTPS
+deploy/aws/systemd/                kubo.service, kubo-desplegar.service y kubo-desplegar.timer
+src/app/api/v1/salud/route.ts      GET /api/v1/salud (público)
+```
+
+En el servidor:
+
+```
+/opt/kubo/repo.git                 Copia del repositorio para hacer git fetch
+/opt/kubo/releases/<sha>/          Un release por commit (los últimos 3)
+/opt/kubo/current → releases/<sha> El que está en uso
+/opt/kubo/shared/logs/             despliegue.log y el log de la aplicación (LOG_DIR)
+/etc/kubo/kubo.env                 Variables (dueño kubo, chmod 600)
+/etc/kubo/caddy.env                Solo el dominio, para Caddy
+/etc/kubo/rds-global-bundle.pem    Certificado de AWS RDS (para sslmode=require)
+```
+
+## Una sola vez: crear la infraestructura
+
+Antes de empezar: **Start Lab** en el Learner Lab, espera a que el círculo esté en verde y abre **AWS** (la consola). Verifica arriba a la derecha que la región sea **N. Virginia (us-east-1)**.
+
+### 1. Grupos de seguridad
+
+EC2 → Network & Security → **Security Groups** → **Create security group**, en la VPC por defecto:
+
+| Nombre | Reglas de entrada | Para qué |
+|---|---|---|
+| `kubo-web` | HTTP (80) desde `0.0.0.0/0` y `::/0` · HTTPS (443) desde `0.0.0.0/0` y `::/0` | La EC2. **Sin el puerto 22**: se entra por Session Manager. El 80 hace falta para emitir el certificado HTTPS |
+| `kubo-db` | PostgreSQL (5432) con origen **el grupo `kubo-web`** (no una IP) | RDS: solo la EC2 llega a la base |
+
+Deja las reglas de salida como vienen (todo permitido).
+
+### 2. Base de datos en RDS
+
+RDS → **Create database**:
+
+1. **Standard create** → **PostgreSQL**. Elige la versión 16 o 17 más reciente que ofrezca la lista.
+2. Template: **Free tier**, o **Dev/Test** si no aparece.
+3. DB instance identifier: `kubo-db`.
+4. Master username: `kubo_admin`. Credentials management: **Self managed**. Escribe una contraseña larga y guárdala en un lugar seguro, fuera del repositorio. Evita `@ : / ? # & %`, o tendrás que codificarlos en la URL.
+5. Instance configuration: **db.t4g.micro**.
+6. Storage: **gp3, 20 GB**. Desmarca *Enable storage autoscaling*.
+7. Availability: **Single-AZ** (sin standby).
+8. Connectivity:
+   - VPC por defecto.
+   - **Public access: No**.
+   - VPC security group: **Choose existing** → `kubo-db`. Quita `default`.
+9. Desmarca *Performance Insights* y *Enhanced monitoring*. No hacen falta y el Learner Lab puede no permitirlos.
+10. **Additional configuration**:
+    - Initial database name: `kubo`.
+    - Backup retention: **7 days**.
+    - Desmarca *Enable deletion protection* solo si piensas borrar la base al terminar el curso.
+11. **Create database**. Tarda unos 10 minutos. Al terminar, copia el **Endpoint** (pestaña *Connectivity & security*), por ejemplo `kubo-db.xxxxxxxx.us-east-1.rds.amazonaws.com`.
+
+### 3. Servidor EC2
+
+EC2 → **Launch instance**:
+
+1. Name: `kubo-web`.
+2. AMI: **Ubuntu Server 24.04 LTS** (64-bit x86).
+3. Instance type: **t3.small**.
+4. Key pair: **Proceed without a key pair**. Se entra por Session Manager.
+5. Network settings → **Select existing security group** → `kubo-web`. Auto-assign public IP: **Enable**.
+6. Storage: **20 GiB gp3**. Cada release ocupa cerca de 1 GB con `node_modules` y se guardan 3.
+7. Advanced details → **IAM instance profile: `LabInstanceProfile`**. Sin él no aparece Session Manager.
+8. **Launch instance**.
+
+Después, EC2 → **Elastic IPs** → **Allocate Elastic IP address** → **Allocate**, y luego **Actions → Associate** con la instancia `kubo-web`. Así la IP, y con ella el dominio y el certificado, no cambian entre sesiones.
+
+> Mientras la instancia está detenida, la Elastic IP tiene un costo pequeño que se descuenta del crédito del lab. Si borras la instancia, libera también la Elastic IP (**Release**).
+
+### 4. Entrar al servidor por Session Manager
+
+EC2 → Instances → `kubo-web` → **Connect** → pestaña **Session Manager** → **Connect**.
+
+Si dice que la instancia no está conectada, espera 2 o 3 minutos después del arranque. Si sigue igual, revisa que tenga el perfil `LabInstanceProfile`: *Actions → Security → Modify IAM role*, y luego reinicia la instancia.
+
+La sesión abre como `ssm-user`. Pasa a root:
+
+```bash
+sudo -i
+```
+
+### 5. Instalar (una sola vez)
+
+```bash
+git clone https://github.com/DavidSQ114/Kubo_Back.git /root/kubo-instalador
+bash /root/kubo-instalador/deploy/aws/instalar.sh
+```
+
+El script deja todo listo y al final muestra el **dominio**, por ejemplo `https://3-91-20-15.sslip.io`. Esto es lo que hace:
+
+- crea el swap de 2 GB;
+- instala Node 22, git, Caddy y el cliente de PostgreSQL;
+- crea el usuario `kubo` y las carpetas de `/opt/kubo`;
+- crea `/etc/kubo/kubo.env` desde la plantilla, sin valores;
+- descarga el certificado de RDS;
+- configura Caddy con el dominio de la Elastic IP;
+- instala las unidades systemd y activa el timer.
+
+Se puede volver a ejecutar sin riesgo: no pisa `kubo.env`. Hazlo cuando cambien los archivos de `deploy/aws`:
+
+```bash
+git -C /root/kubo-instalador pull
+bash /root/kubo-instalador/deploy/aws/instalar.sh
+```
+
+### 6. Completar las variables
+
+```bash
+nano /etc/kubo/kubo.env
+```
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Reemplaza `<usuario>` (`kubo_admin`), `<clave>` y `<endpoint-rds>`. Deja el resto de la URL como está: base `kubo`, `sslmode=require`, `sslrootcert` y la zona UTC |
+| `JWT_SECRET` | Uno nuevo, de 32 caracteres o más: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `APP_URL` | `https://` + el dominio que mostró `instalar.sh` |
+| `SMTP_*` | Opcional. Sin SMTP los correos no salen y la pantalla muestra la contraseña temporal para entregarla |
+
+Guarda con Ctrl+O, Enter y Ctrl+X. El archivo queda con dueño `kubo` y permisos 600: no lo copies ni lo pegues en chats o capturas.
+
+Comprueba que la EC2 llega a RDS. Pide la contraseña de `kubo_admin`:
+
+```bash
+psql "host=<endpoint-rds> dbname=kubo user=kubo_admin sslmode=require" -c "select version();"
+```
+
+### 7. Primer despliegue
+
+```bash
+systemctl start --no-block kubo-desplegar.service
+tail -f /opt/kubo/shared/logs/despliegue.log
+```
+
+El primero tarda de 5 a 10 minutos: `npm ci`, el build y las migraciones. Termina con `==== Despliegue de <sha> terminado ====` (Ctrl+C para salir del `tail`). Comprueba:
+
+```bash
+curl -s https://<dominio>/api/v1/salud
+```
+
+Debe responder `{"data":{"estado":"ok","version":"<sha corto>","baseDatos":"ok"}}`.
+
+### 8. Datos iniciales (una sola vez)
+
+Carga el seed: grados, áreas, competencias, cursos y el administrador inicial. Es idempotente:
+
+```bash
+sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && set +a && npm run db:seed:remoto'
+```
+
+Abre `https://<dominio>`, ingresa con `admin@kubo.edu.pe` y la contraseña inicial del seed, y **cámbiala de inmediato**: el sistema lo exige en el primer ingreso.
+
+## En cada sesión del Learner Lab
+
+1. **Start Lab** y espera el círculo verde. Abre la consola de AWS.
+2. **EC2 → Instances:** `kubo-web` debe estar *Running*. Si está *Stopped*: **Instance state → Start**.
+3. **RDS → Databases:** `kubo-db` debe estar *Available*. Si está *Stopped*: **Actions → Start**. Tarda unos minutos.
+4. **Espera el despliegue.** Al arrancar, la instancia revisa `main` en 1 minuto y despliega si hay commits nuevos (5 a 10 minutos). Si nada cambió, la app arranca en segundos.
+5. **Abre el dominio** (`https://<ip-con-guiones>.sslip.io`). Para confirmar la versión: `https://<dominio>/api/v1/salud`.
+6. **Al terminar:** RDS → `kubo-db` → **Actions → Stop temporarily**, si no se detuvo solo. AWS vuelve a encender una base detenida a los 7 días. La EC2 se detiene sola al acabar la sesión del lab.
+
+## Operación
+
+| Necesito… | Comando (en Session Manager, como root) |
+|---|---|
+| Ver el último despliegue | `tail -n 50 /opt/kubo/shared/logs/despliegue.log` |
+| Desplegar ya, sin esperar 5 minutos | `systemctl start --no-block kubo-desplegar.service` |
+| Ver si la app corre | `systemctl status kubo.service` |
+| Ver errores de la app | `journalctl -u kubo.service -n 100` y `ls /opt/kubo/shared/logs` |
+| Saber qué commit está en uso | `readlink -f /opt/kubo/current` o `curl -s localhost:3000/api/v1/salud` |
+| Volver a mano al release anterior | `ls -t /opt/kubo/releases`, luego `ln -sfn /opt/kubo/releases/<sha> /opt/kubo/current && systemctl restart kubo.service` |
+| Ver el HTTPS | `systemctl status caddy` y `journalctl -u caddy -n 50` |
+
+Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve al anterior, la base ya tiene la migración nueva: por eso las migraciones deben ser compatibles con la versión anterior (agregar columnas o tablas, no borrarlas en el mismo cambio).
+
+## Problemas comunes
+
+| Síntoma | Causa probable | Qué hacer |
+|---|---|---|
+| Session Manager no deja conectar | La instancia acaba de arrancar o no tiene `LabInstanceProfile` | Esperar 2 a 3 minutos; asignar el perfil (*Modify IAM role*) y reiniciar |
+| El navegador no abre el dominio o falla el certificado | Puerto 80 o 443 cerrado en `kubo-web`, o la IP cambió | Revisar el grupo de seguridad; usar la Elastic IP y volver a ejecutar `instalar.sh` (escribe el dominio nuevo); `journalctl -u caddy -n 50` |
+| `502 Bad Gateway` | `kubo.service` no está corriendo (primer despliegue en curso o error al arrancar) | `tail` del log de despliegue; `journalctl -u kubo.service -n 100` |
+| El log dice «Falta completar /etc/kubo/kubo.env» | La plantilla sigue con `<endpoint-rds>` | Paso 6 y `systemctl start --no-block kubo-desplegar.service` |
+| `P1001: Can't reach database server` en las migraciones | RDS detenida, endpoint mal escrito o `kubo-db` no admite al grupo `kubo-web` | Iniciar RDS; revisar el endpoint y la regla 5432 del grupo `kubo-db` |
+| `self-signed certificate in certificate chain` | Falta `sslrootcert=/etc/kubo/rds-global-bundle.pem` en `DATABASE_URL` (el driver `pg` verifica el certificado con `sslmode=require`) | Revisar la URL y que exista el archivo (`instalar.sh` lo descarga). Como último recurso, cambiar `sslmode=require` por `uselibpqcompat=true&sslmode=require`: cifra sin verificar el certificado |
+| `password authentication failed` | Usuario o contraseña de `DATABASE_URL` | Corregir; si la clave tiene `@ : / ? # & %`, codificarlos (`@` → `%40`) |
+| El build se corta (`Killed` o `JavaScript heap out of memory`) | Memoria: el build es el pico | Revisar que el swap esté activo (`swapon --show`); volver a desplegar |
+| El log muestra el error de un commit y luego nada más | Un commit fallido no se reintenta solo | Corregir y unir otro commit a `main`, o forzar: `sudo -u kubo FORZAR=1 /opt/kubo/bin/desplegar.sh` |
+| «No pasó la salud» y volvió al anterior | La app no arrancó o no llega a la base | `journalctl -u kubo.service -n 100`; `curl -s localhost:3000/api/v1/salud` |
+| El disco se llena | Releases y logs | `df -h /`; se guardan solo 3 releases; `rm -rf /opt/kubo/releases/<sha-viejo>` si hace falta (nunca el de `current`) |
+| La base aparece encendida sin haberla iniciado | AWS reinicia una RDS detenida a los 7 días | Detenerla otra vez al terminar la sesión |

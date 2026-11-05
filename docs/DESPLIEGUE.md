@@ -2,6 +2,8 @@
 
 Ambiente **temporal** para mostrar avances mientras se prepara el despliegue definitivo en AWS (Amplify + RDS + S3, ver `README.md`). Cuando AWS esté listo, este ambiente se apaga.
 
+> **Despliegue en AWS Academy (EC2 + RDS):** guía paso a paso en [DESPLIEGUE-AWS.md](DESPLIEGUE-AWS.md).
+
 **Solo datos de prueba.** En este ambiente no se cargan datos reales de alumnos, apoderados ni docentes, ni copias de una base que los contenga (RNF14, protección de datos personales).
 
 ## Cómo está desplegado
