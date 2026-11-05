@@ -1,0 +1,25 @@
+# Kubo (Next.js) en la EC2: next start desde /opt/kubo/current, solo en 127.0.0.1:3000 (Caddy publica el HTTPS).
+# Lo instala deploy/aws/instalar.sh; desplegar.sh lo reinicia tras cambiar current.
+[Unit]
+Description=Kubo · Next.js
+After=network-online.target
+Wants=network-online.target
+# antes del primer despliegue no hay release: no arranca (ni reintenta) hasta que exista
+ConditionPathExists=/opt/kubo/current/package.json
+
+[Service]
+Type=simple
+User=kubo
+Group=kubo
+WorkingDirectory=/opt/kubo/current
+EnvironmentFile=/etc/kubo/kubo.env
+ExecStart=/usr/bin/node /opt/kubo/current/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+# deja memoria para el build del siguiente despliegue (t3.small: 2 GB + 2 GB de swap)
+Environment=NODE_OPTIONS=--max-old-space-size=768
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

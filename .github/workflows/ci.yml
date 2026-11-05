@@ -20,3 +20,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # scripts del despliegue en AWS (deploy/aws); shellcheck ya viene en ubuntu-latest
+      - run: shellcheck deploy/aws/*.sh
