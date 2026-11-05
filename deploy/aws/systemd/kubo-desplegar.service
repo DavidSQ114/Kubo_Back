@@ -1,0 +1,14 @@
+# Ejecuta deploy/aws/desplegar.sh como kubo (copia instalada en /opt/kubo/bin). Lo dispara kubo-desplegar.timer;
+# a mano: sudo systemctl start kubo-desplegar.service. El detalle queda en /opt/kubo/shared/logs/despliegue.log.
+[Unit]
+Description=Kubo · desplegar el último commit de main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kubo
+Group=kubo
+ExecStart=/opt/kubo/bin/desplegar.sh
+# npm ci + build en una t3.small pueden tardar varios minutos
+TimeoutStartSec=30min
