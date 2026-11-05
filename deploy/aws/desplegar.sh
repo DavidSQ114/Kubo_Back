@@ -98,7 +98,8 @@ construir() {
 
 # ---------- 1. ¿Hay un commit nuevo en main? ----------
 
-if [[ ! -f "$ARCHIVO_ENTORNO" ]] || grep -q '<endpoint-rds>' "$ARCHIVO_ENTORNO"; then
+# solo se mira la línea DATABASE_URL: los comentarios de kubo.env pueden mencionar los marcadores sin que falte nada
+if [[ ! -f "$ARCHIVO_ENTORNO" ]] || grep -Eq '^DATABASE_URL=.*<(usuario|clave|endpoint-rds)>' "$ARCHIVO_ENTORNO"; then
   registrar "Falta completar $ARCHIVO_ENTORNO (DATABASE_URL, JWT_SECRET, APP_URL): no se despliega."
   exit 0
 fi

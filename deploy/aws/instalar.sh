@@ -121,7 +121,8 @@ systemctl restart caddy
 
 paso "Listo"
 echo "Dominio: https://$DOMINIO"
-if grep -q '<endpoint-rds>\|^JWT_SECRET=""' "$CONFIG/kubo.env"; then
+# solo las líneas de las variables, no los comentarios de la plantilla
+if grep -Eq '^DATABASE_URL=.*<(usuario|clave|endpoint-rds)>|^JWT_SECRET=""' "$CONFIG/kubo.env"; then
   echo "Falta completar $CONFIG/kubo.env (DATABASE_URL, JWT_SECRET y APP_URL=https://$DOMINIO)."
   echo "Después: sudo systemctl start kubo-desplegar.service  y  sudo tail -f $RAIZ/shared/logs/despliegue.log"
 else
