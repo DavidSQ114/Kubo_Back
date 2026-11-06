@@ -1,5 +1,7 @@
-// matricula/schemas: validación de entradas (RNF16) de la matrícula en sección (US18) y su anulación (M-19).
+// matricula/schemas: validación de entradas (RNF16) de la matrícula en sección (US18), su anulación (M-19), el
+// traslado de sección (US19) y el retiro (US57).
 import { z } from "zod";
+import { MOTIVOS_RETIRO } from "./domain/cambios";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
 
 const id = (mensaje: string) => z.string({ message: mensaje }).uuid(mensaje);
@@ -35,3 +37,26 @@ export const FiltroMatriculasSchema = z.object({
 });
 
 export const ConsultaAnioSchema = z.object({ anioId: id("Elige el año académico") });
+
+/** «AAAA-MM-DD» que exista en el calendario. */
+const fecha = (mensaje: string) =>
+  z
+    .string({ message: mensaje })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, mensaje)
+    .refine((v) => {
+      const d = new Date(`${v}T00:00:00.000Z`);
+      return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+    }, mensaje);
+
+export const TrasladoSchema = z.object({
+  seccionDestinoId: id("Elige la sección de destino"),
+  fecha: fecha("Fecha del traslado no válida").nullable().optional(),
+  motivo: z.string().trim().max(200, "Motivo demasiado largo").nullable().optional(),
+});
+
+/** El motivo puede faltar: el caso de uso responde «Seleccione el motivo del retiro». */
+export const RetiroSchema = z.object({
+  fecha: fecha("Fecha de retiro no válida").nullable().optional(),
+  motivo: z.enum(MOTIVOS_RETIRO, { message: "Seleccione el motivo del retiro" }).nullable().optional(),
+  detalle: z.string().trim().max(300, "Detalle demasiado largo").nullable().optional(),
+});

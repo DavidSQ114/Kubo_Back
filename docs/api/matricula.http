@@ -1,4 +1,4 @@
-# Pruebas manuales de la API de matrícula (US18, US21, M-19).
+# Pruebas manuales de la API de matrícula (US18, US21, M-19, US19, US57, US20).
 # Requiere la extensión REST Client (humao.rest-client). Inicia sesión antes con identidad.http.
 # Precondición: academico.http (año 2026 «En curso» con secciones) y comunidad.http bloques 16 y 22 (apoderado
 # y estudiante). Copia los ids de esas respuestas en las variables. Datos ficticios.
@@ -72,3 +72,57 @@ POST {{base}}/matricula/matriculas/{{matricula}}/anular
 Content-Type: application/json
 
 { "motivo": "OTRO", "detalle": "Segundo intento" }
+
+# ---------- Traslado de sección (US19), retiro (US57) y ficha PDF (US20) ----------
+# Usa una matrícula MATRICULADO (bloque 7 con otro estudiante si anulaste la anterior) y otra sección del mismo grado.
+@matriculada = 00000000-0000-0000-0000-000000000000
+@seccionMismoGrado = 00000000-0000-0000-0000-000000000000
+@seccionOtroGrado = 00000000-0000-0000-0000-000000000000
+
+### 14. Traslado a otro grado → 422 «Solo se permite el traslado entre secciones del mismo grado»
+POST {{base}}/matricula/matriculas/{{matriculada}}/trasladar
+Content-Type: application/json
+
+{ "seccionDestinoId": "{{seccionOtroGrado}}" }
+
+### 15. Traslado a una sección llena → 409 «La sección destino no tiene vacantes disponibles»
+# Repetir el bloque 16 con una sección del mismo grado sin vacantes.
+
+### 16. Traslado → 200 con la sección destino e historialSecciones (dos tramos)
+POST {{base}}/matricula/matriculas/{{matriculada}}/trasladar
+Content-Type: application/json
+
+{ "seccionDestinoId": "{{seccionMismoGrado}}", "motivo": "Reorganización de secciones" }
+
+### 17. Ficha de matrícula → 200 application/pdf (REST Client permite guardarla)
+GET {{base}}/matricula/matriculas/{{matriculada}}/ficha
+
+### 18. Ficha de una matrícula En proceso → 422 «No se puede generar la ficha: existen datos obligatorios pendientes»
+# Usa el id de una matrícula EN_PROCESO (borrador de US17).
+
+### 19. Retiro sin motivo → 422 «Seleccione el motivo del retiro»
+POST {{base}}/matricula/matriculas/{{matriculada}}/retirar
+Content-Type: application/json
+
+{ "fecha": "2026-11-06" }
+
+### 20. Retiro con fecha posterior al fin del año → 422 FECHA_RETIRO_INVALIDA
+POST {{base}}/matricula/matriculas/{{matriculada}}/retirar
+Content-Type: application/json
+
+{ "fecha": "2026-12-19", "motivo": "TRASLADO" }
+
+### 21. Retiro → 200 RETIRADO; se anulan las cuotas pendientes que vencen después de la fecha
+POST {{base}}/matricula/matriculas/{{matriculada}}/retirar
+Content-Type: application/json
+
+{ "motivo": "MOTIVOS_ECONOMICOS", "detalle": "La familia se muda a Arequipa" }
+
+### 22. Retirar otra vez → 409 MATRICULA_NO_RETIRABLE (y trasladar → 409 MATRICULA_NO_TRASLADABLE)
+POST {{base}}/matricula/matriculas/{{matriculada}}/retirar
+Content-Type: application/json
+
+{ "motivo": "OTRO" }
+
+### 23. Ficha de un retirado → 200 application/pdf (constancia)
+GET {{base}}/matricula/matriculas/{{matriculada}}/ficha

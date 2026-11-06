@@ -27,6 +27,22 @@ export function ok<T>(data: T, estado = 200): NextResponse {
   return NextResponse.json({ data }, { status: estado });
 }
 
+/**
+ * Respuesta con un PDF (US20, US25). `nombreArchivo` no debe llevar datos personales (DNI, nombres): se usa en la
+ * cabecera Content-Disposition, que pueden registrar los proxies.
+ */
+export function pdf(bytes: Uint8Array, nombreArchivo: string, disposicion: "attachment" | "inline" = "attachment") {
+  return new Response(Buffer.from(bytes), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `${disposicion}; filename="${nombreArchivo.replace(/[^\w.-]/g, "_")}"`,
+      "Content-Length": String(bytes.byteLength),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 function respuestaError(codigo: string, mensaje: string, estado: number, detalles?: unknown) {
   return NextResponse.json({ error: { code: codigo, message: mensaje, details: detalles ?? {} } }, { status: estado });
 }

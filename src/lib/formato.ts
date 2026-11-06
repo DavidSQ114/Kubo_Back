@@ -46,3 +46,16 @@ export function fechaDia(fecha: string): string {
   const [anio, mes, dia] = fecha.split("-");
   return `${dia}/${mes}/${anio}`;
 }
+
+/** Fecha de hoy en Lima como «AAAA-MM-DD» (valor por defecto de los campos de fecha). */
+export function hoyEnLima(ahora: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    ahora,
+  );
+}
+
+/** "2026-11-05" → "05/11" (vencimientos dentro del año). */
+export function diaMes(fecha: string): string {
+  const [, mes, dia] = fecha.split("-");
+  return `${dia}/${mes}`;
+}

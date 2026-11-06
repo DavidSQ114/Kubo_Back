@@ -76,3 +76,55 @@ export async function resumenEstudiantes(ids: string[]): Promise<Record<string, 
 
 /** Ids de los estudiantes que coinciden con «rojas 7845» (nombre, apellido o inicio del DNI). */
 export const idsEstudiantesPorBusqueda = (q: string) => estudiantesMatricula.idsPorBusqueda(q);
+
+export interface ApoderadoFicha {
+  vinculoId: string;
+  dni: string;
+  nombreCompleto: string;
+  parentesco: string;
+  esPrincipal: boolean;
+  autorizado: boolean;
+  telefono: string | null;
+  email: string | null;
+}
+
+export interface EstudianteFicha {
+  estudianteId: string;
+  dni: string;
+  nombres: string;
+  apellidos: string;
+  /** «AAAA-MM-DD» o null. */
+  fechaNacimiento: string | null;
+  sexo: "FEMENINO" | "MASCULINO" | null;
+  direccion: string | null;
+  colegioProcedencia: string | null;
+  gradoIngreso: string | null;
+  apoderados: ApoderadoFicha[];
+}
+
+/** Datos actuales del estudiante y de sus apoderados para la ficha de matrícula (US20), o null si no existe. */
+export async function estudianteParaFicha(estudianteId: string): Promise<EstudianteFicha | null> {
+  const e = await estudiantesMatricula.paraFicha(estudianteId);
+  if (!e) return null;
+  return {
+    estudianteId: e.id,
+    dni: e.persona.dni,
+    nombres: e.persona.nombres,
+    apellidos: e.persona.apellidos,
+    fechaNacimiento: e.persona.fechaNacimiento?.toISOString().slice(0, 10) ?? null,
+    sexo: e.persona.sexo,
+    direccion: e.persona.direccion,
+    colegioProcedencia: e.colegioProcedencia,
+    gradoIngreso: e.gradoIngreso?.nombre ?? null,
+    apoderados: e.vinculosApoderado.map((v) => ({
+      vinculoId: v.id,
+      dni: v.apoderado.persona.dni,
+      nombreCompleto: `${v.apoderado.persona.nombres} ${v.apoderado.persona.apellidos}`,
+      parentesco: v.parentesco,
+      esPrincipal: v.esPrincipal,
+      autorizado: v.autorizado,
+      telefono: v.apoderado.persona.telefono,
+      email: v.apoderado.persona.email,
+    })),
+  };
+}

@@ -1,4 +1,5 @@
-// AD-10 · Matrícula en sección (US18, RF14) con el cronograma de pagos (US21, RF16) y la anulación (M-19)
+// AD-10 · Matrícula en sección (US18, RF14) con el cronograma de pagos (US21, RF16), la anulación (M-19) y, desde el
+// detalle, el traslado de sección (M-05, US19), el retiro (M-18, US57) y la ficha en PDF (US20)
 "use client";
 
 import Link from "next/link";
@@ -6,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Avatar, Buscador, type EstudianteListado } from "@/components/admin/apoderados";
 import type { AnioAcademico } from "@/components/admin/anio";
+import { BotonFicha, HistorialSecciones, ModalRetiro, ModalTraslado } from "@/components/admin/cambiosMatricula";
 import { Selector, separarErrores, type Grado, type Seccion } from "@/components/admin/grados";
 import {
   BadgeEstado,
@@ -71,6 +73,8 @@ function PaginaMatricula() {
   const [recarga, setRecarga] = useState(0);
   const [verDetalle, setVerDetalle] = useState<string | null>(null);
   const [anulando, setAnulando] = useState<DetalleMatricula | null>(null);
+  const [cambio, setCambio] = useState<{ tipo: "TRASLADO" | "RETIRO"; detalle: DetalleMatricula } | null>(null);
+  const [errorFicha, setErrorFicha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const anio = anios ? (anios.find((a) => a.id === anioElegido) ?? anioParaMatricular(anios)) : undefined;
@@ -700,11 +704,78 @@ function PaginaMatricula() {
       )}
       {verDetalle && (
         <ModalDetalle
+          key={verDetalle}
           matriculaId={verDetalle}
-          onCerrar={() => setVerDetalle(null)}
+          aviso={errorFicha}
+          onCerrar={() => {
+            setVerDetalle(null);
+            setErrorFicha(null);
+          }}
           onAnular={(d) => {
             setVerDetalle(null);
             setAnulando(d);
+          }}
+          acciones={(d) => (
+            <>
+              {d.puedeGenerarFicha && <BotonFicha matriculaId={d.matriculaId} onError={setErrorFicha} />}
+              {d.puedeTrasladar && (
+                <Boton
+                  variante="secundario"
+                  icono="icon-traslado"
+                  onClick={() => {
+                    setVerDetalle(null);
+                    setCambio({ tipo: "TRASLADO", detalle: d });
+                  }}
+                >
+                  Trasladar
+                </Boton>
+              )}
+              {d.puedeRetirar && (
+                <Boton
+                  variante="secundario"
+                  icono="icon-retiro"
+                  onClick={() => {
+                    setVerDetalle(null);
+                    setCambio({ tipo: "RETIRO", detalle: d });
+                  }}
+                >
+                  Registrar retiro
+                </Boton>
+              )}
+            </>
+          )}
+          extra={(d) => <HistorialSecciones detalle={d} />}
+        />
+      )}
+      {cambio?.tipo === "TRASLADO" && (
+        <ModalTraslado
+          detalle={cambio.detalle}
+          onCerrar={() => {
+            setCambio(null);
+            setVerDetalle(cambio.detalle.matriculaId);
+          }}
+          onTrasladado={(d) => {
+            setAviso(
+              `Se trasladó a ${d.estudiante?.nombreCompleto ?? "el estudiante"} a ${d.seccion?.nombre ?? "la nueva sección"}.`,
+            );
+            setCambio(null);
+            setRecarga((r) => r + 1);
+            setVerDetalle(d.matriculaId);
+          }}
+        />
+      )}
+      {cambio?.tipo === "RETIRO" && (
+        <ModalRetiro
+          detalle={cambio.detalle}
+          onCerrar={() => {
+            setCambio(null);
+            setVerDetalle(cambio.detalle.matriculaId);
+          }}
+          onRetirado={(d) => {
+            setAviso(`Se registró el retiro de ${d.estudiante?.nombreCompleto ?? "el estudiante"}.`);
+            setCambio(null);
+            setRecarga((r) => r + 1);
+            setVerDetalle(d.matriculaId);
           }}
         />
       )}

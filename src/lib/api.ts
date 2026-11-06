@@ -73,6 +73,47 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintentar =
   return json.data as T;
 }
 
+/** Tiempo que se espera para liberar el archivo: el navegador debe alcanzar a iniciar la descarga. */
+const ESPERA_LIBERAR_DESCARGA_MS = 10_000;
+
+/**
+ * Descarga un archivo de la API (por ejemplo, la ficha de matrícula en PDF, US20) y lo guarda en el navegador con el
+ * nombre que envía el servidor. Renueva la sesión como `api()` y, si falla, lanza ApiError con el mensaje del backend.
+ */
+export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf", reintentar = true): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1${ruta}`, { credentials: "same-origin", cache: "no-store" });
+  } catch {
+    throw new ApiError(
+      "SIN_CONEXION",
+      "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.",
+      0,
+    );
+  }
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 401 && json?.error?.code === "NO_AUTENTICADO" && reintentar && (await renovarSesion())) {
+      return descargar(ruta, nombrePorDefecto, false);
+    }
+    throw new ApiError(
+      json?.error?.code ?? "ERROR",
+      json?.error?.message ?? "Ocurrió un error inesperado. Inténtalo nuevamente.",
+      res.status,
+      json?.error?.details ?? {},
+    );
+  }
+  const nombre = res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? nombrePorDefecto;
+  const url = URL.createObjectURL(await res.blob());
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), ESPERA_LIBERAR_DESCARGA_MS);
+}
+
 /** A dónde va cada perfil después de iniciar sesión. */
 export function inicioPorRol(rol: Rol): string {
   return rol === "ADMINISTRADOR" ? "/admin/usuarios" : "/inicio";
