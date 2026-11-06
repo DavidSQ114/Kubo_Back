@@ -199,3 +199,30 @@ Content-Type: application/json
 
 ### 35. Recibo de una operación anulada → 200 application/pdf con la marca «ANULADO»
 GET {{base}}/matricula/pagos/{{operacion}}/comprobante
+
+# ---------- Pago anual adelantado (US58) y panel de morosidad (US24) ----------
+@matriculaConPendientes = 00000000-0000-0000-0000-000000000000
+
+### 36. Pago anual con otro monto → 422 «El monto no coincide con el total pendiente» (details.total)
+POST {{base}}/matricula/matriculas/{{matriculaConPendientes}}/pago-anual
+Content-Type: application/json
+
+{ "monto": "4000", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00701244", "fechaPago": "2026-11-06" }
+
+### 37. Pago anual exacto → 201 CONFIRMADO, un solo comprobante, modalidad ANUAL
+POST {{base}}/matricula/matriculas/{{matriculaConPendientes}}/pago-anual
+Content-Type: application/json
+
+{ "monto": "4850.00", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00701244", "fechaPago": "2026-11-06" }
+
+### 38. Otra vez → 422 SIN_CUOTAS_PENDIENTES
+POST {{base}}/matricula/matriculas/{{matriculaConPendientes}}/pago-anual
+Content-Type: application/json
+
+{ "monto": "450", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00701245", "fechaPago": "2026-11-06" }
+
+### 39. Panel de morosidad del año, por monto
+GET {{base}}/matricula/morosidad?anioId={{anio}}
+
+### 40. Filtrado por sección, 2 o más cuotas vencidas, por meses
+GET {{base}}/matricula/morosidad?anioId={{anio}}&seccionId={{seccion}}&mesesMinimos=2&orden=MESES
