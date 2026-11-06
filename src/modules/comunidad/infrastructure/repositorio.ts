@@ -1,4 +1,4 @@
-// comunidad/infrastructure: consultas de persona y sus perfiles.
+// comunidad/infrastructure: consultas de persona y sus perfiles (administrador, docente, apoderado, estudiante) y vínculos.
 // Excepción documentada: las LECTURAS del listado de usuarios incluyen la relación persona.usuario
 // (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada, y la búsqueda por DNI
 // (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio.
@@ -9,6 +9,17 @@ import type { Tx } from "@/platform/db/tipos";
 import type { Rol } from "@/modules/identidad";
 
 type Db = Tx | typeof prisma;
+
+export interface DatosPersonaNueva {
+  dni: string;
+  nombres: string;
+  apellidos: string;
+  email?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  fechaNacimiento?: Date | null;
+  sexo?: "FEMENINO" | "MASCULINO" | null;
+}
 
 /** Relación de Persona que representa cada rol. */
 export const RELACION_POR_ROL = {
@@ -24,6 +35,20 @@ const selectPerfiles = {
   apoderado: { select: { activo: true } },
   estudiante: { select: { activo: true } },
 } as const;
+
+/** Busca por cada palabra en nombres, apellidos o el inicio del DNI («rojas 4012»). */
+function busquedaPersona(q: string | undefined): Prisma.PersonaWhereInput {
+  const terminos = (q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 5);
+  return {
+    AND: terminos.map((t) => ({
+      OR: [
+        { nombres: { contains: t, mode: "insensitive" as const } },
+        { apellidos: { contains: t, mode: "insensitive" as const } },
+        { dni: { startsWith: t } },
+      ],
+    })),
+  };
+}
 
 interface PerfilesFila {
   administrador: { activo: boolean; cargo?: string | null } | null;
@@ -67,19 +92,26 @@ export const personas = {
     }),
 
   porDni: (dni: string, db: Db = prisma) =>
-    db.persona.findUnique({ where: { dni }, select: { id: true, nombres: true, apellidos: true, email: true } }),
+    db.persona.findUnique({
+      where: { dni },
+      select: {
+        id: true,
+        nombres: true,
+        apellidos: true,
+        email: true,
+        telefono: true,
+        direccion: true,
+        fechaNacimiento: true,
+        sexo: true,
+      },
+    }),
 
-  crear: (
-    data: {
-      dni: string;
-      nombres: string;
-      apellidos: string;
-      email: string;
-      telefono?: string | null;
-      fechaNacimiento?: Date | null;
-    },
-    db: Db = prisma,
-  ) => db.persona.create({ data, select: { id: true, nombres: true, apellidos: true, email: true } }),
+  crear: (data: DatosPersonaNueva, db: Db = prisma) =>
+    db.persona.create({ data, select: { id: true, nombres: true, apellidos: true, email: true } }),
+
+  /** Solo completa datos que la persona no tenía (US15): quien llama decide qué campos con datosFaltantes. */
+  completar: (id: string, data: Partial<Omit<DatosPersonaNueva, "dni" | "nombres" | "apellidos">>, db: Db = prisma) =>
+    db.persona.update({ where: { id }, data, select: { id: true } }),
 
   administradorDe: (personaId: string, db: Db = prisma) =>
     db.administrador.findUnique({ where: { personaId }, select: { id: true, activo: true } }),
@@ -204,4 +236,128 @@ export const docentes = {
 
   porPersona: (personaId: string, db: Db = prisma) =>
     db.docente.findUnique({ where: { personaId }, select: selectDocente }),
+};
+
+// ---------- Apoderados (US15) ----------
+
+export interface Pagina {
+  q?: string;
+  pagina: number;
+  tamano: number;
+}
+
+const selectApoderado = {
+  id: true,
+  ocupacion: true,
+  persona: { select: { id: true, dni: true, nombres: true, apellidos: true, telefono: true, email: true } },
+  _count: { select: { vinculosApoderado: true } },
+} as const;
+
+export const apoderados = {
+  dePersona: (personaId: string, db: Db = prisma) =>
+    db.apoderado.findUnique({
+      where: { personaId },
+      select: { id: true, activo: true, _count: { select: { vinculosApoderado: true } } },
+    }),
+
+  crear: (data: { personaId: string; ocupacion: string }, db: Db = prisma) =>
+    db.apoderado.create({ data, select: { id: true } }),
+
+  reactivar: (id: string, ocupacion: string, db: Db = prisma) =>
+    db.apoderado.update({ where: { id }, data: { activo: true, ocupacion }, select: { id: true } }),
+
+  /** Apoderados activos (con persona activa) entre los ids. */
+  activosPorIds: (ids: string[], db: Db = prisma) =>
+    db.apoderado.findMany({
+      where: { id: { in: ids }, activo: true, persona: { activo: true } },
+      select: selectApoderado,
+    }),
+
+  async buscar(f: Pagina) {
+    const where: Prisma.ApoderadoWhereInput = { activo: true, persona: { activo: true, ...busquedaPersona(f.q) } };
+    const [total, filas] = await prisma.$transaction([
+      prisma.apoderado.count({ where }),
+      prisma.apoderado.findMany({
+        where,
+        orderBy: [{ persona: { apellidos: "asc" } }, { persona: { nombres: "asc" } }],
+        skip: (f.pagina - 1) * f.tamano,
+        take: f.tamano,
+        select: selectApoderado,
+      }),
+    ]);
+    return { total, filas };
+  },
+};
+
+// ---------- Estudiantes (US17) ----------
+
+const selectEstudiante = {
+  id: true,
+  gradoIngresoId: true,
+  persona: { select: { id: true, dni: true, nombres: true, apellidos: true } },
+  vinculosApoderado: {
+    orderBy: [{ esPrincipal: "desc" }, { createdAt: "asc" }],
+    select: {
+      parentesco: true,
+      esPrincipal: true,
+      apoderado: { select: { id: true, persona: { select: { nombres: true, apellidos: true } } } },
+    },
+  },
+} satisfies Prisma.EstudianteSelect;
+
+export const estudiantes = {
+  dePersona: (personaId: string, db: Db = prisma) =>
+    db.estudiante.findUnique({ where: { personaId }, select: { id: true, activo: true } }),
+
+  crear: (data: { personaId: string; gradoIngresoId: string; colegioProcedencia?: string | null }, db: Db = prisma) =>
+    db.estudiante.create({ data, select: { id: true } }),
+
+  reactivar: (id: string, data: { gradoIngresoId: string; colegioProcedencia?: string | null }, db: Db = prisma) =>
+    db.estudiante.update({ where: { id }, data: { activo: true, ...data }, select: { id: true } }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM estudiante WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+
+  activoPorId: (id: string, db: Db = prisma) =>
+    db.estudiante.findFirst({ where: { id, activo: true, persona: { activo: true } }, select: selectEstudiante }),
+
+  activosPorIds: (ids: string[], db: Db = prisma) =>
+    db.estudiante.findMany({
+      where: { id: { in: ids }, activo: true, persona: { activo: true } },
+      select: { id: true },
+    }),
+
+  async buscar(f: Pagina) {
+    const where: Prisma.EstudianteWhereInput = { activo: true, persona: { activo: true, ...busquedaPersona(f.q) } };
+    const [total, filas] = await prisma.$transaction([
+      prisma.estudiante.count({ where }),
+      prisma.estudiante.findMany({
+        where,
+        orderBy: [{ persona: { apellidos: "asc" } }, { persona: { nombres: "asc" } }],
+        skip: (f.pagina - 1) * f.tamano,
+        take: f.tamano,
+        select: selectEstudiante,
+      }),
+    ]);
+    return { total, filas };
+  },
+};
+
+// ---------- Vínculos estudiante–apoderado (US15, US17) ----------
+
+export const vinculos = {
+  deEstudiante: (estudianteId: string, db: Db = prisma) =>
+    db.vinculoApoderado.findMany({
+      where: { estudianteId },
+      select: { id: true, apoderadoId: true, esPrincipal: true },
+    }),
+
+  crear: (
+    data: { estudianteId: string; apoderadoId: string; parentesco: string; esPrincipal: boolean; autorizado: boolean },
+    db: Db = prisma,
+  ) => db.vinculoApoderado.create({ data, select: { id: true } }),
+
+  quitarPrincipal: (id: string, db: Db = prisma) =>
+    db.vinculoApoderado.update({ where: { id }, data: { esPrincipal: false }, select: { id: true } }),
 };
