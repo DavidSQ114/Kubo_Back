@@ -54,3 +54,20 @@ Content-Type: application/json
 
 ### 9. Docentes activos (también los lista el selector «Tutor» de AD-03) → 200
 GET {{base}}/comunidad/docentes
+
+# ---------- Defecto D-07: persona ya registrada con ese DNI ----------
+
+### 10. DNI de la persona del bloque 3 → 200 { nombreCompleto, perfiles, tieneCuenta… }
+GET {{base}}/comunidad/personas?dni=45678912
+
+### 11. DNI nuevo → 200 null
+GET {{base}}/comunidad/personas?dni=45872199
+
+### 12. DNI de 7 dígitos → 400 «El DNI debe tener 8 dígitos»
+GET {{base}}/comunidad/personas?dni=4567891
+
+### 13. DNI registrado con otros nombres → 409 PERSONA_NO_COINCIDE «El DNI ya pertenece a otra persona (Rosa Huamán Torres). Verifica el DNI.»
+POST {{base}}/comunidad/docentes
+Content-Type: application/json
+
+{ "dni": "45678912", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "juan.perez@kubo.edu.pe", "especialidad": "Matemática" }

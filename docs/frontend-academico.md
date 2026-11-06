@@ -1,4 +1,4 @@
-# Frontend · Académico: año y bimestres (AD-02), grados, secciones y aulas (AD-03), cursos y competencias (AD-04)
+# Frontend · Académico: año y bimestres (AD-02), grados, secciones y aulas (AD-03), cursos y competencias (AD-04) y reglas de evaluación (AD-05)
 
 # AD-02 · Año académico y bimestres
 
@@ -21,7 +21,8 @@ Sigue el frame **AD-02** del Figma «Kubo – Prototipo» (captura en `docs/figm
 
 - **Registrar año académico** (izquierda): año y fechas, con los errores del backend bajo el campo que corresponde («La fecha de fin…» en *Fecha de fin*, «El año debe coincidir…» en *Año*) y los conflictos (solapamiento, año en curso) en una alerta ámbar. El botón «Nuevo año académico» lleva el foco a este formulario.
 - **Años registrados** (derecha): año, vigencia con «Matrícula habilitada / no habilitada», estado y el botón de la única transición posible, con confirmación en un modal. Al hacer clic en una fila se muestran sus periodos.
-- **Periodos de evaluación · año** (abajo): los 4 bimestres con fechas, semanas, registro de notas y estado; se guardan juntos con «Guardar configuración».
+- **Periodos de evaluación · año** (abajo): los 4 bimestres con fechas, semanas, registro de notas y estado. Se muestran sin edición hasta pulsar «Editar bimestres», que habilita los campos (salvo los bimestres finalizados) y muestra «Guardar cambios» y «Cancelar». Un año sin bimestres empieza en edición, con «Guardar configuración». Si el año está «En curso», el bimestre que contiene hoy lleva la etiqueta «Vigente» (no cambia su estado guardado).
+- **Editar año / Eliminar año** (feedback del JP), en la cabecera del detalle: «Editar año» abre un modal con las fechas de inicio y fin (no en años cerrados); «Eliminar año» aparece solo en años «Planificado» y pide confirmación. Si el año tiene secciones, planes o matrículas, el modal muestra el mensaje del backend.
 - **Estados de la pantalla:** cargando, error con «Reintentar», vacío y con datos. Los mensajes del backend se muestran tal cual.
 
 ## Diferencias con el Figma (y por qué)
@@ -33,7 +34,9 @@ Sigue el frame **AD-02** del Figma «Kubo – Prototipo» (captura en `docs/figm
 | Fila del bimestre con error resaltada en rojo y detalle de qué bimestres chocan | Alerta con el mensaje del backend sobre la tabla | El backend informa la regla incumplida, no la fila |
 | Bimestre «Activo» con fechas en solo lectura | Editable mientras no esté finalizado | La regla de US07 solo bloquea los finalizados |
 | «Agregar bimestre» | Visible y deshabilitado | El año se divide siempre en 4 bimestres |
-| Insignia «Año 2026 · Bimestre III en curso» en la barra superior | No se muestra | Es de la barra común a todo el portal; se hará aparte |
+| Insignia «Año 2026 · Bimestre III en curso» en la barra superior | Se muestra con datos reales del año por defecto (Sprint 2): «En matrícula», «Bimestre IV en curso» o «Vacaciones»; sin año abierto no aparece | — |
+| Sin «Editar año», «Eliminar año» ni «Editar bimestres» | Botones en la cabecera de «Periodos de evaluación» | Feedback del JP (Sprint 2) |
+| Sin marca del bimestre actual | Etiqueta «Vigente» junto al nombre del bimestre | Ajuste pendiente del Sprint 1 |
 | Selector de fecha sin ícono a la derecha | El navegador muestra su propio botón de calendario | Es el control nativo de fecha |
 
 ---
@@ -113,5 +116,43 @@ public/figma/alerta-warn.svg             Triángulo ámbar de los avisos (alerta
 | Sin «Eliminar» ni descripción | «Eliminar» (si el curso no se usa) y «Descripción (opcional)» | Parte de US10 |
 | «4 de 4 seleccionadas» junto al título | Sobre la lista de competencias | Depende del grado elegido, que se elige debajo del título |
 | «Catálogo oficial» editable (frame AD-04b) | Solo lectura | Gestionar el catálogo no es parte de US10 ni US11 |
-| Peso de cada competencia | No se edita en pantalla (sí por API) | El frame no lo muestra; se conserva el que ya tenga |
-| Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Es de la barra superior común del portal |
+| Peso de cada competencia | Campo «%» por competencia y «Total de pesos», solo si la regla vigente del año es «Promedio ponderado» (US12). Con moda, el peso guardado se conserva | Los pesos solo cuentan en el ponderado; van en todas las competencias o en ninguna |
+| Horas de cada grado sin etiqueta | Sufijo «h/sem», placeholder «Ej.: 6» y `aria-label` «Horas semanales de …» | Ajuste pendiente del Sprint 1 (el campo no se entendía) |
+| Insignia «Año 2026 · Bimestre III en curso» | Se muestra con datos reales (barra superior común) | Sprint 2 |
+
+---
+
+# AD-05 · Reglas de evaluación
+
+Pantalla `/admin/reglas` (US12, RF10), según el frame **AD-05 · Reglas de evaluación** del Figma «Kubo – Prototipo» (captura en `docs/figma/AD-05-reglas-evaluacion.png`). Se llega por el ítem «Reglas de evaluación» del menú lateral, que antes estaba deshabilitado.
+
+## Archivos
+
+```
+src/app/(portal)/admin/reglas/page.tsx   AD-05: selector de año, editor de la regla e historial
+src/components/admin/reglas.tsx          Tipos, «Método de consolidación», vista previa del cálculo, historial y
+                                         el modal que confirma la nueva versión
+public/figma/icon-sliders.svg            Ícono del método (nav-sliders en azul)
+```
+
+## Qué muestra
+
+- **Encabezado:** selector de año (por defecto el año en curso) e insignia «Regla vigente: versión N» o «Sin regla vigente».
+- **Método de consolidación:** «Moda de los logros» o «Promedio ponderado». Con moda, el criterio de desempate (mayor o menor jerarquía); con ponderado, un aviso con enlace a «Cursos y competencias», donde se configuran los pesos. «Rige desde» ofrece los bimestres del año; los cerrados aparecen deshabilitados. Si hay bimestres cerrados, el aviso «Este cambio no afectará los bimestres ya cerrados».
+- **Guardar cambios** abre un modal que resume la nueva versión (método, criterio y desde qué bimestre rige) y repite el aviso; al confirmar se crea la versión N + 1. «Descartar» vuelve a la regla vigente. Si el método y el criterio son los vigentes, «Guardar cambios» queda deshabilitado.
+- **Vista previa del cálculo:** un estudiante de ejemplo con 4 competencias de Matemática (datos ficticios). Se cambia el logro de cada una (y su peso, en el ponderado) y el resultado lo calcula el backend con la misma función que usará el cierre del bimestre: frecuencias, aviso de empate y «Logro consolidado del curso».
+- **Historial de versiones:** versión, método, desempate, a qué bimestres se aplicó, responsable y estado («Vigente» o «Archivada»), de solo lectura.
+- **Estados:** cargando, error con «Reintentar», sin años («Aún no hay años académicos»), sin versiones («Aún no hay versiones») y año cerrado en solo lectura.
+
+## Diferencias con el Figma (y por qué)
+
+| En el Figma | En el código | Motivo |
+|---|---|---|
+| Tabla «Peso por competencia · Matemática» dentro de AD-05 | Los pesos se editan en AD-04 (bloque de competencias), visibles solo con «Promedio ponderado» vigente | Los pesos son de cada curso y grado (`CompetenciaPlan.peso`); así lo pide US12 |
+| Etiqueta «Pendiente de validar con el Product Owner» | No se muestra | Era una nota del prototipo |
+| Interruptor «Exigir todas las competencias calificadas antes del cierre» activo | Fila bloqueada con candado y la nota «Se configura con el cierre de bimestre (US39, Sprint 3)» | Ese criterio pertenece a US39 |
+| Interruptor «Notificar a la administración al cerrar un registro» | No se muestra | Las notificaciones no son parte de US12 |
+| Versión nueva en estado «Borrador» | La versión se guarda directamente como «Vigente»; la anterior pasa a «Archivada» | US12: guardar crea la nueva versión que rige desde el bimestre elegido |
+| Sin selector de año ni de «rige desde» | Selector de año en el encabezado y «Rige desde» en el formulario | La regla es por año y cada versión rige desde un bimestre |
+| Vista previa con una alumna real del colegio | «Estudiante de ejemplo · 3.° B» con logros editables | Solo datos ficticios (RNF14); editable para probar empates y pesos |
+| Desempate «Sin definir» en la versión 1 | «Mayor jerarquía», o «No aplica» en el ponderado | El criterio siempre tiene un valor (por defecto, mayor jerarquía) |
