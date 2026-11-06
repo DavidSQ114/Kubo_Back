@@ -1,4 +1,4 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) y pagos (US22, US23, US04, US25)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)). Ejemplos en [matricula.http](matricula.http).
@@ -17,6 +17,13 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `POST /matricula/matriculas/{id}/trasladar` | `{ seccionDestinoId, fecha?, motivo? }` | `DetalleMatricula` (en la sección destino) |
 | `POST /matricula/matriculas/{id}/retirar` | `{ fecha?, motivo, detalle? }` | `DetalleMatricula` (ya `RETIRADO`) |
 | `GET /matricula/matriculas/{id}/ficha` | — | `application/pdf` (no es JSON) |
+| `GET /matricula/estudiantes/{id}/estado-cuenta` | `?anioId=` | `EstadoCuenta` (AD-11) |
+| `POST /matricula/pagos` | `{ conceptoIds, monto, medioPago, numeroOperacion, fechaPago }` | `201 { operacion, aviso, correo }` |
+| `GET /matricula/pagos/{id}` | — | `OperacionPago` |
+| `POST /matricula/pagos/{id}/confirmar` | — | `{ operacion, aviso: null, correo }` (Observado → Confirmado) |
+| `POST /matricula/pagos/{id}/descartar` | `{ detalle? }` | `{ operacion }` (Observado → Anulado, «Pago duplicado») |
+| `POST /matricula/pagos/{id}/anular` | `{ motivo, detalle? }` | `{ operacion }` (→ Anulado) |
+| `GET /matricula/pagos/{id}/comprobante` | — | `application/pdf` (recibo) |
 
 ### Situación del estudiante (AD-10)
 
@@ -108,6 +115,69 @@ Regla de cada tramo: `fecha_inicio <= fecha < fecha_fin` (`fecha_fin` nulo = sig
   - La respuesta se arma con `pdf(bytes, nombreArchivo)` de `platform/http/ruta`.
   - La boleta de pago (US25) usará el mismo servicio.
 
+## Pensiones y pagos (AD-11)
+
+Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por cuota (`pago`) y los comprobantes son tablas de `matricula`: no hizo falta un módulo de tesorería ni una migración.
+
+### Estado de cuenta
+
+`GET /matricula/estudiantes/{id}/estado-cuenta?anioId=` (sin `anioId`, la matrícula más reciente no anulada) devuelve:
+
+- `estudiante` y `matriculas` (para elegir el año);
+- `matricula`: año, estado, sección, modalidad y responsable del pago con su correo;
+- `cuotas`: el cronograma, y en cada cuota `vencida` (Pendiente con vencimiento anterior a hoy), `observada` (la cubre una operación Observado) y `pago` (la operación confirmada que la canceló: fecha, N.° de operación, comprobante y cuántas cuotas cubrió);
+- `totales`: pagado, pendiente (no vencido) y vencido, con la cantidad de cuotas, calculados en céntimos;
+- `operaciones`: cada `OperacionPago` con sus cuotas, comprobante, quién la registró o confirmó, y la `anulacion` (motivo, observación, responsable y fecha). Las Observado traen `mismoNumero` con las operaciones que comparten el número;
+- `log`: los eventos `REGISTRAR_PAGO`, `CONFIRMAR_PAGO_OBSERVADO` y `ANULAR_PAGO` de esas operaciones, con un detalle legible y el usuario.
+
+### Registrar un pago manual (US22, M-01)
+
+- `conceptoIds`: de 1 a 11 cuotas `PENDIENTE` del **mismo estudiante**. `monto`: texto con hasta dos decimales (`"900"` o `"900.00"`). `medioPago`: `EFECTIVO` · `TRANSFERENCIA` · `DEPOSITO` · `TARJETA`. `numeroOperacion`: se guarda sin espacios sobrantes y en mayúsculas. `fechaPago`: `AAAA-MM-DD`, no futura.
+- Validaciones:
+  - Sin número de operación: `422 NUMERO_OPERACION_REQUERIDO` «El número de operación es obligatorio».
+  - Fecha futura: `422 FECHA_PAGO_FUTURA`.
+  - Cuota ya pagada: `409 CUOTA_YA_PAGADA` «Esta pensión ya fue cancelada el 03/07/2026» (la fecha de pago de la operación que la canceló).
+  - Cuota anulada `409 CUOTA_ANULADA`, inexistente `404 CUOTA_NO_ENCONTRADA`, repetida `422 CUOTA_REPETIDA`, de otro estudiante `422 CUOTAS_DE_VARIOS_ESTUDIANTES`.
+  - Monto distinto a la suma: `422 MONTO_NO_COINCIDE` «El monto ingresado no coincide con el total de las cuotas seleccionadas», con `details.total`. No hay pagos parciales. La suma se hace en céntimos enteros, nunca en float.
+- **Concurrencia:** en la transacción se toma un candado por número de operación (`pg_advisory_xact_lock`) y se bloquean las filas de las cuotas (`SELECT … FOR UPDATE`, en orden de id). De dos pagos simultáneos de la misma cuota, el segundo espera y recibe `CUOTA_YA_PAGADA`. De dos con el mismo número, el segundo queda Observado. Lo prueba `tests/matricula/pagos.integracion.test.ts`.
+- **Resultado:**
+  - Número no usado en otra operación no anulada: operación `CONFIRMADO` (`confirmado_por` = el administrador), una fila `pago` por cuota y las cuotas pasan a `PAGADO`. La fecha y hora del registro quedan en `operacion_pago.created_at` y la fecha de pago, en `fecha_pago` (medianoche de Lima). Se emite el comprobante.
+  - Número ya usado en otra operación no anulada (US23): operación `OBSERVADO` con `aviso` «Este número de operación ya fue utilizado en otro pago». Las cuotas siguen `PENDIENTE` y no hay comprobante.
+- `correo`: `{ enviado, motivo }`, la copia del recibo al apoderado responsable (ver US25).
+
+### Pagos observados (US23)
+
+- `POST …/confirmar`: solo una `OBSERVADO` (si no, `409 PAGO_NO_OBSERVADO`). Bloquea las cuotas y exige que sigan `PENDIENTE`: si otra operación ya las pagó, `409 CUOTA_YA_PAGADA`. Pasa a `CONFIRMADO` con `confirmado_por`, las cuotas a `PAGADO`, emite el comprobante y registra `CONFIRMAR_PAGO_OBSERVADO`.
+- `POST …/descartar`: solo una `OBSERVADO`. Pasa a `ANULADO` con el motivo `PAGO_DUPLICADO`, `anulado_por` y `anulado_en`. Sus cuotas no cambian. Registra `ANULAR_PAGO` con `decision: "DESCARTAR_OBSERVADO"`.
+- Una operación anulada ya no cuenta como duplicado: registrar de nuevo las mismas cuotas, incluso con el mismo número, queda `CONFIRMADO` si no hay otra operación vigente con ese número.
+
+### Anular un pago (US04, M-02)
+
+- `motivo` (`MotivoAnulacion`): `ERROR_DIGITACION` (Error de digitación) · `PAGO_DUPLICADO` (Pago duplicado) · `SOLICITUD_APODERADO` (Solicitud del apoderado) · `OTRO`.
+  - Sin motivo: `422 MOTIVO_ANULACION_REQUERIDO`.
+  - Con `OTRO`, el `detalle` es obligatorio: `422 DETALLE_ANULACION_REQUERIDO`. En los demás, el detalle es opcional (hasta 300 caracteres).
+- Se anula una `CONFIRMADO` o una `OBSERVADO`. Una `ANULADO` responde `409 PAGO_YA_ANULADO`.
+- En una transacción: si estaba `CONFIRMADO`, sus cuotas vuelven de `PAGADO` a `PENDIENTE` y admiten un pago nuevo. La operación queda `ANULADO` con `motivo_anulacion`, `observacion_anulacion`, `anulado_por` y `anulado_en`, y se registra `ANULAR_PAGO`.
+- **Nada se borra:** las filas `pago` y el comprobante se conservan, y el historial (`operaciones[].anulacion`) muestra el estado, el motivo, el responsable y la fecha.
+- Una matrícula con pagos no anulados sigue sin poder anularse (`409 MATRICULA_CON_PAGOS`); primero se anulan sus pagos.
+
+### Recibo en PDF (US25, M-03)
+
+- Al confirmar una operación (al registrarla o al confirmar una Observado) se crea su `comprobante` **en la misma transacción**, con número correlativo `R-<año>-<6 dígitos>` (por ejemplo `R-2026-000001`).
+  - El año es el de la confirmación (hora de Lima).
+  - El siguiente número se calcula con un candado por año (`pg_advisory_xact_lock`) y se inserta antes de liberarlo: dos confirmaciones simultáneas reciben números seguidos. Si una transacción se revierte, su número no se pierde, así que no quedan huecos.
+- `GET /matricula/pagos/{id}/comprobante`: `200 application/pdf` con `Content-Disposition: attachment; filename="recibo-R-2026-000001.pdf"`.
+  - Lleva: estudiante, sección en la fecha de pago (por historial, así un traslado posterior no cambia el recibo), apoderado responsable, cuotas cubiertas con vencimiento y monto, total, fecha de pago, medio, N.° de operación y quién lo registró.
+  - Una operación `OBSERVADO`, o anulada sin comprobante: `422 RECIBO_NO_CONFIRMADO` «No se puede generar un recibo de un pago no confirmado».
+  - Una `ANULADO` con comprobante se sigue descargando, con la marca de agua «ANULADO».
+- **Sin almacenamiento de archivos todavía (no hay S3):** el PDF se genera bajo demanda con `src/platform/pdf` a partir de los datos guardados.
+  - Es determinista: no lleva «generado el», y la fecha de los metadatos es la de pago, así que el mismo pago produce siempre los mismos bytes.
+  - `comprobante.archivo_url` guarda la ruta interna de descarga (`/api/v1/matricula/pagos/{id}/comprobante`) y `checksum_sha256` el hash del PDF emitido, que coincide con el que se descarga mientras los datos no cambien. `tamano_bytes`, `mime_type` y `monto_total` también se guardan.
+- **Copia por correo:** después de confirmar la transacción se envía el PDF adjunto al correo del apoderado responsable, y si el envío falla el pago no se revierte.
+  - Si se envía, `comprobante.enviado_en` = fecha y hora y `correo: { enviado: true }`.
+  - Sin SMTP configurado (`SMTP_HOST`, como hoy en AWS) no se envía: `enviado_en` queda vacío, `correo.motivo = "SMTP_NO_CONFIGURADO"` y el log registra el aviso «SMTP no configurado: no se envió la copia del recibo» solo con el número de recibo y el requestId.
+  - Si el responsable no tiene correo: `motivo = "SIN_CORREO"`.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -123,12 +193,26 @@ Regla de cada tramo: `fecha_inicio <= fecha < fecha_fin` (`fecha_fin` nulo = sig
 | `MOTIVO_RETIRO_REQUERIDO` | 422 | «Seleccione el motivo del retiro» |
 | `FICHA_DATOS_PENDIENTES` | 422 | «No se puede generar la ficha: existen datos obligatorios pendientes» (`details.pendientes`) |
 | `MISMA_SECCION` · `FECHA_TRASLADO_INVALIDA` · `FECHA_RETIRO_INVALIDA` | 422 | Reglas del traslado y del retiro |
+| `NUMERO_OPERACION_REQUERIDO` | 422 | «El número de operación es obligatorio» |
+| `MONTO_NO_COINCIDE` | 422 | «El monto ingresado no coincide con el total de las cuotas seleccionadas» (`details.total`) |
+| `CUOTA_YA_PAGADA` | 409 | «Esta pensión ya fue cancelada el [fecha]» |
+| `RECIBO_NO_CONFIRMADO` | 422 | «No se puede generar un recibo de un pago no confirmado» |
+| `PAGO_NO_OBSERVADO` · `PAGO_YA_ANULADO` · `CUOTA_ANULADA` | 409 | Estado que no permite confirmar, descartar, anular o pagar |
+| `PAGO_NO_ENCONTRADO` · `CUOTA_NO_ENCONTRADA` | 404 | No existe |
+| `SIN_CUOTAS` · `CUOTA_REPETIDA` · `CUOTAS_DE_VARIOS_ESTUDIANTES` · `FECHA_PAGO_FUTURA` · `MOTIVO_ANULACION_REQUERIDO` · `DETALLE_ANULACION_REQUERIDO` | 422 | Reglas del pago y de su anulación |
 | `MATRICULA_INCOMPLETA` | 422 | «Complete la sección y el apoderado responsable para confirmar la matrícula» |
 | `SIN_MONTOS` · `ANIO_NO_MATRICULABLE` · `SECCION_OTRO_ANIO` · `RESPONSABLE_NO_VINCULADO` | 422 | Reglas de la matrícula |
 
 ## Auditoría (RF03)
 
-`CONFIRMAR_MATRICULA` (estado anterior, sección, responsable, modalidad y fecha), `GENERAR_CRONOGRAMA` (cantidad de cuotas, total, si fue extemporánea y los montos usados) `ANULAR_MATRICULA` (estado anterior, cuotas anuladas y motivo), `TRASLADAR_SECCION` (sección antes y después, fecha y motivo), `RETIRAR_ESTUDIANTE` (estado anterior, fecha, motivo y la lista de cuotas anuladas) y `GENERAR_FICHA_MATRICULA` (estado, fecha de generación y tamaño; nunca el contenido del PDF). Los montos del año registran `GUARDAR_MONTOS_ANIO` (valores anteriores y nuevos). El DNI no se escribe en la auditoría ni en los logs.
+`CONFIRMAR_MATRICULA` (estado anterior, sección, responsable, modalidad y fecha), `GENERAR_CRONOGRAMA` (cantidad de cuotas, total, si fue extemporánea y los montos usados) `ANULAR_MATRICULA` (estado anterior, cuotas anuladas y motivo), `TRASLADAR_SECCION` (sección antes y después, fecha y motivo), `RETIRAR_ESTUDIANTE` (estado anterior, fecha, motivo y la lista de cuotas anuladas) y `GENERAR_FICHA_MATRICULA` (estado, fecha de generación y tamaño; nunca el contenido del PDF).
+
+Los pagos (US04) se registran con `entidad_afectada = "operacion_pago"`:
+- `REGISTRAR_PAGO`: `administradorId`, `fechaHora`, `monto`, `conceptos`, `numeroOperacion`, `medioPago`, `fechaPago`, `estadoResultante` («PAGADO» u «OBSERVADO») y `comprobante`.
+- `CONFIRMAR_PAGO_OBSERVADO`: estado anterior y nuevo, monto, conceptos, número, comprobante y `confirmadoPorId`.
+- `ANULAR_PAGO`: estado anterior, motivo, monto, conceptos, número, comprobante, cuotas revertidas y, al descartar, `decision: "DESCARTAR_OBSERVADO"`. La columna `motivo` guarda «MOTIVO: observación».
+
+La bitácora es inmutable (trigger `tg_auditoria_inmutable`) y `platform/auditoria` la lee con `eventosDeAuditoria` para el log de AD-11. Los montos del año registran `GUARDAR_MONTOS_ANIO` (valores anteriores y nuevos). El DNI no se escribe en la auditoría ni en los logs.
 
 ## Migración `20261106120000_anular_matricula_en_proceso`
 

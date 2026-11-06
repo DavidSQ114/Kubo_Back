@@ -1,7 +1,8 @@
 // comunidad/infrastructure: consultas de persona y sus perfiles (administrador, docente, apoderado, estudiante) y vínculos.
 // Excepción documentada: las LECTURAS del listado de usuarios incluyen la relación persona.usuario
 // (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada, y la búsqueda por DNI
-// (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio.
+// (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio. Los nombres de los responsables de pagos
+// (US04) se leen de usuario → persona.
 // Las ESCRITURAS sobre usuario solo las hace identidad.
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
@@ -391,6 +392,13 @@ export const estudiantesMatricula = {
     db.estudiante.findMany({
       where: { id: { in: ids } },
       select: { id: true, gradoIngresoId: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
+    }),
+
+  /** Nombres de las personas de varios usuarios (responsables de pagos y anulaciones, US04). */
+  nombresDeUsuarios: (ids: string[], db: Db = prisma) =>
+    db.usuario.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, persona: { select: { nombres: true, apellidos: true } } },
     }),
 
   /** Datos completos del estudiante y de sus apoderados para la ficha de matrícula (US20). */

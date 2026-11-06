@@ -128,3 +128,25 @@ export async function estudianteParaFicha(estudianteId: string): Promise<Estudia
     })),
   };
 }
+
+export interface NombreUsuario {
+  nombreCompleto: string;
+  /** «R. Huamán»: inicial del primer nombre y primer apellido, como en la bitácora de AD-11. */
+  nombreCorto: string;
+}
+
+/** Nombres de los usuarios indicados (por ejemplo, quién registró o anuló un pago, US04). */
+export async function nombresDeUsuarios(ids: string[]): Promise<Record<string, NombreUsuario>> {
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return {};
+  const filas = await estudiantesMatricula.nombresDeUsuarios(unicos);
+  return Object.fromEntries(
+    filas.map((u) => [
+      u.id,
+      {
+        nombreCompleto: `${u.persona.nombres} ${u.persona.apellidos}`,
+        nombreCorto: `${u.persona.nombres.trim().charAt(0)}. ${u.persona.apellidos.trim().split(/\s+/)[0]}`,
+      },
+    ]),
+  );
+}

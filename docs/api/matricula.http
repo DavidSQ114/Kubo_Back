@@ -1,4 +1,4 @@
-# Pruebas manuales de la API de matrícula (US18, US21, M-19, US19, US57, US20).
+# Pruebas manuales de la API de matrícula (US18, US21, M-19, US19, US57, US20) y pagos (US22, US23, US04, US25).
 # Requiere la extensión REST Client (humao.rest-client). Inicia sesión antes con identidad.http.
 # Precondición: academico.http (año 2026 «En curso» con secciones) y comunidad.http bloques 16 y 22 (apoderado
 # y estudiante). Copia los ids de esas respuestas en las variables. Datos ficticios.
@@ -126,3 +126,76 @@ Content-Type: application/json
 
 ### 23. Ficha de un retirado → 200 application/pdf (constancia)
 GET {{base}}/matricula/matriculas/{{matriculada}}/ficha
+
+# ---------- Pensiones y pagos (US22, US23, US04, US25) ----------
+# Usa un estudiante matriculado con cronograma y copia los ids de dos cuotas Pendiente del estado de cuenta.
+@estudianteConCuotas = 00000000-0000-0000-0000-000000000000
+@cuota1 = 00000000-0000-0000-0000-000000000000
+@cuota2 = 00000000-0000-0000-0000-000000000000
+@cuota3 = 00000000-0000-0000-0000-000000000000
+
+### 24. Estado de cuenta (cronograma con pagos, totales, operaciones y log)
+GET {{base}}/matricula/estudiantes/{{estudianteConCuotas}}/estado-cuenta
+
+### 25. Monto distinto → 422 «El monto ingresado no coincide con el total de las cuotas seleccionadas»
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuota1}}", "{{cuota2}}"], "monto": "899.99", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00561207", "fechaPago": "2026-11-06" }
+
+### 26. Sin número de operación → 422 «El número de operación es obligatorio»
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuota1}}"], "monto": "450", "medioPago": "TRANSFERENCIA", "numeroOperacion": "", "fechaPago": "2026-11-06" }
+
+### 27. Pago de dos cuotas → 201 CONFIRMADO con comprobante R-2026-000001
+# @name pago
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuota1}}", "{{cuota2}}"], "monto": "900.00", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00561207", "fechaPago": "2026-11-06" }
+
+@operacion = {{pago.response.body.$.data.operacion.operacionId}}
+
+### 28. La misma cuota otra vez → 409 «Esta pensión ya fue cancelada el 06/11/2026»
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuota1}}"], "monto": "450", "medioPago": "EFECTIVO", "numeroOperacion": "00999999", "fechaPago": "2026-11-06" }
+
+### 29. Número repetido → 201 OBSERVADO con aviso «Este número de operación ya fue utilizado en otro pago»
+# @name observado
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuota3}}"], "monto": "450", "medioPago": "TRANSFERENCIA", "numeroOperacion": "00561207", "fechaPago": "2026-11-06" }
+
+@observada = {{observado.response.body.$.data.operacion.operacionId}}
+
+### 30. Recibo de una Observado → 422 «No se puede generar un recibo de un pago no confirmado»
+GET {{base}}/matricula/pagos/{{observada}}/comprobante
+
+### 31. Confirmar la Observado → CONFIRMADO con su comprobante (o bloque 32 para descartarla)
+POST {{base}}/matricula/pagos/{{observada}}/confirmar
+
+### 32. Descartar una Observado → ANULADO por «Pago duplicado»
+POST {{base}}/matricula/pagos/{{observada}}/descartar
+Content-Type: application/json
+
+{ "detalle": "Transferencia registrada dos veces" }
+
+### 33. Anular sin motivo → 422 MOTIVO_ANULACION_REQUERIDO
+POST {{base}}/matricula/pagos/{{operacion}}/anular
+Content-Type: application/json
+
+{}
+
+### 34. Anular → ANULADO; sus cuotas vuelven a Pendiente
+POST {{base}}/matricula/pagos/{{operacion}}/anular
+Content-Type: application/json
+
+{ "motivo": "ERROR_DIGITACION", "detalle": "Monto mal digitado" }
+
+### 35. Recibo de una operación anulada → 200 application/pdf con la marca «ANULADO»
+GET {{base}}/matricula/pagos/{{operacion}}/comprobante

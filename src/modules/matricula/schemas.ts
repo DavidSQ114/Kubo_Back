@@ -1,7 +1,8 @@
 // matricula/schemas: validación de entradas (RNF16) de la matrícula en sección (US18), su anulación (M-19), el
-// traslado de sección (US19) y el retiro (US57).
+// traslado de sección (US19), el retiro (US57) y los pagos (US22, US23, US04).
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
+import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
 
 const id = (mensaje: string) => z.string({ message: mensaje }).uuid(mensaje);
@@ -60,3 +61,37 @@ export const RetiroSchema = z.object({
   motivo: z.enum(MOTIVOS_RETIRO, { message: "Seleccione el motivo del retiro" }).nullable().optional(),
   detalle: z.string().trim().max(300, "Detalle demasiado largo").nullable().optional(),
 });
+
+/** Máximo de cuotas en una operación: la matrícula y las diez pensiones del año. */
+const MAXIMO_CUOTAS_POR_PAGO = 11;
+
+/** El número de operación puede faltar: el caso de uso responde «El número de operación es obligatorio». */
+export const PagoSchema = z.object({
+  conceptoIds: z
+    .array(id("Cuota no válida"), { message: "Selecciona al menos una cuota pendiente." })
+    .min(1, "Selecciona al menos una cuota pendiente.")
+    .max(MAXIMO_CUOTAS_POR_PAGO, "Demasiadas cuotas en un solo pago."),
+  monto: z
+    .string({ message: "Ingresa el monto de la operación" })
+    .trim()
+    .regex(/^\d{1,7}(\.\d{1,2})?$/, "Ingresa un monto mayor a 0 con hasta dos decimales (por ejemplo, 900.00)."),
+  medioPago: z.enum(MEDIOS_PAGO, { message: "Elige el medio de pago" }),
+  numeroOperacion: z
+    .string()
+    .max(LARGO_MAXIMO_NUMERO_OPERACION, "Número de operación demasiado largo")
+    .nullable()
+    .optional(),
+  fechaPago: fecha("Fecha de pago no válida"),
+});
+
+/** El motivo puede faltar: el caso de uso responde «Selecciona el motivo de la anulación.». */
+export const AnularPagoSchema = z.object({
+  motivo: z.enum(MOTIVOS_ANULACION_PAGO, { message: "Selecciona el motivo de la anulación." }).nullable().optional(),
+  detalle: z.string().trim().max(300, "Observación demasiado larga").nullable().optional(),
+});
+
+export const DescartarPagoSchema = z.object({
+  detalle: z.string().trim().max(300, "Observación demasiado larga").nullable().optional(),
+});
+
+export const ConsultaEstadoCuentaSchema = z.object({ anioId: id("Año académico no válido").optional() });

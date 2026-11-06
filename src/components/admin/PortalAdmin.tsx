@@ -52,7 +52,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
   {
     grupo: "TESORERÍA",
     items: [
-      { texto: "Pensiones y pagos", icono: "nav-wallet" },
+      { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/admin/pagos" },
       { texto: "Morosidad", icono: "nav-alert" },
     ],
   },
