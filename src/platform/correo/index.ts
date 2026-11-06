@@ -4,12 +4,26 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { logger } from "@/platform/logger";
 
+export interface AdjuntoCorreo {
+  nombre: string;
+  contenido: Uint8Array;
+  tipo: string;
+}
+
 export interface Correo {
   para: string;
   asunto: string;
   texto: string;
   html?: string;
+  /** Archivos adjuntos, por ejemplo el recibo en PDF (US25). */
+  adjuntos?: AdjuntoCorreo[];
 }
+
+/**
+ * true si hay un servidor SMTP configurado. Los envíos que deben dejar constancia (como la copia del recibo, US25)
+ * lo consultan antes: sin SMTP no se envían ni se marcan como enviados.
+ */
+export const smtpConfigurado = () => Boolean(process.env.SMTP_HOST);
 
 let transporte: Transporter | null | undefined;
 function obtenerTransporte(): Transporter | null {
@@ -44,6 +58,11 @@ export async function enviarCorreo(correo: Correo): Promise<boolean> {
       subject: correo.asunto,
       text: correo.texto,
       html: correo.html,
+      attachments: correo.adjuntos?.map((a) => ({
+        filename: a.nombre,
+        content: Buffer.from(a.contenido),
+        contentType: a.tipo,
+      })),
     });
     return true;
   } catch (e) {

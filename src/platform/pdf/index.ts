@@ -1,6 +1,6 @@
 // platform/pdf: genera documentos PDF simples (encabezado, bloques de datos, tablas y pie) con pdf-lib, en JavaScript
 // puro: funciona en la EC2 t3.small sin Chromium. Lo usan la ficha de matrícula (US20) y la boleta de pago (US25).
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { degrees, PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
 /** Pares «etiqueta: valor» en dos columnas. */
 export interface BloqueDatos {
@@ -41,6 +41,13 @@ export interface DocumentoPdf {
   bloques: BloquePdf[];
   /** Línea al pie de cada página, por ejemplo la fecha de generación. */
   pie?: string;
+  /**
+   * Fecha que se graba en los metadatos del PDF. Con una fecha fija (por ejemplo, la del pago) el mismo documento
+   * produce siempre los mismos bytes y el mismo SHA-256 (US25). Sin ella se usa el momento actual.
+   */
+  fechaDocumento?: Date;
+  /** Marca de agua en diagonal sobre cada página, por ejemplo «ANULADO». */
+  marcaAgua?: string;
 }
 
 // A4 en puntos y medidas del diseño
@@ -53,6 +60,10 @@ const COLOR_TEXTO = rgb(0.1, 0.13, 0.2);
 const COLOR_SECUNDARIO = rgb(0.38, 0.42, 0.5);
 const COLOR_MARCA = rgb(0.106, 0.302, 0.537);
 const COLOR_BORDE = rgb(0.85, 0.87, 0.9);
+const COLOR_MARCA_AGUA = rgb(0.84, 0.27, 0.27);
+const TAMANO_MARCA_AGUA = 96;
+const OPACIDAD_MARCA_AGUA = 0.25;
+const ANGULO_MARCA_AGUA = 45;
 
 /** Caracteres extra de Windows-1252 (fuente estándar del PDF) fuera de Latin-1. */
 const EXTRAS_WIN_ANSI = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
@@ -220,6 +231,24 @@ class Lienzo {
     this.y -= 8;
   }
 
+  marcaAgua(texto: string) {
+    const limpio = textoImprimible(texto);
+    const ancho = this.negrita.widthOfTextAtSize(limpio, TAMANO_MARCA_AGUA);
+    // centrada en la página: el texto gira alrededor de su esquina inferior izquierda
+    const lado = ancho / Math.SQRT2;
+    for (const p of this.pdf.getPages()) {
+      p.drawText(limpio, {
+        x: (ANCHO_PAGINA - lado) / 2,
+        y: (ALTO_PAGINA - lado) / 2,
+        size: TAMANO_MARCA_AGUA,
+        font: this.negrita,
+        color: COLOR_MARCA_AGUA,
+        opacity: OPACIDAD_MARCA_AGUA,
+        rotate: degrees(ANGULO_MARCA_AGUA),
+      });
+    }
+  }
+
   pies() {
     const paginas = this.pdf.getPages();
     paginas.forEach((p, i) => {
@@ -239,6 +268,9 @@ export async function generarPdf(doc: DocumentoPdf): Promise<Uint8Array> {
     pdf.setTitle(textoImprimible(doc.titulo));
     pdf.setProducer("Kubo");
     pdf.setCreator("Kubo");
+    const fecha = doc.fechaDocumento ?? new Date();
+    pdf.setCreationDate(fecha);
+    pdf.setModificationDate(fecha);
     const lienzo = new Lienzo(
       pdf,
       await pdf.embedFont(StandardFonts.Helvetica),
@@ -252,6 +284,7 @@ export async function generarPdf(doc: DocumentoPdf): Promise<Uint8Array> {
       else lienzo.texto(b);
     }
     lienzo.pies();
+    if (doc.marcaAgua) lienzo.marcaAgua(doc.marcaAgua);
     return await pdf.save();
   } catch (e) {
     throw new Error(`No se pudo generar el PDF «${doc.nombre}» (${(e as Error)?.name ?? "Error"})`);
