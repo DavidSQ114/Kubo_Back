@@ -681,3 +681,56 @@ export const reglas = {
     return filaRegla(r);
   },
 };
+
+// ---------- Parámetros del año: montos de matrícula y pensión (US21) ----------
+
+export const parametros = {
+  /** Valores de las claves para el año (solo los propios del año, sin el parámetro general). */
+  async delAnio(anioAcademicoId: string, claves: string[], db: Db = prisma) {
+    const filas = await db.parametroInstitucion.findMany({
+      where: { anioAcademicoId, clave: { in: claves } },
+      select: { clave: true, valor: true },
+    });
+    return Object.fromEntries(filas.map((f) => [f.clave, f.valor as unknown]));
+  },
+
+  /** Valores generales (sin año), para sugerirlos al configurar un año. */
+  async generales(claves: string[], db: Db = prisma) {
+    const filas = await db.parametroInstitucion.findMany({
+      where: { anioAcademicoId: null, clave: { in: claves } },
+      select: { clave: true, valor: true },
+    });
+    return Object.fromEntries(filas.map((f) => [f.clave, f.valor as unknown]));
+  },
+
+  guardar: (
+    datos: { anioAcademicoId: string; clave: string; valor: string; descripcion: string; actualizadoPorId: string },
+    db: Db = prisma,
+  ) =>
+    db.parametroInstitucion.upsert({
+      where: { clave_anioAcademicoId: { clave: datos.clave, anioAcademicoId: datos.anioAcademicoId } },
+      create: datos,
+      update: { valor: datos.valor, actualizadoPorId: datos.actualizadoPorId },
+      select: { id: true },
+    }),
+};
+
+/**
+ * Bloquea la fila de la sección hasta el fin de la transacción y la devuelve (US18): dos matrículas simultáneas en
+ * la última vacante se atienden una después de otra.
+ */
+export async function bloquearSeccionParaMatricula(tx: Tx, id: string) {
+  await tx.$queryRaw`SELECT id FROM seccion WHERE id = ${id}::uuid FOR UPDATE`;
+  return tx.seccion.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      anioAcademicoId: true,
+      nombre: true,
+      aforoMaximo: true,
+      estado: true,
+      grado: { select: { id: true, numero: true, nombre: true } },
+      aula: { select: { nombre: true } },
+    },
+  });
+}

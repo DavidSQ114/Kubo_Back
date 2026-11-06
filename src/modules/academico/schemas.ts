@@ -205,3 +205,16 @@ export const SimulacionSchema = z.object({
     .max(MAXIMO_LOGROS_SIMULACION)
     .optional(),
 });
+
+// ---------- Montos del año (US21) ----------
+
+const monto = (que: string) =>
+  z
+    .union([z.string(), z.number()], { message: `Ingresa ${que}` })
+    .transform((v) => String(v).trim())
+    .pipe(z.string().regex(/^\d{1,7}(\.\d{1,2})?$/, `Ingresa ${que} con hasta dos decimales (por ejemplo, 350.00)`));
+
+export const MontosSchema = z.object({
+  montoMatricula: monto("el monto de matrícula"),
+  montoPension: monto("el monto de la pensión mensual"),
+});

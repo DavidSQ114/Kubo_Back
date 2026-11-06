@@ -1,0 +1,74 @@
+# Pruebas manuales de la API de matrícula (US18, US21, M-19).
+# Requiere la extensión REST Client (humao.rest-client). Inicia sesión antes con identidad.http.
+# Precondición: academico.http (año 2026 «En curso» con secciones) y comunidad.http bloques 16 y 22 (apoderado
+# y estudiante). Copia los ids de esas respuestas en las variables. Datos ficticios.
+
+@base = http://localhost:3000/api/v1
+@anio = 00000000-0000-0000-0000-000000000000
+@seccion = 00000000-0000-0000-0000-000000000000
+@estudiante = 00000000-0000-0000-0000-000000000000
+
+### 1. Montos del año (sin configurar: configurados false y sugeridos del seed)
+GET {{base}}/academico/anios/{{anio}}/montos
+
+### 2. Matricular sin montos → 422 SIN_MONTOS
+
+### 3. Guardar montos → 200 { montoMatricula: "350.00", montoPension: "450.00", configurados: true }
+PUT {{base}}/academico/anios/{{anio}}/montos
+Content-Type: application/json
+
+{ "montoMatricula": "350", "montoPension": "450.00" }
+
+### 4. Monto inválido → 400 MONTO_INVALIDO
+PUT {{base}}/academico/anios/{{anio}}/montos
+Content-Type: application/json
+
+{ "montoMatricula": "0", "montoPension": "450" }
+
+### 5. Situación del estudiante: apoderados (vinculoId), matrícula vigente y cronograma previsto
+# @name situacion
+GET {{base}}/matricula/estudiantes/{{estudiante}}?anioId={{anio}}
+
+@vinculo = {{situacion.response.body.$.data.estudiante.apoderados[0].vinculoId}}
+
+### 6. Sin sección → 422 «Complete la sección y el apoderado responsable para confirmar la matrícula»
+POST {{base}}/matricula/matriculas
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "anioAcademicoId": "{{anio}}", "vinculoResponsableId": "{{vinculo}}", "modalidadPago": "MENSUAL" }
+
+### 7. Matricular → 201 MATRICULADO con su cronograma (extemporáneo si ya pasó marzo)
+# @name matricula
+POST {{base}}/matricula/matriculas
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "anioAcademicoId": "{{anio}}", "seccionId": "{{seccion}}", "vinculoResponsableId": "{{vinculo}}", "modalidadPago": "MENSUAL" }
+
+@matricula = {{matricula.response.body.$.data.matriculaId}}
+
+### 8. Otra vez → 409 «Este estudiante ya está matriculado en el periodo actual» (details.sugerencia: traslado)
+POST {{base}}/matricula/matriculas
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "anioAcademicoId": "{{anio}}", "seccionId": "{{seccion}}", "vinculoResponsableId": "{{vinculo}}", "modalidadPago": "MENSUAL" }
+
+### 9. Sección llena (aforo alcanzado) → 409 «Sección sin vacantes disponibles» con details { matriculados, aforo }
+# Repetir el bloque 7 con otro estudiante en una sección sin vacantes.
+
+### 10. Listado del año con filtros y búsqueda
+GET {{base}}/matricula/matriculas?anioId={{anio}}&estado=MATRICULADO&q=quispe
+
+### 11. Detalle con apoderados y cronograma
+GET {{base}}/matricula/matriculas/{{matricula}}
+
+### 12. Anular → 200 ANULADO; sus cuotas pendientes pasan a ANULADO
+POST {{base}}/matricula/matriculas/{{matricula}}/anular
+Content-Type: application/json
+
+{ "motivo": "ERROR_DIGITACION", "detalle": "Se registró en otra sección por error" }
+
+### 13. Anular de nuevo → 409 MATRICULA_NO_ANULABLE
+POST {{base}}/matricula/matriculas/{{matricula}}/anular
+Content-Type: application/json
+
+{ "motivo": "OTRO", "detalle": "Segundo intento" }

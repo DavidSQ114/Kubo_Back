@@ -361,3 +361,41 @@ export const vinculos = {
   quitarPrincipal: (id: string, db: Db = prisma) =>
     db.vinculoApoderado.update({ where: { id }, data: { esPrincipal: false }, select: { id: true } }),
 };
+
+// ---------- Lecturas para la matrícula (US18): las pide el módulo matricula por el index.ts ----------
+
+const selectEstudianteMatricula = {
+  id: true,
+  activo: true,
+  gradoIngresoId: true,
+  persona: { select: { dni: true, nombres: true, apellidos: true, activo: true } },
+  vinculosApoderado: {
+    orderBy: [{ esPrincipal: "desc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      parentesco: true,
+      esPrincipal: true,
+      autorizado: true,
+      apoderado: {
+        select: { id: true, persona: { select: { nombres: true, apellidos: true, telefono: true, email: true } } },
+      },
+    },
+  },
+} satisfies Prisma.EstudianteSelect;
+
+export const estudiantesMatricula = {
+  porId: (id: string, db: Db = prisma) =>
+    db.estudiante.findUnique({ where: { id }, select: selectEstudianteMatricula }),
+
+  porIds: (ids: string[], db: Db = prisma) =>
+    db.estudiante.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, gradoIngresoId: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
+    }),
+
+  /** Ids de los estudiantes cuyo nombre, apellido o inicio de DNI coincide con la búsqueda. */
+  async idsPorBusqueda(q: string, db: Db = prisma) {
+    const filas = await db.estudiante.findMany({ where: { persona: busquedaPersona(q) }, select: { id: true } });
+    return filas.map((f) => f.id);
+  },
+};

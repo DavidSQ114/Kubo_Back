@@ -224,6 +224,8 @@ export default function RegistrarEstudiantePage() {
         },
       });
       setRegistrado(r);
+      // «Guardar y matricular»: pasos 2 y 3 en AD-10 (sección, responsable del pago y cronograma)
+      if (!borrador) router.push(`/admin/matricula?estudiante=${r.estudianteId}`);
     } catch (err) {
       const r = separarErrores(err, CAMPO_POR_CODIGO);
       setErrores(r.campos);
@@ -277,12 +279,12 @@ export default function RegistrarEstudiantePage() {
           <div key={paso} className="flex flex-1 items-center gap-3">
             <span
               className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${
-                i === 0 ? "bg-kubo-azul text-white" : "border border-borde text-texto-3"
+                i === 0 ? "bg-kubo-azul text-white" : "border border-kubo-azul text-kubo-azul"
               }`}
             >
               {i + 1}
             </span>
-            <span className={`text-[14px] ${i === 0 ? "font-semibold text-texto" : "text-texto-3"}`}>{paso}</span>
+            <span className={`text-[14px] ${i === 0 ? "font-semibold text-texto" : "text-texto-2"}`}>{paso}</span>
             {i < PASOS.length - 1 && <span aria-hidden className="hidden h-px flex-1 bg-borde md:block" />}
           </div>
         ))}
@@ -469,7 +471,14 @@ export default function RegistrarEstudiantePage() {
           <Tarjeta className="flex flex-col gap-3 p-6">
             {registrado ? (
               <>
-                <Boton icono="icon-userplus-blanco" onClick={reiniciar} ancho>
+                <Boton
+                  icono="check-blanco"
+                  onClick={() => router.push(`/admin/matricula?estudiante=${registrado.estudianteId}`)}
+                  ancho
+                >
+                  Matricular en sección
+                </Boton>
+                <Boton variante="secundario" icono="icon-userplus" onClick={reiniciar} ancho>
                   Registrar otro estudiante
                 </Boton>
                 <Boton variante="secundario" onClick={() => router.push("/admin/usuarios")} ancho>
@@ -479,16 +488,15 @@ export default function RegistrarEstudiantePage() {
             ) : (
               <>
                 <p className="text-[14px] leading-[1.4] text-texto-2">
-                  Al guardar, el estudiante quedará registrado y podrás matricularlo en una sección con vacantes.
+                  Al guardar, el estudiante quedará registrado y pasarás a matricularlo en una sección con vacantes.
                 </p>
                 <Boton
                   onClick={() => guardar(false)}
                   cargando={enviando === "normal"}
                   disabled={enviando !== null}
-                  icono="check-blanco"
                   ancho
                 >
-                  Guardar
+                  Guardar y matricular <Icono nombre="pag-chevr" size={18} />
                 </Boton>
                 <Boton
                   variante="secundario"

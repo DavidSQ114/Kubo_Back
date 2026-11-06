@@ -1,0 +1,78 @@
+// comunidad/application: datos del estudiante y de sus apoderados que necesita la matrícula (US18, AD-10).
+// El módulo matricula los pide por el index.ts: no lee las tablas de comunidad.
+import { prisma } from "@/platform/db/prisma";
+import type { Tx } from "@/platform/db/tipos";
+import { estudiantesMatricula } from "../infrastructure/repositorio";
+
+export interface ApoderadoDelEstudiante {
+  /** Id del vínculo: es el «apoderado responsable del pago» de la matrícula. */
+  vinculoId: string;
+  apoderadoId: string;
+  nombreCompleto: string;
+  parentesco: string;
+  esPrincipal: boolean;
+  autorizado: boolean;
+  telefono: string | null;
+  email: string | null;
+}
+
+export interface EstudianteParaMatricula {
+  estudianteId: string;
+  dni: string;
+  nombreCompleto: string;
+  gradoIngresoId: string | null;
+  activo: boolean;
+  /** El principal primero. */
+  apoderados: ApoderadoDelEstudiante[];
+}
+
+/** Estudiante con sus apoderados vinculados, o null si no existe. */
+export async function estudianteParaMatricula(
+  estudianteId: string,
+  db: Tx | typeof prisma = prisma,
+): Promise<EstudianteParaMatricula | null> {
+  const e = await estudiantesMatricula.porId(estudianteId, db);
+  if (!e) return null;
+  return {
+    estudianteId: e.id,
+    dni: e.persona.dni,
+    nombreCompleto: `${e.persona.nombres} ${e.persona.apellidos}`,
+    gradoIngresoId: e.gradoIngresoId,
+    activo: e.activo && e.persona.activo,
+    apoderados: e.vinculosApoderado.map((v) => ({
+      vinculoId: v.id,
+      apoderadoId: v.apoderado.id,
+      nombreCompleto: `${v.apoderado.persona.nombres} ${v.apoderado.persona.apellidos}`,
+      parentesco: v.parentesco,
+      esPrincipal: v.esPrincipal,
+      autorizado: v.autorizado,
+      telefono: v.apoderado.persona.telefono,
+      email: v.apoderado.persona.email,
+    })),
+  };
+}
+
+export interface EstudianteResumen {
+  dni: string;
+  nombreCompleto: string;
+  gradoIngresoId: string | null;
+}
+
+/** Nombre, DNI y grado de ingreso de varios estudiantes (listado de matrículas). */
+export async function resumenEstudiantes(ids: string[]): Promise<Record<string, EstudianteResumen>> {
+  if (!ids.length) return {};
+  const filas = await estudiantesMatricula.porIds(ids);
+  return Object.fromEntries(
+    filas.map((e) => [
+      e.id,
+      {
+        dni: e.persona.dni,
+        nombreCompleto: `${e.persona.nombres} ${e.persona.apellidos}`,
+        gradoIngresoId: e.gradoIngresoId,
+      },
+    ]),
+  );
+}
+
+/** Ids de los estudiantes que coinciden con «rojas 7845» (nombre, apellido o inicio del DNI). */
+export const idsEstudiantesPorBusqueda = (q: string) => estudiantesMatricula.idsPorBusqueda(q);
