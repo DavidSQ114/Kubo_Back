@@ -116,7 +116,9 @@ export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf"
 
 /** A dónde va cada perfil después de iniciar sesión. */
 export function inicioPorRol(rol: Rol): string {
-  return rol === "ADMINISTRADOR" ? "/admin/usuarios" : "/inicio";
+  if (rol === "ADMINISTRADOR") return "/admin/usuarios";
+  if (rol === "APODERADO") return "/apoderado";
+  return "/inicio";
 }
 
 export const NOMBRE_ROL: Record<Rol, string> = {
