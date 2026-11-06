@@ -20,6 +20,7 @@ export {
 } from "./application/sesion";
 export { cambiarPassword, solicitarRecuperacion, validarEnlace, restablecerPassword } from "./application/password";
 export { suspenderUsuario, reactivarUsuario, asegurarCuenta, enviarBienvenida } from "./application/cuentas";
+export { listarErroresSistema, detalleErrorSistema, type FiltroErroresSistema } from "./application/erroresSistema";
 export * as esquemasIdentidad from "./schemas";
 
 /**

@@ -25,6 +25,7 @@ export {
 export { MOTIVOS_RETIRO, NOMBRE_MOTIVO_RETIRO, type MotivoRetiro } from "./domain/cambios";
 export {
   registrarPago,
+  registrarPagoAnual,
   confirmarPagoObservado,
   descartarPagoObservado,
   anularPago,
@@ -32,5 +33,7 @@ export {
   detalleOperacion,
   estadoDeCuenta,
   type DatosPago,
+  type DatosPagoAnual,
 } from "./application/pagos";
+export { panelMorosidad, type FiltroMorosidad } from "./application/morosidad";
 export * as esquemasMatricula from "./schemas";

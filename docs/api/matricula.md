@@ -1,4 +1,4 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) y pagos (US22, US23, US04, US25)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58) y morosidad (US24)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)). Ejemplos en [matricula.http](matricula.http).
@@ -24,6 +24,8 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `POST /matricula/pagos/{id}/descartar` | `{ detalle? }` | `{ operacion }` (Observado → Anulado, «Pago duplicado») |
 | `POST /matricula/pagos/{id}/anular` | `{ motivo, detalle? }` | `{ operacion }` (→ Anulado) |
 | `GET /matricula/pagos/{id}/comprobante` | — | `application/pdf` (recibo) |
+| `POST /matricula/matriculas/{id}/pago-anual` | `{ monto, medioPago, numeroOperacion, fechaPago }` | `201 { operacion, aviso, correo }` (US58) |
+| `GET /matricula/morosidad` | `?anioId=&gradoId=&seccionId=&mesesMinimos=&orden=MONTO` | `PanelMorosidad` (US24) |
 
 ### Situación del estudiante (AD-10)
 
@@ -178,6 +180,39 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   - Sin SMTP configurado (`SMTP_HOST`, como hoy en AWS) no se envía: `enviado_en` queda vacío, `correo.motivo = "SMTP_NO_CONFIGURADO"` y el log registra el aviso «SMTP no configurado: no se envió la copia del recibo» solo con el número de recibo y el requestId.
   - Si el responsable no tiene correo: `motivo = "SIN_CORREO"`.
 
+### Pago anual adelantado (US58, M-15)
+
+- `POST /matricula/matriculas/{id}/pago-anual` paga en **una sola operación** todas las cuotas `PENDIENTE` de la matrícula (vencidas o no), sin descuento y sin las ya pagadas ni las anuladas. Los datos son los del pago manual, sin `conceptoIds`.
+- Validaciones:
+  - Matrícula que no está `MATRICULADO`: `409 PAGO_ANUAL_NO_PERMITIDO`.
+  - Sin cuotas pendientes: `422 SIN_CUOTAS_PENDIENTES`.
+  - Monto distinto al total pendiente: `422 MONTO_NO_COINCIDE_PENDIENTE` «El monto no coincide con el total pendiente», con `details.total`.
+  - Sin número de operación o con fecha futura: los mismos errores del pago manual.
+- Usa el mismo núcleo que el pago manual: en una transacción toma el candado del número de operación y la fila de la matrícula, y bloquea (`FOR UPDATE`, en orden de id) todas las cuotas `PENDIENTE` de la matrícula.
+  - Si se confirma: las cuotas pasan a `PAGADO`, la matrícula a `modalidad_pago = ANUAL` (auditoría `CAMBIAR_MODALIDAD_PAGO` con la modalidad anterior y la operación) y se emite **un único comprobante** `R-AAAA-NNNNNN` por el total.
+  - Con un número de operación ya usado (US23): queda `OBSERVADO`, sin tocar cuotas ni modalidad. `REGISTRAR_PAGO` guarda `tipoPago: "ANUAL"`; al confirmarla, `POST /matricula/pagos/{id}/confirmar` lee ese dato y también cambia la modalidad a `ANUAL`.
+- `REGISTRAR_PAGO` registra `tipoPago` (`ANUAL` o `CUOTAS`) y `matriculaId` además de los campos de US04.
+
+## Panel de morosidad (US24, AD-12)
+
+`GET /matricula/morosidad?anioId=` (obligatorio), con `gradoId`, `seccionId`, `mesesMinimos` (1 a 12, «N o más» cuotas vencidas) y `orden` (`MONTO` por defecto, o `MESES`). Responde:
+
+```jsonc
+{ "fecha": "2026-11-06", "anio": { "id": "…", "anio": 2026 },
+  "resumen": { "estudiantes": 2, "deudaTotal": "1150.00", "cuotasVencidas": 3 },
+  "items": [{ "matriculaId": "…", "estudianteId": "…", "nombreCompleto": "Valeria Quispe Rojas",
+              "seccion": { "id": "…", "nombre": "3° B" }, "adeudado": ["Matr.", "Oct"], "mesesAdeudados": 1,
+              "cuotasVencidas": 2, "deuda": "800.00", "primerVencimiento": "2026-10-01", "diasAtraso": 36,
+              "responsable": { "nombreCompleto": "Carmen Rojas Medina", "parentesco": "Madre", "telefono": "987654321" } }] }
+```
+
+- **Vencida:** cuota `PENDIENTE` con vencimiento **anterior** a hoy, según la fecha de Lima; el día del vencimiento todavía no es mora.
+- No se listan matrículas `RETIRADO` ni `ANULADO`, ni cuotas `ANULADO` o `PAGADO`.
+- `mesesAdeudados` cuenta las pensiones vencidas; `cuotasVencidas` incluye la cuota de matrícula si está vencida. `deuda` es la suma exacta (`SUM` de `Decimal(10, 2)`, como texto).
+- **Una sola consulta agregada** (`GROUP BY` matrícula sobre `concepto_cobro` ⋈ `matricula`, con el índice `(estado, fecha_vencimiento)`). Después hay una consulta para las secciones, una para los estudiantes y una para los responsables con su teléfono: sin N+1.
+- Sin caché: quien paga sale del listado en la siguiente consulta.
+- El filtro por grado se resuelve con las secciones del grado (por el `index.ts` de académico). Matricula no lee tablas de otros módulos.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -199,6 +234,9 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
 | `RECIBO_NO_CONFIRMADO` | 422 | «No se puede generar un recibo de un pago no confirmado» |
 | `PAGO_NO_OBSERVADO` · `PAGO_YA_ANULADO` · `CUOTA_ANULADA` | 409 | Estado que no permite confirmar, descartar, anular o pagar |
 | `PAGO_NO_ENCONTRADO` · `CUOTA_NO_ENCONTRADA` | 404 | No existe |
+| `MONTO_NO_COINCIDE_PENDIENTE` | 422 | «El monto no coincide con el total pendiente» (pago anual, `details.total`) |
+| `SIN_CUOTAS_PENDIENTES` | 422 | Pago anual sin cuotas pendientes |
+| `PAGO_ANUAL_NO_PERMITIDO` | 409 | Pago anual de una matrícula que no está Matriculado |
 | `SIN_CUOTAS` · `CUOTA_REPETIDA` · `CUOTAS_DE_VARIOS_ESTUDIANTES` · `FECHA_PAGO_FUTURA` · `MOTIVO_ANULACION_REQUERIDO` · `DETALLE_ANULACION_REQUERIDO` | 422 | Reglas del pago y de su anulación |
 | `MATRICULA_INCOMPLETA` | 422 | «Complete la sección y el apoderado responsable para confirmar la matrícula» |
 | `SIN_MONTOS` · `ANIO_NO_MATRICULABLE` · `SECCION_OTRO_ANIO` · `RESPONSABLE_NO_VINCULADO` | 422 | Reglas de la matrícula |

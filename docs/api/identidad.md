@@ -65,6 +65,28 @@ El enlace del correo apunta a `{APP_URL}/restablecer?token=…`: esa página deb
 
 El listado de usuarios, su resumen y el registro de administradores son del módulo comunidad: ver [comunidad.md](comunidad.md).
 
+### Log de errores del sistema (US05, AD-16) · solo `ADMINISTRADOR`, solo lectura
+
+| Método y ruta | Consulta | Respuesta `data` |
+|---|---|---|
+| `GET /identidad/errores` | `?desde=AAAA-MM-DD&hasta=AAAA-MM-DD&nivel=ERROR&codigoHttp=500&pagina=1&tamano=20` | `{ items: [{ id, fecha, nivel, codigoHttp, metodoHttp, endpoint, mensaje, requestId, usuarioId, usuario, tieneStack }], paginacion }` |
+| `GET /identidad/errores/{id}` | — | `{ …, stackTrace, ipOrigen, metadatos, usuario }` |
+
+- Las fechas `desde` y `hasta` son días de Lima (incluye el día completo de `hasta`). `nivel`: `INFO` · `WARN` · `ERROR` · `FATAL`. Orden: del más reciente al más antiguo.
+- `usuario` es el correo de la cuenta que originó la petición (si tenía sesión). La tabla `log_error` la escribe `ruta()` (`platform/http`) y la lee `platform/soporte`; nada en la API la modifica.
+
+**Qué se registra (US05, RNF04):** `platform/http/clasificador.ts` clasifica cada excepción de una ruta.
+
+| Caso | Respuesta | Log JSON (`logs/kubo.log`) | Tabla `log_error` |
+|---|---|---|---|
+| Error no controlado | `500 ERROR_INTERNO` con `details.requestId`, sin stack ni SQL | `ERROR` «Error no controlado» con fecha, `requestId`, `endpoint`, `metodo`, `usuarioId`, `error` y `stack` completo | Fila `ERROR` 500 con el mismo detalle (stack sin recortar) |
+| Validación: Zod, JSON inválido o `ErrorApp` 400 | `400` con el detalle por campo | `INFO` «Datos inválidos», sin stack | Fila `INFO` 400, sin stack |
+| Otros rechazos esperados (401, 403, 404, 409, 422…) | Su código y mensaje | `INFO` «Solicitud rechazada», sin stack | — |
+
+- El usuario se toma del token de acceso de la petición, si es válido.
+- Mensajes y stack traces pasan por `redactarTexto` (oculta DNI de 8 dígitos, correos, JWT y «Bearer …»), y los campos con nombre sensible (`dni`, `telefono`, `password`, `token`…) se ocultan siempre.
+- El archivo de log rota al superar **50 MB** (`rotating-file-stream`, `size: "50M"`). Los rotados se guardan **comprimidos con gzip** (`compress: "gzip"`) y se conservan los 10 más recientes. Solo se escribe a archivo si `LOG_DIR` está definido.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |

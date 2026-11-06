@@ -394,6 +394,17 @@ export const estudiantesMatricula = {
       select: { id: true, gradoIngresoId: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
     }),
 
+  /** Apoderado de varios vínculos, con su teléfono (responsables del pago en el panel de morosidad, US24). */
+  apoderadosDeVinculos: (ids: string[], db: Db = prisma) =>
+    db.vinculoApoderado.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        parentesco: true,
+        apoderado: { select: { persona: { select: { nombres: true, apellidos: true, telefono: true, email: true } } } },
+      },
+    }),
+
   /** Nombres de las personas de varios usuarios (responsables de pagos y anulaciones, US04). */
   nombresDeUsuarios: (ids: string[], db: Db = prisma) =>
     db.usuario.findMany({

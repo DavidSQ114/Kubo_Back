@@ -56,3 +56,20 @@ export const ReactivacionSchema = z.object({
 });
 
 export const IdSchema = z.string().uuid("Identificador no válido");
+
+const fechaDia = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida")
+  .refine((v) => new Date(`${v}T00:00:00.000Z`).toISOString().startsWith(v), "Fecha no válida");
+
+/** Filtros del log de errores (US05): fechas «AAAA-MM-DD» de Lima, nivel y código HTTP. */
+export const FiltroErroresSchema = z.object({
+  desde: fechaDia.optional(),
+  hasta: fechaDia.optional(),
+  nivel: z.enum(["INFO", "WARN", "ERROR", "FATAL"], { message: "Nivel no válido" }).optional(),
+  codigoHttp: z.coerce.number().int().min(100).max(599).optional(),
+  pagina: z.coerce.number().int().min(1).default(1),
+  tamano: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const IdLogSchema = z.string().uuid("Identificador no válido");

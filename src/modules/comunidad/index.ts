@@ -25,6 +25,7 @@ export {
   estudianteParaMatricula,
   estudianteParaFicha,
   nombresDeUsuarios,
+  responsablesDeVinculos,
   resumenEstudiantes,
   idsEstudiantesPorBusqueda,
   type ApoderadoDelEstudiante,
@@ -33,5 +34,6 @@ export {
   type EstudianteFicha,
   type ApoderadoFicha,
   type NombreUsuario,
+  type ResponsableDePago,
 } from "./application/estudiantesMatricula";
 export { configurarMatriculaBorradorProvider, type MatriculaBorrador, type MatriculaBorradorProvider } from "./puertos";

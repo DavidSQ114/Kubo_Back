@@ -53,7 +53,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
     grupo: "TESORERÍA",
     items: [
       { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/admin/pagos" },
-      { texto: "Morosidad", icono: "nav-alert" },
+      { texto: "Morosidad", icono: "nav-alert", href: "/admin/morosidad" },
     ],
   },
   {
@@ -64,7 +64,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
       { texto: "Notas y rectificaciones", icono: "nav-award" },
     ],
   },
-  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield" }] },
+  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield", href: "/admin/auditoria" }] },
 ];
 
 export function PortalAdmin({ children }: { children: ReactNode }) {

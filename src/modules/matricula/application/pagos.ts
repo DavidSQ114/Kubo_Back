@@ -15,7 +15,7 @@ import { estudianteParaFicha, nombresDeUsuarios, type EstudianteFicha } from "@/
 import type { Autenticado } from "@/modules/identidad";
 import { seccionEnFecha } from "../domain/cambios";
 import { erroresMatricula as E } from "../domain/errores";
-import { NOMBRE_ESTADO_MATRICULA } from "../domain/matriculas";
+import { NOMBRE_ESTADO_MATRICULA, type ModalidadPago } from "../domain/matriculas";
 import {
   estadoInicialPago,
   NOMBRE_ESTADO_PAGO,
@@ -26,8 +26,10 @@ import {
   siguienteComprobante,
   verificarCuotasPagables,
   verificarFechaPago,
+  verificarMontoAnual,
   verificarMontoExacto,
   verificarMotivoAnulacionPago,
+  verificarPagoAnualPosible,
   verificarObservado,
   verificarPagoAnulable,
   verificarReciboDisponible,
@@ -226,33 +228,73 @@ export interface DatosPago {
   fechaPago: string;
 }
 
+/** Pago anual: matrícula cuyas cuotas pendientes se pagan todas juntas (US58). */
+interface PagoAnual {
+  matriculaId: string;
+}
+
+/** Cambia la modalidad a Anual y deja CAMBIAR_MODALIDAD_PAGO (US58), dentro de la transacción del pago. */
+async function pasarAModalidadAnual(
+  tx: Tx,
+  admin: Autenticado,
+  datos: { matriculaId: string; operacionId: string; anterior: ModalidadPago },
+  meta: MetaSolicitud,
+) {
+  await matriculas.cambiarModalidad(datos.matriculaId, "ANUAL", tx);
+  await registrarAuditoria(
+    tx,
+    {
+      usuarioId: admin.usuarioId,
+      entidad: "matricula",
+      entidadId: datos.matriculaId,
+      accion: "CAMBIAR_MODALIDAD_PAGO",
+      anterior: { modalidadPago: datos.anterior },
+      nuevo: { modalidadPago: "ANUAL", operacionId: datos.operacionId },
+      motivo: "Pago anual adelantado",
+    },
+    meta,
+  );
+}
+
 /**
- * Registra un pago manual (US22). En una transacción bloquea las filas de las cuotas y el número de operación:
+ * Núcleo del registro de un pago (US22 y US58). En una transacción bloquea el número de operación y las filas de las
+ * cuotas (en el pago anual, todas las Pendiente de la matrícula):
  * - una cuota ya pagada: «Esta pensión ya fue cancelada el [fecha]» (US23);
- * - el monto debe ser exactamente la suma de las cuotas (sin pagos parciales);
+ * - el monto debe ser exactamente la suma (sin pagos parciales ni descuentos);
  * - con un número de operación ya usado en otra operación no anulada queda Observado y no toca las cuotas;
- * - si no, Confirmado: las cuotas pasan a Pagado y se emite el comprobante con su correlativo (US25).
+ * - si no, Confirmado: las cuotas pasan a Pagado y se emite UN comprobante con su correlativo (US25); en el pago
+ *   anual, además, la matrícula pasa a modalidad Anual (CAMBIAR_MODALIDAD_PAGO).
  * Auditoría REGISTRAR_PAGO (US04). La copia del recibo se envía después de confirmar.
  */
-export async function registrarPago(admin: Autenticado, datos: DatosPago, meta: MetaSolicitud) {
+async function registrarOperacion(admin: Autenticado, datos: DatosPago, meta: MetaSolicitud, anual: PagoAnual | null) {
   const numero = normalizarNumeroOperacion(datos.numeroOperacion);
   const montoCentimos = aCentimos(datos.monto);
   const hoy = fechaEnLima(new Date());
   verificarFechaPago(datos.fechaPago, hoy);
-  const previas = await cuotasDePago.porIds(datos.conceptoIds);
-  const matriculaId = previas[0]?.matriculaId;
+  const matriculaId = anual?.matriculaId ?? (await cuotasDePago.porIds(datos.conceptoIds))[0]?.matriculaId;
   const ctx = matriculaId
     ? await contextoRecibo({ matriculaId, fechaPago: datos.fechaPago, registradoPorId: admin.usuarioId })
     : null;
 
   const resultado = await prisma.$transaction(async (tx) => {
     await operaciones.bloquearNumero(tx, numero);
-    const lista = await cuotasDePago.bloqueadas(tx, datos.conceptoIds);
+    let conceptoIds = datos.conceptoIds;
+    let modalidadAnterior: ModalidadPago | null = null;
+    if (anual) {
+      await matriculas.bloquearFila(tx, anual.matriculaId);
+      const m = await matriculas.porId(anual.matriculaId, tx);
+      if (!m) throw E.noEncontrada();
+      conceptoIds = await cuotasDePago.pendientesBloqueadas(tx, anual.matriculaId);
+      verificarPagoAnualPosible(m.estado, NOMBRE_ESTADO_MATRICULA[m.estado], conceptoIds.length);
+      modalidadAnterior = m.modalidadPago;
+    }
+    const lista = await cuotasDePago.bloqueadas(tx, conceptoIds);
     const suma = verificarCuotasPagables(
-      datos.conceptoIds,
+      conceptoIds,
       lista.map((c) => ({ ...c, montoCentimos: aCentimos(c.monto) })),
     );
-    verificarMontoExacto(montoCentimos, suma);
+    if (anual) verificarMontoAnual(montoCentimos, suma);
+    else verificarMontoExacto(montoCentimos, suma);
     const estado = estadoInicialPago(await operaciones.numeroUsado(tx, numero));
     const id = await operaciones.crear(tx, {
       numeroOperacion: numero,
@@ -262,15 +304,23 @@ export async function registrarPago(admin: Autenticado, datos: DatosPago, meta: 
       estado,
       registradoPorId: admin.usuarioId,
       confirmadoPorId: estado === "CONFIRMADO" ? admin.usuarioId : null,
-      cuotas: datos.conceptoIds.map((cid) => ({
+      cuotas: conceptoIds.map((cid) => ({
         id: cid,
         montoCentimos: aCentimos(lista.find((c) => c.id === cid)!.monto),
       })),
     });
     let comprobante: Awaited<ReturnType<typeof emitirComprobante>> | null = null;
     if (estado === "CONFIRMADO") {
-      await cuotasDePago.marcar(tx, datos.conceptoIds, "PENDIENTE", "PAGADO");
+      await cuotasDePago.marcar(tx, conceptoIds, "PENDIENTE", "PAGADO");
       comprobante = await emitirComprobante(tx, (await operaciones.porId(id, tx))!, ctx!, Number(hoy.slice(0, 4)));
+      if (anual && modalidadAnterior) {
+        await pasarAModalidadAnual(
+          tx,
+          admin,
+          { matriculaId: anual.matriculaId, operacionId: id, anterior: modalidadAnterior },
+          meta,
+        );
+      }
     }
     await registrarAuditoria(
       tx,
@@ -289,6 +339,9 @@ export async function registrarPago(admin: Autenticado, datos: DatosPago, meta: 
           fechaPago: datos.fechaPago,
           estadoResultante: estado === "CONFIRMADO" ? "PAGADO" : "OBSERVADO",
           comprobante: comprobante?.numero ?? null,
+          // si queda Observado, la confirmación lo lee para cambiar la modalidad a Anual (US58)
+          tipoPago: anual ? "ANUAL" : "CUOTAS",
+          matriculaId,
         },
       },
       meta,
@@ -304,6 +357,35 @@ export async function registrarPago(admin: Autenticado, datos: DatosPago, meta: 
   };
 }
 
+/** Registra un pago manual de las cuotas elegidas (US22, US23). */
+export const registrarPago = (admin: Autenticado, datos: DatosPago, meta: MetaSolicitud) =>
+  registrarOperacion(admin, datos, meta, null);
+
+export type DatosPagoAnual = Omit<DatosPago, "conceptoIds">;
+
+/**
+ * Pago anual adelantado (US58): una sola operación por el total de las cuotas Pendiente de la matrícula, sin
+ * descuento. Monto distinto: «El monto no coincide con el total pendiente». Si se confirma, la matrícula pasa a
+ * modalidad Anual y se emite un único comprobante por el total.
+ */
+export const registrarPagoAnual = (
+  admin: Autenticado,
+  matriculaId: string,
+  datos: DatosPagoAnual,
+  meta: MetaSolicitud,
+) => registrarOperacion(admin, { ...datos, conceptoIds: [] }, meta, { matriculaId });
+
+/** ¿La operación se registró como pago anual? (lo guarda REGISTRAR_PAGO en la bitácora). */
+async function esPagoAnual(operacionId: string) {
+  const [registro] = await eventosDeAuditoria({
+    entidad: ENTIDAD,
+    entidadIds: [operacionId],
+    acciones: ["REGISTRAR_PAGO"],
+    limite: 1,
+  });
+  return (registro?.valorNuevo as { tipoPago?: string } | null)?.tipoPago === "ANUAL";
+}
+
 // ---------- Confirmar o descartar una operación Observado (US23) ----------
 
 /**
@@ -315,7 +397,7 @@ export async function confirmarPagoObservado(admin: Autenticado, operacionId: st
   const previa = await operaciones.porId(operacionId);
   if (!previa) throw E.pagoNoEncontrado();
   verificarObservado(previa.estado);
-  const ctx = await contextoRecibo(previa);
+  const [ctx, anual] = await Promise.all([contextoRecibo(previa), esPagoAnual(operacionId)]);
   const hoy = fechaEnLima(new Date());
 
   const comprobante = await prisma.$transaction(async (tx) => {
@@ -331,6 +413,12 @@ export async function confirmarPagoObservado(admin: Autenticado, operacionId: st
     await operaciones.confirmar(tx, operacionId, admin.usuarioId);
     await cuotasDePago.marcar(tx, ids, "PENDIENTE", "PAGADO");
     const emitido = await emitirComprobante(tx, { ...op, estado: "CONFIRMADO" }, ctx, Number(hoy.slice(0, 4)));
+    if (anual) {
+      const m = await matriculas.porId(op.matriculaId, tx);
+      if (m && m.modalidadPago !== "ANUAL") {
+        await pasarAModalidadAnual(tx, admin, { matriculaId: m.id, operacionId, anterior: m.modalidadPago }, meta);
+      }
+    }
     await registrarAuditoria(
       tx,
       {

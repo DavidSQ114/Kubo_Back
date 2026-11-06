@@ -76,6 +76,13 @@ export const cuotasDePago = {
     return cuotasDePago.porIds(ids, tx);
   },
 
+  /** US58: bloquea y devuelve los ids de las cuotas Pendiente de la matrícula (en orden de id). */
+  async pendientesBloqueadas(tx: Tx, matriculaId: string): Promise<string[]> {
+    const filas = await tx.$queryRaw<{ id: string }[]>`SELECT id::text AS id FROM concepto_cobro
+      WHERE matricula_id = ${matriculaId}::uuid AND estado = 'PENDIENTE' ORDER BY id FOR UPDATE`;
+    return filas.map((f) => f.id);
+  },
+
   async marcar(tx: Tx, ids: string[], desde: "PENDIENTE" | "PAGADO", hacia: "PENDIENTE" | "PAGADO") {
     const r = await tx.conceptoCobro.updateMany({ where: { id: { in: ids }, estado: desde }, data: { estado: hacia } });
     return r.count;

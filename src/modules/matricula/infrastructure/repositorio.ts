@@ -136,6 +136,10 @@ export const matriculas = {
   anular: (id: string, data: { anuladoPorId: string; anuladoEn: Date; motivoAnulacion: string }, tx: Tx) =>
     tx.matricula.update({ where: { id }, data: { ...data, estado: "ANULADO" }, select: { id: true } }),
 
+  /** US58: la modalidad de pago pasa a Anual al registrar el pago anual adelantado. */
+  cambiarModalidad: (id: string, modalidadPago: ModalidadPago, tx: Tx) =>
+    tx.matricula.update({ where: { id }, data: { modalidadPago }, select: { id: true } }),
+
   /** US19: la matrícula pasa a la sección destino (el historial guarda la anterior). */
   trasladar: (id: string, seccionId: string, tx: Tx) =>
     tx.matricula.update({ where: { id }, data: { seccionId }, select: { id: true } }),

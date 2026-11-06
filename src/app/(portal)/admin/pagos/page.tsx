@@ -1,5 +1,6 @@
 // AD-11 · Pensiones y pagos: estado de cuenta del estudiante, registro de pago manual (US22, M-01), pagos observados
-// por número de operación repetido (US23), anulación con motivo (US04, M-02), recibos en PDF (US25) y log de pagos
+// por número de operación repetido (US23), anulación con motivo (US04, M-02), recibos en PDF (US25), pago anual
+// adelantado (US58, M-15) y log de pagos
 "use client";
 
 import Link from "next/link";
@@ -12,6 +13,7 @@ import {
   BotonRecibo,
   LogPagos,
   ModalAnularPago,
+  ModalPagoAnual,
   ModalRegistrarPago,
   TablaCronogramaPagos,
   TablaOperaciones,
@@ -50,6 +52,7 @@ function PaginaPagos() {
   const [recarga, setRecarga] = useState(0);
   const [registrando, setRegistrando] = useState<string[] | null>(null);
   const [anulando, setAnulando] = useState<OperacionPago | null>(null);
+  const [pagoAnual, setPagoAnual] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [exito, setExito] = useState<AvisoExito | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -228,6 +231,16 @@ function PaginaPagos() {
                   <span className="mt-1 flex gap-2">
                     <Badge tono="azul">{`Modalidad: ${actual.matricula.modalidadPago === "ANUAL" ? "anual" : "mensual"}`}</Badge>
                     <Badge tono="gris">{actual.matricula.nombreEstado}</Badge>
+                    {actual.matricula.estado === "MATRICULADO" &&
+                      actual.cuotas.some((c) => c.estado === "PENDIENTE") && (
+                        <button
+                          type="button"
+                          onClick={() => setPagoAnual(true)}
+                          className="rounded-md border border-kubo-azul px-2 text-[12px] font-semibold text-kubo-azul hover:bg-fondo"
+                        >
+                          Pago anual
+                        </button>
+                      )}
                   </span>
                 )}
               </div>
@@ -359,6 +372,16 @@ function PaginaPagos() {
           preseleccion={registrando}
           onCerrar={() => setRegistrando(null)}
           onRegistrado={alRegistrar}
+        />
+      )}
+      {pagoAnual && actual?.matricula && (
+        <ModalPagoAnual
+          cuenta={actual}
+          onCerrar={() => setPagoAnual(false)}
+          onRegistrado={(r) => {
+            setPagoAnual(false);
+            alRegistrar(r);
+          }}
         />
       )}
       {anulando && actual && (
