@@ -226,3 +226,37 @@ GET {{base}}/matricula/morosidad?anioId={{anio}}
 
 ### 40. Filtrado por sección, 2 o más cuotas vencidas, por meses
 GET {{base}}/matricula/morosidad?anioId={{anio}}&seccionId={{seccion}}&mesesMinimos=2&orden=MESES
+
+# ---------- Portal del apoderado (US42, US43, US44) ----------
+# Inicia sesión como APODERADO (identidad.http, bloque de login) antes de estas solicitudes.
+@hijo = 00000000-0000-0000-0000-000000000000
+@hijoAjeno = 00000000-0000-0000-0000-000000000000
+@cuotaPagada = 00000000-0000-0000-0000-000000000000
+@cuotaPendiente = 00000000-0000-0000-0000-000000000000
+
+### 41. Hijos del apoderado (con uno solo, seleccionadoId ya es ese hijo)
+GET {{base}}/matricula/apoderado/hijos
+
+### 42. Elegir hijo → 200 y cookie httpOnly kubo_estudiante
+PUT {{base}}/matricula/apoderado/hijo-elegido
+Content-Type: application/json
+
+{ "estudianteId": "{{hijo}}" }
+
+### 43. Elegir un estudiante ajeno → 403 ESTUDIANTE_NO_VINCULADO
+PUT {{base}}/matricula/apoderado/hijo-elegido
+Content-Type: application/json
+
+{ "estudianteId": "{{hijoAjeno}}" }
+
+### 44. Deudas y pagos del hijo (estado Pagado, Pendiente o Vencido y resumen)
+GET {{base}}/matricula/apoderado/hijos/{{hijo}}/pagos
+
+### 45. Pagos de un estudiante ajeno cambiando el id de la URL → 403 ESTUDIANTE_NO_VINCULADO
+GET {{base}}/matricula/apoderado/hijos/{{hijoAjeno}}/pagos
+
+### 46. Comprobante de una cuota pagada → 200 application/pdf «Recibo_Marzo2026_ValeriaQuispe.pdf»
+GET {{base}}/matricula/apoderado/hijos/{{hijo}}/cuotas/{{cuotaPagada}}/comprobante
+
+### 47. Comprobante de una cuota pendiente o vencida → 422 RECIBO_NO_CONFIRMADO
+GET {{base}}/matricula/apoderado/hijos/{{hijo}}/cuotas/{{cuotaPendiente}}/comprobante

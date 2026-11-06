@@ -161,7 +161,7 @@ src/modules/identidad/
 | **identidad** | identidad.prisma | Cuentas, sesiones, contraseñas, bloqueo | Implementado |
 | **comunidad** | comunidad.prisma | Personas, perfiles (administrador, docente, apoderado, alumno) | Implementado: usuarios, administradores, docentes (US13), apoderados (US15), estudiantes y vínculos (US17) |
 | **academico** | academico.prisma | Año, periodos, grados, secciones, aulas, currículo | En curso: año, periodos, grados, secciones, aulas, cursos y competencias (US06–US11) |
-| **matricula** | matricula.prisma | Matrícula, pensiones y pagos | En curso: matrícula en sección, cronograma y anulación (US18, US21), traslado (US19), retiro (US57), ficha PDF (US20) pagos con recibo (US22, US23, US04, US25), pago anual (US58) y morosidad (US24); implementa `MatriculasProvider` de academico y `MatriculaBorradorProvider` de comunidad |
+| **matricula** | matricula.prisma | Matrícula, pensiones y pagos | En curso: matrícula en sección, cronograma y anulación (US18, US21), traslado (US19), retiro (US57), ficha PDF (US20) pagos con recibo (US22, US23, US04, US25), pago anual (US58), morosidad (US24) y portal del apoderado de solo lectura (US42, US43, US44); implementa `MatriculasProvider` de academico y `MatriculaBorradorProvider` de comunidad |
 | **horarios** | horarios.prisma | Bloques, horarios y asistencia | Pendiente (ya implementa el puerto `HorariosProvider` de academico) |
 | **evaluacion** | evaluacion.prisma | Notas por competencia, cierres, rectificaciones | Pendiente (ya implementa el puerto `CierresProvider` de academico) |
 | **aula-virtual** | aula-virtual.prisma | Material de estudio y trabajos | Pendiente |
