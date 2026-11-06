@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Icono, Spinner } from "@/components/ui";
+import { Badge, Icono, Spinner } from "@/components/ui";
 import {
   api,
   ApiError,
@@ -39,7 +39,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
       { texto: "Año y bimestres", icono: "nav-calendar", href: "/admin/anio" },
       { texto: "Grados, secciones y aulas", icono: "nav-layers", href: "/admin/grados" },
       { texto: "Cursos y competencias", icono: "nav-book", href: "/admin/cursos" },
-      { texto: "Reglas de evaluación", icono: "nav-sliders" },
+      { texto: "Reglas de evaluación", icono: "nav-sliders", href: "/admin/reglas" },
     ],
   },
   {
@@ -252,6 +252,48 @@ function LogoSidebar() {
   );
 }
 
+/** Evento del navegador con el que AD-02 avisa que cambió un año o sus bimestres: la insignia se vuelve a pedir. */
+const EVENTO_ANIO_CAMBIADO = "kubo:anio-cambiado";
+
+export function avisarCambioDeAnio() {
+  window.dispatchEvent(new Event(EVENTO_ANIO_CAMBIADO));
+}
+
+interface SituacionAnio {
+  estado: string;
+  etiqueta: string;
+}
+
+/** Insignia «Año 2026 · Bimestre IV en curso» con el año por defecto. Sin año abierto (o si falla) no se muestra. */
+function InsigniaAnio() {
+  const [situacion, setSituacion] = useState<SituacionAnio | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    async function cargar() {
+      try {
+        const s = await api<SituacionAnio | null>("/academico/anios/actual");
+        if (vigente) setSituacion(s);
+      } catch {
+        if (vigente) setSituacion(null); // la insignia es informativa: un error no interrumpe la pantalla
+      }
+    }
+    void cargar();
+    window.addEventListener(EVENTO_ANIO_CAMBIADO, cargar);
+    return () => {
+      vigente = false;
+      window.removeEventListener(EVENTO_ANIO_CAMBIADO, cargar);
+    };
+  }, []);
+
+  if (!situacion) return null;
+  return (
+    <Badge tono={situacion.estado === "EN_CURSO" ? "verde" : "celeste"} punto>
+      {situacion.etiqueta}
+    </Badge>
+  );
+}
+
 function BarraSuperior() {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -276,6 +318,7 @@ function BarraSuperior() {
         </label>
       </form>
       <div className="flex-1" />
+      <InsigniaAnio />
       <button
         type="button"
         aria-label="Notificaciones"

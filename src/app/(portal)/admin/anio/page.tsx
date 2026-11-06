@@ -10,6 +10,8 @@ import {
   ID_CAMPO_ANIO,
   matriculaHabilitada,
   ModalCambioEstado,
+  ModalEditarAnio,
+  ModalEliminarAnio,
   siguienteEstado,
   TRANSICIONES,
   type AnioAcademico,
@@ -26,6 +28,7 @@ export default function AnioAcademicoPage() {
   const [recarga, setRecarga] = useState(0);
   const [elegidoId, setElegidoId] = useState<string | null>(null);
   const [aCambiar, setACambiar] = useState<AnioAcademico | null>(null);
+  const [modal, setModal] = useState<"editar" | "eliminar" | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,7 +125,8 @@ export default function AnioAcademicoPage() {
             <TablaAnios anios={anios} elegidoId={elegido.id} onElegir={setElegidoId} onCambiarEstado={setACambiar} />
           )}
           <Alerta tipo="info">
-            Un año académico con matrículas registradas no puede eliminarse; solo cerrarse al finalizar el periodo.
+            Solo se puede eliminar un año «Planificado» sin secciones, planes ni matrículas. Los demás se cierran al
+            finalizar el periodo.
           </Alerta>
           <div className="flex items-start gap-2">
             <Icono nombre="icon-info" size={16} className="mt-px" />
@@ -137,17 +141,50 @@ export default function AnioAcademicoPage() {
       {elegido && (
         <Tarjeta className="p-6">
           {/* La key sigue a los bimestres guardados: el formulario se reinicia solo cuando llegan datos nuevos. */}
-          <FormularioBimestres key={claveBimestres(elegido)} anio={elegido} onGuardado={recargar} />
+          <FormularioBimestres
+            key={claveBimestres(elegido)}
+            anio={elegido}
+            onGuardado={recargar}
+            acciones={
+              elegido.estado !== "CERRADO" && (
+                <>
+                  {elegido.estado === "PLANIFICADO" && (
+                    <Boton type="button" variante="secundario" icono="act-trash" onClick={() => setModal("eliminar")}>
+                      Eliminar año
+                    </Boton>
+                  )}
+                  <Boton type="button" variante="secundario" icono="icon-calendar" onClick={() => setModal("editar")}>
+                    Editar año
+                  </Boton>
+                </>
+              )
+            }
+          />
         </Tarjeta>
       )}
 
       <ModalCambioEstado anio={aCambiar} onCerrar={() => setACambiar(null)} onListo={recargar} />
+      {elegido && modal === "editar" && (
+        <ModalEditarAnio anio={elegido} onCerrar={() => setModal(null)} onListo={recargar} />
+      )}
+      {elegido && modal === "eliminar" && (
+        <ModalEliminarAnio
+          anio={elegido}
+          onCerrar={() => setModal(null)}
+          onListo={(mensaje) => {
+            setElegidoId(null);
+            recargar(mensaje);
+          }}
+        />
+      )}
     </>
   );
 }
 
 const claveBimestres = (anio: AnioAcademico) =>
-  [anio.id, ...anio.periodos.map((p) => `${p.numero}:${p.fechaInicio}:${p.fechaFin}:${p.estado}`)].join("|");
+  [anio.id, anio.estado, ...anio.periodos.map((p) => `${p.numero}:${p.fechaInicio}:${p.fechaFin}:${p.estado}`)].join(
+    "|",
+  );
 
 function TablaAnios({
   anios,
