@@ -1,13 +1,18 @@
 // platform/http: envoltorio de cada Route Handler.
 // - Genera un requestId y lo devuelve en la cabecera x-request-id.
 // - Convierte errores en la respuesta estándar { error: { code, message, details } }.
-// - 4xx se registran como INFO; errores no controlados como ERROR en log y en la tabla log_error (RNF04).
+// - 4xx se registran como INFO (los 400 de validación también en log_error, sin stack trace); los errores no
+//   controlados, como ERROR con el stack trace completo en el log y en la tabla log_error (US05, RNF04).
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { ZodError } from "zod";
+import { leerTokenAcceso } from "@/platform/auth/cookies";
+import { verificarAcceso } from "@/platform/auth/jwt";
 import { prisma } from "@/platform/db/prisma";
-import { logger } from "@/platform/logger";
-import { ErrorApp } from "./errores";
+import { logger, redactarTexto } from "@/platform/logger";
+import { clasificarError, politicaDeRegistro, type ErrorClasificado } from "./clasificador";
+
+/** Largo máximo del mensaje en log_error (el stack trace se guarda completo). */
+const LARGO_MAXIMO_MENSAJE = 2000;
 
 export interface MetaSolicitud {
   requestId: string;
@@ -47,38 +52,59 @@ function respuestaError(codigo: string, mensaje: string, estado: number, detalle
   return NextResponse.json({ error: { code: codigo, message: mensaje, details: detalles ?? {} } }, { status: estado });
 }
 
-function detallesZod(e: ZodError): Record<string, string> {
-  const campos: Record<string, string> = {};
-  for (const issue of e.issues) {
-    const clave = issue.path.join(".") || "_";
-    if (!campos[clave]) campos[clave] = issue.message;
+/** Usuario de la sesión, si la petición trae un token de acceso válido (para el log de un 500, US05). */
+async function usuarioDeLaPeticion(req: NextRequest): Promise<string | null> {
+  try {
+    const token = leerTokenAcceso(req);
+    return token ? ((await verificarAcceso(token))?.sub ?? null) : null;
+  } catch {
+    return null;
   }
-  return campos;
 }
 
-/** Convierte errores lanzados por la base de datos (triggers con código al inicio). */
-function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
-  const texto = String((e as { message?: string })?.message ?? "");
-  const m = texto.match(
-    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE)\b/,
-  );
-  if (!m) return null;
-  const mensajes: Record<string, string> = {
-    AFORO_EXCEDE_AULA: "El aforo de la sección supera la capacidad del aula.",
-    RESPONSABLE_NO_VINCULADO: "El apoderado responsable no está vinculado a este estudiante.",
-    DETALLE_INCOHERENTE: "La sección o el docente no coinciden con la asignación.",
-    REGISTRO_AUDITORIA_INMUTABLE: "La bitácora de auditoría no se puede modificar.",
+/**
+ * Registra la excepción según su clasificación (US05, RNF04):
+ * - 500: log ERROR con timestamp, endpoint, método, usuario, requestId y stack trace completo, y fila ERROR en
+ *   log_error;
+ * - 400 de validación: evento INFO sin stack trace (en el log y en log_error);
+ * - otros rechazos esperados: solo un evento INFO en el log.
+ * Los textos pasan por el redactor (DNI, correos y tokens) y los campos sensibles se ocultan por nombre.
+ */
+async function registrarExcepcion(req: NextRequest, meta: MetaSolicitud, e: unknown, c: ErrorClasificado) {
+  const politica = politicaDeRegistro(c);
+  const endpoint = new URL(req.url).pathname;
+  const usuarioId = politica.enTabla ? await usuarioDeLaPeticion(req) : null;
+  const err = e as Error;
+  const mensaje = redactarTexto(politica.conStack ? (err?.message ?? "Error desconocido") : c.mensaje);
+  const stack = politica.conStack && err?.stack ? redactarTexto(err.stack) : null;
+  const evento = {
+    requestId: meta.requestId,
+    endpoint,
+    metodo: req.method,
+    estado: c.estado,
+    codigo: c.codigo,
+    usuarioId,
+    ...(politica.conStack ? { error: mensaje, stack } : {}),
   };
-  // El trigger de aforo informa ambos números: «el aforo de la sección (32) supera el del aula (28)».
-  const aforos = m[1] === "AFORO_EXCEDE_AULA" ? texto.match(/secci\S*n \((\d+)\) supera el del aula \((\d+)\)/) : null;
-  if (aforos) {
-    const [, seccion, aula] = aforos;
-    return new ErrorApp(m[1], `El aforo de la sección (${seccion}) supera el del aula (${aula}).`, 422, {
-      aforoSeccion: Number(seccion),
-      aforoAula: Number(aula),
-    });
-  }
-  return new ErrorApp(m[1], mensajes[m[1]], 422);
+  if (politica.nivel === "ERROR") logger.error("Error no controlado", evento);
+  else logger.info(c.tipo === "VALIDACION" ? "Datos inválidos" : "Solicitud rechazada", evento);
+  if (!politica.enTabla) return;
+  await prisma.logError
+    .create({
+      data: {
+        requestId: meta.requestId,
+        usuarioId,
+        endpoint,
+        metodoHttp: req.method,
+        codigoHttp: c.estado,
+        nivel: politica.nivel,
+        mensaje: mensaje.slice(0, LARGO_MAXIMO_MENSAJE),
+        stackTrace: stack,
+        metadatos: { codigo: c.codigo },
+        ipOrigen: meta.ip,
+      },
+    })
+    .catch(() => undefined);
 }
 
 export function ruta(manejador: Manejador) {
@@ -89,57 +115,17 @@ export function ruta(manejador: Manejador) {
       ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
       userAgent: req.headers.get("user-agent"),
     };
-    const endpoint = new URL(req.url).pathname;
     let respuesta: Response;
     try {
       const params = ((await contexto?.params) ?? {}) as Record<string, string>;
       respuesta = await manejador(req, { meta, params });
     } catch (e) {
-      const app = e instanceof ErrorApp ? e : errorDeBaseDeDatos(e);
-      if (app) {
-        logger.info("Solicitud rechazada", {
-          requestId: meta.requestId,
-          endpoint,
-          metodo: req.method,
-          codigo: app.codigo,
-          estado: app.estadoHttp,
-        });
-        respuesta = respuestaError(app.codigo, app.message, app.estadoHttp, app.detalles);
-      } else if (e instanceof ZodError) {
-        logger.info("Datos inválidos", { requestId: meta.requestId, endpoint, metodo: req.method });
-        respuesta = respuestaError("DATOS_INVALIDOS", "Revisa los datos ingresados.", 400, detallesZod(e));
-      } else if (e instanceof SyntaxError) {
-        respuesta = respuestaError("JSON_INVALIDO", "La solicitud no tiene un formato válido.", 400);
-      } else {
-        const err = e as Error;
-        logger.error("Error no controlado", {
-          requestId: meta.requestId,
-          endpoint,
-          metodo: req.method,
-          error: err?.message,
-          stack: err?.stack,
-        });
-        await prisma.logError
-          .create({
-            data: {
-              requestId: meta.requestId,
-              endpoint,
-              metodoHttp: req.method,
-              codigoHttp: 500,
-              nivel: "ERROR",
-              mensaje: (err?.message ?? "Error desconocido").slice(0, 2000),
-              stackTrace: err?.stack?.slice(0, 8000) ?? null,
-              ipOrigen: meta.ip,
-            },
-          })
-          .catch(() => undefined);
-        respuesta = respuestaError(
-          "ERROR_INTERNO",
-          "Ocurrió un error inesperado. Inténtalo nuevamente en unos minutos.",
-          500,
-          { requestId: meta.requestId },
-        );
-      }
+      const c = clasificarError(e);
+      await registrarExcepcion(req, meta, e, c);
+      respuesta =
+        c.tipo === "INTERNO"
+          ? respuestaError(c.codigo, c.mensaje, c.estado, { requestId: meta.requestId })
+          : respuestaError(c.codigo, c.mensaje, c.estado, c.detalles);
     }
     respuesta.headers.set("x-request-id", meta.requestId);
     return respuesta;
