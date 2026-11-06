@@ -717,6 +717,14 @@ function PaginaMatricula() {
           }}
           acciones={(d) => (
             <>
+              {d.cronograma.cuotas.length > 0 && d.estudiante && (
+                <Link
+                  href={`/admin/pagos?estudiante=${d.estudiante.estudianteId}&anio=${d.anio.id}`}
+                  className="text-[14px] font-semibold text-kubo-azul hover:underline"
+                >
+                  Ir a Pensiones y pagos
+                </Link>
+              )}
               {d.puedeGenerarFicha && <BotonFicha matriculaId={d.matriculaId} onError={setErrorFicha} />}
               {d.puedeTrasladar && (
                 <Boton

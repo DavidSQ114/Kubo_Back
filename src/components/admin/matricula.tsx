@@ -3,6 +3,7 @@
 // retiro y ficha PDF (US19, US57, US20) están en cambiosMatricula.tsx.
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -567,7 +568,15 @@ export function ModalAnular({
       </div>
       {conPagos && (
         <Alerta tipo="error" titulo="No se puede anular esta matrícula">
-          {`Primero anula los pagos confirmados de esta matrícula (${detalle.pagos}).`}
+          {`Primero anula los pagos confirmados de esta matrícula (${detalle.pagos}). `}
+          {detalle.estudiante && (
+            <Link
+              href={`/admin/pagos?estudiante=${detalle.estudiante.estudianteId}&anio=${detalle.anio.id}`}
+              className="font-semibold text-kubo-azul"
+            >
+              Ir a Pensiones y pagos
+            </Link>
+          )}
         </Alerta>
       )}
       <Selector
