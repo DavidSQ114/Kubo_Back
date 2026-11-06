@@ -3,7 +3,7 @@
 // Así un módulo de abajo usa lo que necesita de uno de arriba sin importarlo:
 // identidad <- comunidad (perfiles) · academico <- evaluacion (cierres y notas),
 // matricula (matriculados por sección), comunidad (docentes tutores y nombres de personas) y horarios (cursos en
-// horarios publicados).
+// horarios publicados) · comunidad <- matricula (matrícula «En proceso» al registrar un estudiante, US17).
 import { configurarPerfilesProvider } from "@/modules/identidad";
 import {
   configurarCierresProvider,
@@ -12,10 +12,15 @@ import {
   configurarMatriculasProvider,
   configurarPersonasProvider,
 } from "@/modules/academico";
-import { docentesProviderComunidad, perfilesProviderComunidad, personasProviderComunidad } from "@/modules/comunidad";
+import {
+  configurarMatriculaBorradorProvider,
+  docentesProviderComunidad,
+  perfilesProviderComunidad,
+  personasProviderComunidad,
+} from "@/modules/comunidad";
 import { cierresProviderEvaluacion } from "@/modules/evaluacion";
 import { horariosProviderHorarios } from "@/modules/horarios";
-import { matriculasProviderMatricula } from "@/modules/matricula";
+import { matriculaBorradorProviderMatricula, matriculasProviderMatricula } from "@/modules/matricula";
 
 configurarPerfilesProvider(perfilesProviderComunidad);
 configurarCierresProvider(cierresProviderEvaluacion);
@@ -23,3 +28,4 @@ configurarMatriculasProvider(matriculasProviderMatricula);
 configurarDocentesProvider(docentesProviderComunidad);
 configurarHorariosProvider(horariosProviderHorarios);
 configurarPersonasProvider(personasProviderComunidad);
+configurarMatriculaBorradorProvider(matriculaBorradorProviderMatricula);
