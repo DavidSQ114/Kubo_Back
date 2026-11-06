@@ -145,6 +145,19 @@ export const erroresMatricula = {
     new ErrorApp("MOTIVO_ANULACION_REQUERIDO", "Selecciona el motivo de la anulación.", 422),
   detalleAnulacionRequerido: () =>
     new ErrorApp("DETALLE_ANULACION_REQUERIDO", "Con el motivo «Otro», describe la anulación en la observación.", 422),
+  // ---------- Pago anual adelantado (US58) ----------
+  montoNoCoincidePendiente: (totalCentimos: number) =>
+    new ErrorApp("MONTO_NO_COINCIDE_PENDIENTE", "El monto no coincide con el total pendiente", 422, {
+      total: `${Math.trunc(totalCentimos / 100)}.${String(totalCentimos % 100).padStart(2, "0")}`,
+    }),
+  sinCuotasPendientes: () =>
+    new ErrorApp("SIN_CUOTAS_PENDIENTES", "El estudiante no tiene cuotas pendientes en este año.", 422),
+  pagoAnualNoPermitido: (estado: string) =>
+    new ErrorApp(
+      "PAGO_ANUAL_NO_PERMITIDO",
+      `El pago anual solo se registra para una matrícula «Matriculado». Esta está «${estado}».`,
+      409,
+    ),
   reciboNoConfirmado: () =>
     new ErrorApp("RECIBO_NO_CONFIRMADO", "No se puede generar un recibo de un pago no confirmado", 422),
 };

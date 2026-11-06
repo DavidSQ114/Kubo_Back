@@ -134,3 +134,20 @@ export function siguienteComprobante(anio: number, ultimo: string | null): strin
   if (!Number.isInteger(n) || n < 1) throw new Error("Correlativo de comprobante con formato inesperado");
   return numeroComprobante(anio, n + 1);
 }
+
+// ---------- Pago anual adelantado (US58) ----------
+
+/** El pago anual es de una matrícula «Matriculado» con al menos una cuota pendiente. */
+export function verificarPagoAnualPosible(estadoMatricula: string, nombreEstado: string, pendientes: number) {
+  if (estadoMatricula !== "MATRICULADO") throw E.pagoAnualNoPermitido(nombreEstado);
+  if (pendientes < 1) throw E.sinCuotasPendientes();
+}
+
+/** US58: el monto debe ser exactamente el total pendiente (sin descuento): «El monto no coincide con el total pendiente». */
+export function verificarMontoAnual(montoCentimos: number, totalPendienteCentimos: number) {
+  if (montoCentimos !== totalPendienteCentimos) throw E.montoNoCoincidePendiente(totalPendienteCentimos);
+}
+
+/** Total pendiente del año: suma de las cuotas Pendiente (vencidas o no), sin las pagadas ni las anuladas. */
+export const totalPendienteCentimos = (cuotas: { estado: string; montoCentimos: number }[]) =>
+  cuotas.filter((c) => c.estado === "PENDIENTE").reduce((t, c) => t + c.montoCentimos, 0);

@@ -2,6 +2,7 @@
 // traslado de sección (US19), el retiro (US57) y los pagos (US22, US23, US04).
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
+import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
 
@@ -84,6 +85,9 @@ export const PagoSchema = z.object({
   fechaPago: fecha("Fecha de pago no válida"),
 });
 
+/** US58: el pago anual no elige cuotas; paga todas las Pendiente de la matrícula. */
+export const PagoAnualSchema = PagoSchema.omit({ conceptoIds: true });
+
 /** El motivo puede faltar: el caso de uso responde «Selecciona el motivo de la anulación.». */
 export const AnularPagoSchema = z.object({
   motivo: z.enum(MOTIVOS_ANULACION_PAGO, { message: "Selecciona el motivo de la anulación." }).nullable().optional(),
@@ -95,3 +99,14 @@ export const DescartarPagoSchema = z.object({
 });
 
 export const ConsultaEstadoCuentaSchema = z.object({ anioId: id("Año académico no válido").optional() });
+
+/** Máximo del filtro «Meses adeudados» (3 = «3 o más»). */
+const MESES_MINIMOS_MAXIMO = 12;
+
+export const FiltroMorosidadSchema = z.object({
+  anioId: id("Elige el año académico"),
+  gradoId: id("Grado no válido").optional(),
+  seccionId: id("Sección no válida").optional(),
+  mesesMinimos: z.coerce.number().int().min(1).max(MESES_MINIMOS_MAXIMO).optional(),
+  orden: z.enum(ORDENES_MOROSIDAD).default("MONTO"),
+});

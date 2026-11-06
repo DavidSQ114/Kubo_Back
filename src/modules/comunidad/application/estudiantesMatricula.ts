@@ -150,3 +150,28 @@ export async function nombresDeUsuarios(ids: string[]): Promise<Record<string, N
     ]),
   );
 }
+
+export interface ResponsableDePago {
+  nombreCompleto: string;
+  parentesco: string;
+  telefono: string | null;
+  email: string | null;
+}
+
+/** Apoderado responsable de cada vínculo, con su teléfono, en una sola consulta (US24). */
+export async function responsablesDeVinculos(ids: string[]): Promise<Record<string, ResponsableDePago>> {
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return {};
+  const filas = await estudiantesMatricula.apoderadosDeVinculos(unicos);
+  return Object.fromEntries(
+    filas.map((v) => [
+      v.id,
+      {
+        nombreCompleto: `${v.apoderado.persona.nombres} ${v.apoderado.persona.apellidos}`,
+        parentesco: v.parentesco,
+        telefono: v.apoderado.persona.telefono,
+        email: v.apoderado.persona.email,
+      },
+    ]),
+  );
+}

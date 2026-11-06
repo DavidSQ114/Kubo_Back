@@ -39,6 +39,10 @@ export const usuarios = {
   porId: (id: string, db: Db = prisma) =>
     db.usuario.findUnique({ where: { id }, select: camposUsuario }) as Promise<UsuarioFila | null>,
 
+  /** Correos de varios usuarios en una sola consulta (log de errores, US05). */
+  correosPorIds: (ids: string[], db: Db = prisma) =>
+    db.usuario.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }),
+
   porPersona: (personaId: string, db: Db = prisma) =>
     db.usuario.findUnique({ where: { personaId }, select: camposUsuario }) as Promise<UsuarioFila | null>,
 
