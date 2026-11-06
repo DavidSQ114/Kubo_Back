@@ -46,7 +46,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
     grupo: "COMUNIDAD",
     items: [
       { texto: "Usuarios", icono: "nav-users", href: "/admin/usuarios" },
-      { texto: "Matrícula", icono: "nav-clipboard" },
+      { texto: "Matrícula", icono: "nav-clipboard", href: "/admin/matricula" },
     ],
   },
   {
