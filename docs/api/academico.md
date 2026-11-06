@@ -1,4 +1,4 @@
-# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas y asignaciones (US06–US12, US14)
+# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas, asignaciones y montos del año (US06–US12, US14, US21)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -380,3 +380,25 @@ Pantalla: AD-07 (`/admin/usuarios/registrar-docente`), bloque «Carga académica
 - El docente se valida con `DocentesProvider` (comunidad), que suma `docentePorPersona` para «Mis cursos».
 - Las notas de la asignación se cuentan con `CierresProvider.notasPorAsignacion` (evaluacion).
 - Los bloques de horario y si alguno está publicado salen de `HorariosProvider.horariosPorAsignacion` (horarios).
+
+# Montos del año (US21)
+
+Requisito del cronograma de pagos: la cuota de matrícula y la pensión mensual de cada año. Se guardan en `parametro_institucion` con el año (`anio_academico_id`) y las claves `MONTO_MATRICULA` y `MONTO_PENSION`, como texto «350.00» (nunca float). Los parámetros generales del seed (sin año) solo se sugieren al configurar: **un año sin montos propios no admite matrículas** (`422 SIN_MONTOS`, ver [matricula.md](matricula.md)).
+
+## Endpoints · solo `ADMINISTRADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /academico/anios/{id}/montos` | — | `{ anioAcademicoId, anio, montoMatricula, montoPension, configurados, sugeridos: { montoMatricula, montoPension } }` |
+| `PUT /academico/anios/{id}/montos` | `{ montoMatricula, montoPension }` | Lo mismo, con los montos guardados |
+
+## Reglas
+
+- Cada monto: mayor a 0, hasta dos decimales y hasta S/ 99 999.99 (texto «350», «450.5» o número). Se guardan normalizados («450.50»). Si no: `400 MONTO_INVALIDO` «Ingresa un monto mayor a 0 con hasta dos decimales (por ejemplo, 350.00).».
+- Año cerrado: `422 ANIO_CERRADO`. Año inexistente: `404 NO_ENCONTRADO`.
+- Los cambios solo afectan a las matrículas que se confirmen después: los cronogramas ya generados no cambian.
+- Auditoría `GUARDAR_MONTOS_ANIO` (entidad `anio_academico`) con los montos anteriores y nuevos.
+
+## Dependencias entre módulos
+
+- matricula los lee con `montosDelAnio` y bloquea la sección con `seccionBloqueadaParaMatricula(tx, id)` (`SELECT … FOR UPDATE`), ambos por el `index.ts` de académico.
