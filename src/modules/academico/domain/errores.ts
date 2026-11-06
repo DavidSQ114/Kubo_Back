@@ -1,4 +1,5 @@
-// academico/domain: errores del módulo (US06 año, US07 periodos, US08 secciones, US09 aulas, US10 cursos, US11 competencias, US14 asignación de cursos).
+// academico/domain: errores del módulo (US06 año, US07 periodos, US08 secciones, US09 aulas, US10 cursos,
+// US11 competencias, US12 reglas de consolidación, US14 asignación de cursos).
 import { ErrorApp } from "@/platform/http/errores";
 import { fechaCorta, NOMBRE_ESTADO_ANIO, type EstadoAnio, type RangoFechas } from "./tipos";
 
@@ -43,6 +44,39 @@ export const erroresAcademico = {
     new ErrorApp(
       "PERIODOS_FUERA_DEL_ANIO",
       "Los bimestres registrados quedarían fuera de las nuevas fechas del año. Ajusta primero los bimestres.",
+      422,
+    ),
+  anioNoEliminable: (estado: EstadoAnio) =>
+    new ErrorApp(
+      "ANIO_NO_ELIMINABLE",
+      `Solo se puede eliminar un año en estado «Planificado». Este año está «${NOMBRE_ESTADO_ANIO[estado]}».`,
+      409,
+      { estado },
+    ),
+  anioConRegistros: (uso: { secciones: number; planes: number; matriculas: number }) =>
+    new ErrorApp(
+      "ANIO_CON_REGISTROS",
+      "No se puede eliminar el año porque ya tiene secciones, planes de estudio o matrículas. Puedes editar sus fechas.",
+      409,
+      uso,
+    ),
+  // ---------- Reglas de consolidación (US12) ----------
+  logrosVacios: () => new ErrorApp("LOGROS_VACIOS", "No hay logros para consolidar.", 422),
+  logroInvalido: () => new ErrorApp("LOGRO_INVALIDO", "Los logros deben ser AD, A, B o C.", 400),
+  pesosNoCorresponden: () =>
+    new ErrorApp("PESOS_NO_CORRESPONDEN", "Debe haber un peso por cada logro a consolidar.", 400),
+  pesosIncompletos: () =>
+    new ErrorApp("PESOS_INCOMPLETOS", "Indica el peso de todas las competencias del curso o de ninguna.", 400),
+  rigeDesdeRequerido: () =>
+    new ErrorApp("RIGE_DESDE_REQUERIDO", "Elige el bimestre desde el que regirá la nueva versión.", 400),
+  rigeDesdeInvalido: () =>
+    new ErrorApp("RIGE_DESDE_INVALIDO", "El bimestre elegido no pertenece a este año académico.", 422),
+  reglaSinCambios: () =>
+    new ErrorApp("REGLA_SIN_CAMBIOS", "La regla vigente ya usa ese método y criterio de desempate.", 409),
+  rigeDesdeCerrado: () =>
+    new ErrorApp(
+      "RIGE_DESDE_CERRADO",
+      "Ese bimestre ya está cerrado: la nueva versión debe regir desde un bimestre abierto.",
       422,
     ),
   // ---------- Secciones y aulas (US08, US09) ----------

@@ -1,6 +1,6 @@
 // academico/domain: reglas puras del año académico (US06) y de sus periodos de evaluación (US07).
 import { erroresAcademico as E } from "./errores";
-import { ESTADOS_ANIO, type EstadoAnio, type EstadoPeriodo, type RangoFechas } from "./tipos";
+import { ESTADOS_ANIO, NOMBRE_ESTADO_ANIO, type EstadoAnio, type EstadoPeriodo, type RangoFechas } from "./tipos";
 
 export const CANTIDAD_BIMESTRES = 4;
 const NUMERALES_BIMESTRE = ["I", "II", "III", "IV"] as const;
@@ -64,6 +64,18 @@ export function verificarTransicion(actual: EstadoAnio, destino: EstadoAnio) {
   if (siguienteEstado(actual) !== destino) throw E.transicionNoPermitida(actual, destino);
 }
 
+/**
+ * Un año se elimina solo si está PLANIFICADO y aún no tiene secciones, planes de estudio ni matrículas
+ * (feedback del JP, AD-02). Con registros, se corrigen sus fechas en lugar de borrarlo.
+ */
+export function verificarEliminacionAnio(
+  estado: EstadoAnio,
+  uso: { secciones: number; planes: number; matriculas: number },
+) {
+  if (estado !== "PLANIFICADO") throw E.anioNoEliminable(estado);
+  if (uso.secciones > 0 || uso.planes > 0 || uso.matriculas > 0) throw E.anioConRegistros(uso);
+}
+
 /** El año se cierra solo si hay cierres de calificación y todos están publicados. */
 export const puedeCerrarse = (cierres: { total: number; publicados: number }) =>
   cierres.total > 0 && cierres.publicados === cierres.total;
@@ -100,6 +112,47 @@ export function verificarCambiosPermitidos(guardados: PeriodoGuardado[], nuevos:
     const cambia = n !== undefined && (n.fechaInicio !== g.fechaInicio || n.fechaFin !== g.fechaFin);
     if (g.estado === "FINALIZADO" && cambia) throw E.periodoFinalizado(nombreBimestre(g.numero));
   }
+}
+
+/** Bimestre cuyo rango incluye el día indicado, en cualquier estado (etiqueta «Vigente» de AD-02). */
+export function periodoQueContiene<T extends RangoFechas>(periodos: T[], dia: string): T | null {
+  return periodos.find((p) => p.fechaInicio <= dia && dia <= p.fechaFin) ?? null;
+}
+
+export interface SituacionAnio {
+  anio: number;
+  estado: EstadoAnio;
+  /** «En matrícula», «Bimestre IV en curso», «Vacaciones», «Planificado» o «En cierre». */
+  detalle: string;
+  /** «Año 2026 · Bimestre IV en curso»: insignia de la barra superior. */
+  etiqueta: string;
+}
+
+/**
+ * Situación del año para la barra superior. En curso: el bimestre que contiene el día o «Vacaciones» si el día
+ * cae entre bimestres o fuera de ellos. En los demás estados, el nombre del estado.
+ */
+export function situacionDelAnio(
+  anio: { anio: number; estado: EstadoAnio },
+  periodos: (RangoFechas & { numero: number })[],
+  dia: string,
+): SituacionAnio {
+  let detalle = NOMBRE_ESTADO_ANIO[anio.estado];
+  if (anio.estado === "EN_CURSO") {
+    const bimestre = periodoQueContiene(periodos, dia);
+    detalle = bimestre ? `${nombreBimestre(bimestre.numero)} en curso` : "Vacaciones";
+  }
+  return { anio: anio.anio, estado: anio.estado, detalle, etiqueta: `Año ${anio.anio} · ${detalle}` };
+}
+
+/** Año que se muestra por defecto: el EN_CURSO, si no el EN_MATRICULA, si no el abierto más reciente. */
+export function anioPorDefecto<T extends { estado: EstadoAnio }>(anios: T[]): T | null {
+  return (
+    anios.find((a) => a.estado === "EN_CURSO") ??
+    anios.find((a) => a.estado === "EN_MATRICULA") ??
+    anios.find((a) => a.estado !== "CERRADO") ??
+    null
+  );
 }
 
 /** Bimestre cuyo rango incluye el día indicado y que aún no está finalizado (registro de notas). */

@@ -33,4 +33,13 @@ export const cierresProviderEvaluacion: CierresProvider = {
     for (const c of cierres) conteo[c.asignacionDocenteId] = (conteo[c.asignacionDocenteId] ?? 0) + c._count.notas;
     return conteo;
   },
+
+  async periodosConCierres(anioAcademicoId) {
+    const filas = await prisma.cierreCalificacion.findMany({
+      where: { periodoEvaluacion: { anioAcademicoId }, estado: { in: ["CERRADO", "PUBLICADO"] } },
+      distinct: ["periodoEvaluacionId"],
+      select: { periodoEvaluacionId: true },
+    });
+    return filas.map((f) => f.periodoEvaluacionId);
+  },
 };

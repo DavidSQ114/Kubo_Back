@@ -95,6 +95,10 @@ src/components/ui/index.tsx                                   Boton variante «e
 ## Qué muestra
 
 - **1 · Datos personales:** nombres, apellidos, DNI, fecha de nacimiento, correo institucional («Aquí se enviarán las credenciales de acceso.»), teléfono celular y especialidad. Los errores aparecen bajo cada campo, también los del backend («Ya existe un usuario registrado con este DNI»).
+- **DNI ya registrado (defecto D-07):** al completar los 8 dígitos se consulta `GET /comunidad/personas?dni=`.
+  - Si la persona ya es docente activa, aparece bajo el DNI «Ya existe un usuario registrado con este DNI» y no se registra.
+  - Si existe con otro perfil, una alerta dice «Este DNI ya está registrado: Nombre Apellido (Perfiles). Se le agregará el perfil Docente con sus datos actuales.»; nombres, apellidos y correo se llenan con los registrados y quedan bloqueados, y el botón pasa a «Agregar perfil Docente». Si ya tiene cuenta, «Acceso al sistema» dice que ingresará con su contraseña actual y no se muestra la vista previa del correo.
+  - Al cambiar el DNI se liberan los campos llenados.
 - **Acceso al sistema:** avatar, nombre, correo y perfil Docente; «Temporal · se genera al guardar»; la casilla «Enviar correo de bienvenida con credenciales» y los avisos del primer ingreso. Al registrar se muestra una sola vez la contraseña temporal.
 - **Vista previa del correo:** el mismo texto que envía identidad, con la contraseña oculta.
 - **2 · Carga académica:**
@@ -113,4 +117,5 @@ src/components/ui/index.tsx                                   Boton variante «e
 | Alerta de choque de horario con «Ver horario» | Alerta con el mensaje del backend, sin «Ver horario» | El módulo de horarios aún no existe |
 | Especialidad libre en un desplegable | Desplegable con las áreas curriculares | No hay catálogo de especialidades; las áreas cubren las del colegio |
 | «Registrar docente» abajo, una sola vez | Tras registrar cambia a «Terminar» | La pantalla sigue abierta para asignar cursos |
-| Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Es de la barra superior común del portal |
+| Insignia «Año 2026 · Bimestre III en curso» | Se muestra con datos reales del año por defecto | Sprint 2 (barra superior común del portal) |
+| Sin búsqueda del DNI | Alerta de persona ya registrada, campos bloqueados y «Agregar perfil Docente» | Defecto D-07 (Sprint 2) |

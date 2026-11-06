@@ -13,6 +13,8 @@ export interface CierresProvider {
   notasPorCompetenciaPlan(competenciaPlanIds: string[]): Promise<Record<string, number>>;
   /** Notas registradas por asignación docente (US14: con notas, la asignación se desactiva en vez de borrarse). */
   notasPorAsignacion(asignacionIds: string[]): Promise<Record<string, number>>;
+  /** Bimestres del año con algún cierre de calificación CERRADO o PUBLICADO (US12: la regla nueva no los afecta). */
+  periodosConCierres(anioAcademicoId: string): Promise<string[]>;
 }
 
 let cierres: CierresProvider | null = null;
@@ -35,6 +37,8 @@ export interface MatriculasProvider {
   matriculadosPorSeccion(seccionIds: string[]): Promise<Record<string, number>>;
   /** Matrículas de la sección en cualquier estado (vigentes o históricas): si hay, no se elimina. */
   matriculasDeSeccion(seccionId: string): Promise<number>;
+  /** Matrículas del año en cualquier estado (un año con matrículas no se elimina). */
+  matriculasDelAnio(anioAcademicoId: string): Promise<number>;
 }
 
 let matriculas: MatriculasProvider | null = null;
@@ -100,4 +104,24 @@ export function horariosProvider(): HorariosProvider {
     throw new Error("HorariosProvider no configurado: falta importar '@/server/wiring' en la ruta");
   }
   return horarios;
+}
+
+// ---------- Personas (dueño: comunidad) ----------
+
+export interface PersonasProvider {
+  /** «Rosa Huamán»: nombre y primer apellido por persona (responsable de cada versión de regla, US12). */
+  nombresCortos(personaIds: string[]): Promise<Record<string, string>>;
+}
+
+let personas: PersonasProvider | null = null;
+
+export function configurarPersonasProvider(p: PersonasProvider) {
+  personas = p;
+}
+
+export function personasProvider(): PersonasProvider {
+  if (!personas) {
+    throw new Error("PersonasProvider no configurado: falta importar '@/server/wiring' en la ruta");
+  }
+  return personas;
 }

@@ -1,9 +1,10 @@
 // GET   /api/v1/academico/anios/{id} · Detalle del año con sus bimestres (US06, AD-02) · Solo Administrador
-// PATCH /api/v1/academico/anios/{id} · Corregir número o fechas de un año no cerrado (US06) · Solo Administrador
+// PATCH  /api/v1/academico/anios/{id} · Corregir número o fechas de un año no cerrado (US06) · Solo Administrador
+// DELETE /api/v1/academico/anios/{id} · Eliminar un año Planificado sin registros (US06, AD-02) · Solo Administrador
 import "@/server/wiring";
 import { ok, leerCuerpo, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { editarAnio, esquemasAcademico, obtenerAnio } from "@/modules/academico";
+import { editarAnio, eliminarAnio, esquemasAcademico, obtenerAnio } from "@/modules/academico";
 
 export const GET = ruta(async (req, { params }) => {
   await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
@@ -15,4 +16,9 @@ export const PATCH = ruta(async (req, { meta, params }) => {
   const anioId = esquemasAcademico.IdSchema.parse(params.id);
   const datos = await leerCuerpo(req, esquemasAcademico.EditarAnioSchema);
   return ok(await editarAnio(admin, anioId, datos, meta));
+});
+
+export const DELETE = ruta(async (req, { meta, params }) => {
+  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  return ok(await eliminarAnio(admin, esquemasAcademico.IdSchema.parse(params.id), meta));
 });

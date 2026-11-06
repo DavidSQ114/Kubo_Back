@@ -1,14 +1,19 @@
-// Pruebas de las reglas puras de académico: año académico (US06) y periodos de evaluación (US07). Ejecutar: npm test
+// Pruebas de las reglas puras de académico: año académico (US06) y periodos de evaluación (US07), incluidas la
+// eliminación de un año, la marca «Vigente» y la insignia de la barra superior (Sprint 2). Ejecutar: npm test
 import { describe, expect, it } from "vitest";
 import {
+  anioPorDefecto,
   buscarPeriodoVigente,
   ESTADO_INICIAL_ANIO,
   fechaEnLima,
   nombreBimestre,
+  periodoQueContiene,
   puedeCerrarse,
   seSolapan,
   siguienteEstado,
+  situacionDelAnio,
   verificarCambiosPermitidos,
+  verificarEliminacionAnio,
   verificarPeriodos,
   verificarRangoAnio,
   verificarTransicion,
@@ -185,5 +190,51 @@ describe("periodos de evaluación (US07)", () => {
   it("calcula el día en la hora de Lima", () => {
     // 03:00 UTC del 1 de junio todavía es 31 de mayo en Lima (UTC-5).
     expect(fechaEnLima(new Date("2026-06-01T03:00:00Z"))).toBe("2026-05-31");
+  });
+});
+
+describe("eliminar un año académico (AD-02, feedback del JP)", () => {
+  const sinUso = { secciones: 0, planes: 0, matriculas: 0 };
+  it("permite eliminar un año Planificado sin registros", () => {
+    expect(() => verificarEliminacionAnio("PLANIFICADO", sinUso)).not.toThrow();
+  });
+  it("rechaza un año que ya no está Planificado", () => {
+    for (const estado of ["EN_MATRICULA", "EN_CURSO", "EN_CIERRE", "CERRADO"] as const) {
+      esperarError(() => verificarEliminacionAnio(estado, sinUso), "ANIO_NO_ELIMINABLE");
+    }
+  });
+  it("rechaza un año con secciones, planes o matrículas", () => {
+    for (const uso of [{ secciones: 1 }, { planes: 2 }, { matriculas: 1 }]) {
+      esperarError(() => verificarEliminacionAnio("PLANIFICADO", { ...sinUso, ...uso }), "ANIO_CON_REGISTROS");
+    }
+  });
+});
+
+describe("situación del año para la barra superior (Sprint 2)", () => {
+  const enCurso = { anio: 2026, estado: "EN_CURSO" as const };
+  it("muestra el bimestre en curso", () => {
+    expect(situacionDelAnio(enCurso, BIMESTRES_2026, "2026-11-20").etiqueta).toBe("Año 2026 · Bimestre IV en curso");
+  });
+  it("entre bimestres o fuera de ellos son vacaciones", () => {
+    expect(situacionDelAnio(enCurso, BIMESTRES_2026, "2026-07-30").detalle).toBe("Vacaciones");
+    expect(situacionDelAnio(enCurso, [], "2026-07-30").detalle).toBe("Vacaciones");
+  });
+  it("en los demás estados muestra el estado", () => {
+    expect(situacionDelAnio({ anio: 2027, estado: "EN_MATRICULA" }, [], "2026-11-20").etiqueta).toBe(
+      "Año 2027 · En matrícula",
+    );
+  });
+  it("elige el año En curso, si no el En matrícula, si no el abierto más reciente; sin abiertos, ninguno", () => {
+    const anios = [
+      { id: "27", estado: "PLANIFICADO" as const },
+      { id: "26", estado: "EN_CURSO" as const },
+    ];
+    expect(anioPorDefecto(anios)?.id).toBe("26");
+    expect(anioPorDefecto([{ id: "27", estado: "PLANIFICADO" as const }])?.id).toBe("27");
+    expect(anioPorDefecto([{ id: "25", estado: "CERRADO" as const }])).toBeNull();
+  });
+  it("encuentra el bimestre que contiene el día aunque esté finalizado (marca «Vigente»)", () => {
+    expect(periodoQueContiene(BIMESTRES_2026, BIMESTRES_2026[0].fechaInicio)?.numero).toBe(1);
+    expect(periodoQueContiene(BIMESTRES_2026, "2026-01-15")).toBeNull();
   });
 });

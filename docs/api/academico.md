@@ -1,4 +1,4 @@
-# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias y asignaciones (US06–US11, US14)
+# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas y asignaciones (US06–US12, US14)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -15,12 +15,15 @@ Las fechas sin hora viajan como texto `AAAA-MM-DD` (por ejemplo `"2026-03-02"`),
 | `POST /academico/anios` | `{ anio, fechaInicio, fechaFin }` | `201 AnioAcademico` en estado `PLANIFICADO` |
 | `GET /academico/anios/{id}` | — | `AnioAcademico` |
 | `PATCH /academico/anios/{id}` | `{ anio?, fechaInicio?, fechaFin? }` (al menos uno) | `AnioAcademico` |
+| `DELETE /academico/anios/{id}` | — | `{ id, eliminado: true }` |
+| `GET /academico/anios/actual` | — | `SituacionAnio` o `null` · **cualquier rol con sesión** |
 | `POST /academico/anios/{id}/estado` | `{ estado }` | `AnioAcademico` con el nuevo estado |
 | `GET /academico/anios/{id}/periodos` | — | `Periodo[]` ordenados por número |
 | `PUT /academico/anios/{id}/periodos` | `{ periodos: [{ numero, fechaInicio, fechaFin }] × 4 }` | `Periodo[]` guardados |
 
 - `AnioAcademico`: `{ id, anio, fechaInicio, fechaFin, estado, periodos: Periodo[] }`.
-- `Periodo`: `{ id, numero, nombre, fechaInicio, fechaFin, estado }` (en `GET …/periodos` también `anioAcademicoId`). El nombre lo pone el sistema: «Bimestre I» … «Bimestre IV». Un bimestre nuevo nace `INACTIVO`.
+- `Periodo`: `{ id, numero, nombre, fechaInicio, fechaFin, estado, vigente }` (en `GET …/periodos` también `anioAcademicoId` y no trae `vigente`). El nombre lo pone el sistema: «Bimestre I» … «Bimestre IV». Un bimestre nuevo nace `INACTIVO`. `vigente` es `true` si el año está `EN_CURSO` y hoy (en Lima) cae en ese bimestre: AD-02 lo marca «Vigente»; no es un estado guardado.
+- `SituacionAnio`: `{ anio, estado, detalle, etiqueta }` del año por defecto (el `EN_CURSO`, si no el `EN_MATRICULA`, si no el abierto más reciente). `etiqueta` es la insignia de la barra superior: «Año 2026 · En matrícula», «Año 2026 · Bimestre IV en curso» (año en curso y hoy dentro de un bimestre) o «Año 2026 · Vacaciones» (en curso, fuera de los bimestres); en otros estados, el nombre del estado. Sin años abiertos, `null` y la insignia no se muestra.
 - `estado` del año: `PLANIFICADO` → `EN_MATRICULA` → `EN_CURSO` → `EN_CIERRE` → `CERRADO`.
 
 ## Reglas
@@ -35,14 +38,15 @@ Las fechas sin hora viajan como texto `AAAA-MM-DD` (por ejemplo `"2026-03-02"`),
 - Solo puede haber un año `EN_CURSO` (índice único parcial `uq_anio_en_curso`). Si dos solicitudes lo intentan a la vez, la segunda recibe `409 ANIO_EN_CURSO_EXISTENTE`.
 - Para pasar a `CERRADO`, todos los `cierre_calificacion` de los periodos del año deben estar `PUBLICADO`. Si falta alguno, o si no hay ninguno, se rechaza.
 - Un año `CERRADO` no se edita ni cambia de estado, y sus bimestres tampoco.
-- `PATCH` solo cambia número y fechas; los bimestres ya guardados deben seguir dentro del nuevo rango.
+- `PATCH` solo cambia número y fechas; los bimestres ya guardados deben seguir dentro del nuevo rango. AD-02 («Editar año») solo envía las fechas: el número sigue debiendo coincidir con la fecha de inicio.
+- `DELETE` solo elimina un año `PLANIFICADO` sin secciones, planes de estudio ni matrículas. Borra también sus bimestres, sus versiones de regla y sus parámetros propios.
 
 **Periodos de evaluación (US07)**
 
 - Se guardan los 4 bimestres juntos (números 1 a 4, sin repetir).
 - Cada bimestre: fin posterior al inicio y dentro del rango del año.
 - Los bimestres no pueden solaparse entre sí y van en orden: cada uno empieza después de que termina el anterior.
-- Un bimestre `FINALIZADO` no cambia: sus fechas deben llegar iguales (se pueden editar los demás).
+- Un bimestre `FINALIZADO` no cambia: sus fechas deben llegar iguales (se pueden editar los demás). En AD-02 los bimestres se muestran sin edición hasta pulsar «Editar bimestres».
 
 **Para otros módulos.** `periodoVigente(anioId, fecha?)` (en `@/modules/academico`) devuelve el bimestre en el que cae la fecha (por defecto hoy, en hora de Lima) si el año está `EN_CURSO` y el bimestre no está `FINALIZADO`; si no, `null`. Lo usará el registro de notas (US07, criterio 3).
 
@@ -60,6 +64,8 @@ Las fechas sin hora viajan como texto `AAAA-MM-DD` (por ejemplo `"2026-03-02"`),
 | `ANIO_SOLAPADO` | 409 | «Ya existe un año académico activo en ese rango de fechas» |
 | `ANIO_DUPLICADO` | 409 | Ya existe un año con ese número (solo puede pasar si el otro está `CERRADO`; si no, se detecta antes el solapamiento) |
 | `ANIO_EN_CURSO_EXISTENTE` | 409 | Ya hay otro año `EN_CURSO` |
+| `ANIO_NO_ELIMINABLE` | 409 | «Solo se puede eliminar un año en estado «Planificado». Este año está «…».» |
+| `ANIO_CON_REGISTROS` | 409 | «No se puede eliminar el año porque ya tiene secciones, planes de estudio o matrículas. Puedes editar sus fechas.» (`details`: `{ secciones, planes, matriculas }`) |
 | `TRANSICION_NO_PERMITIDA` | 422 | El estado pedido no es el siguiente (retroceder, saltar o repetir) |
 | `NOTAS_SIN_PUBLICAR` | 422 | «No se puede cerrar el año: existen notas sin publicar» |
 | `ANIO_CERRADO` | 422 | El año está cerrado y no se puede modificar |
@@ -78,12 +84,13 @@ Se registran en `registro_auditoria`, en la misma transacción que el cambio y c
 |---|---|
 | `CREAR_ANIO_ACADEMICO` | — → año creado |
 | `EDITAR_ANIO_ACADEMICO` | número y fechas antes → después |
+| `ELIMINAR_ANIO_ACADEMICO` | año, fechas y bimestres → — |
 | `CAMBIAR_ESTADO_ANIO_ACADEMICO` | `{ estado }` → `{ estado }` |
 | `GUARDAR_PERIODOS_EVALUACION` | bimestres antes → después |
 
 ## Dependencias entre módulos
 
-`academico` no lee `cierre_calificacion` (es de `evaluacion`): declara el puerto `CierresProvider` en `puertos.ts`, `evaluacion` lo implementa y `src/server/wiring.ts` los conecta.
+`academico` no lee `cierre_calificacion` (es de `evaluacion`): declara el puerto `CierresProvider` en `puertos.ts`, `evaluacion` lo implementa y `src/server/wiring.ts` los conecta. Para eliminar un año cuenta sus matrículas con `MatriculasProvider.matriculasDelAnio` (dueño: `matricula`).
 
 ---
 
@@ -208,7 +215,7 @@ Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`
 - Una o más («Debes seleccionar al menos una competencia»), sin repetir.
 - Solo del área curricular del curso: «La competencia no pertenece al área del curso».
 - Una competencia desactivada en el catálogo no se agrega, pero puede quedarse si ya estaba.
-- Peso opcional y mayor a 0. El orden es la posición en la lista si no se envía.
+- Peso opcional y mayor a 0, en **todas** las competencias del plan o en **ninguna** (`400 PESOS_INCOMPLETOS`, Sprint 2): el promedio ponderado (US12) no tiene un cálculo claro con pesos a medias. AD-04 muestra los pesos solo si la regla vigente del año es «Promedio ponderado». El orden es la posición en la lista si no se envía.
 - No se quita una competencia con notas registradas: «No se puede eliminar una competencia con notas registradas.»
 - Solo en un año que no esté `CERRADO`.
 
@@ -225,6 +232,7 @@ Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`
 | `COMPETENCIAS_REQUERIDAS` | 400 | La lista de competencias está vacía |
 | `COMPETENCIA_DUPLICADA` | 400 | Una competencia aparece dos veces |
 | `PESO_INVALIDO` | 400 | Peso de 0 o negativo |
+| `PESOS_INCOMPLETOS` | 400 | «Indica el peso de todas las competencias del curso o de ninguna.» |
 | `AREA_REQUERIDA` | 400 | El área no existe o está desactivada |
 | `NO_ENCONTRADO` | 404 | El curso, el año, el grado o el plan no existen |
 | `CURSO_DUPLICADO` | 409 | «Ya existe un curso registrado con ese código» |
@@ -245,6 +253,78 @@ Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`
 - Las notas por competencia se leen de `evaluacion` (dueño de `nota`) por el mismo puerto `CierresProvider`, que suma `notasPorCompetenciaPlan`.
 - Las secciones con el curso en un horario publicado se leen de `horarios` (dueño de `horario` y `detalle_horario`) por el puerto nuevo `HorariosProvider`, que implementa un módulo `horarios` mínimo.
 - Las asignaciones docentes (`asignacion_docente`) son de `academico`, así que se leen en su propio repositorio.
+
+---
+
+# Reglas de consolidación (US12, RF10)
+
+Pantalla: AD-05 «Reglas de evaluación» (`/admin/reglas`). Todas las rutas exigen el rol `ADMINISTRADOR`. La regla dice cómo se calcula un logro a partir de varios: el cierre del bimestre (US39, Sprint 3) usará la regla vigente del año.
+
+## Endpoints · solo `ADMINISTRADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /academico/anios/{id}/reglas` | — | `ReglasDelAnio` |
+| `POST /academico/anios/{id}/reglas` | `{ metodo, criterioDesempate?, rigeDesdeId? }` | `201 ReglasDelAnio` con la nueva versión vigente |
+| `POST /academico/reglas/simular` | `{ metodo, criterioDesempate?, logros: Logro[], pesos?: (number \| null)[] }` | `{ logro, frecuencias, empatados, promedio }` |
+
+- `ReglasDelAnio`: `{ anio: { id, anio, estado }, editable, vigente: VersionRegla | null, historial: VersionRegla[], periodos }`. `editable` es `false` si el año está `CERRADO`. `historial` va de la versión más nueva a la más antigua e incluye la vigente.
+- `VersionRegla`: `{ id, version, nombre, metodo, criterioDesempate, estado: "VIGENTE" | "ARCHIVADA", rigeDesde: { id, numero, nombre } | null, aplicadaA, responsable, creadaEn }`. `aplicadaA` es el texto de la columna del historial: «Desde Bimestre III», «Bimestres I y II», «Todo el año» o «Sin aplicar (reemplazada)». `responsable` es «Nombre Apellido» de quien la guardó.
+- `periodos`: `{ id, numero, nombre, estado, cerrado }[]`. `cerrado` es `true` si el bimestre está `FINALIZADO` o tiene algún cierre de calificación `CERRADO` o `PUBLICADO`.
+- `metodo`: `MODA` o `PONDERADO`. `criterioDesempate`: `MAYOR_JERARQUIA` (por defecto) o `MENOR_JERARQUIA`; en el ponderado no se usa y se guarda `MAYOR_JERARQUIA`.
+- `simular`: `frecuencias` cuenta cada logro (`{ AD, A, B, C }`), `empatados` lista los logros empatados en la moda (vacío si no hay empate) y `promedio` es el valor del ponderado sin redondear (`null` en la moda). No guarda nada: es la vista previa de AD-05.
+
+## Reglas
+
+**Cálculo (`consolidarLogro`)**
+
+- **Moda:** el logro que más se repite. Si empatan dos o más, decide el criterio: `MAYOR_JERARQUIA` elige el más alto (AD > A > B > C) y `MENOR_JERARQUIA`, el más bajo. Los pesos no cuentan.
+- **Promedio ponderado:** AD = 4, A = 3, B = 2, C = 1. Cada logro se multiplica por su peso (`competencia_plan.peso`) y se divide entre la suma de pesos. Sin pesos (o todos `null`), todos pesan igual. Los pesos son relativos: 25/25/50 da lo mismo que 1/1/2.
+- **Redondeo del ponderado:** al logro más cercano. **Un empate exacto ,5 sube al logro mayor** (`MITAD_HACIA_ARRIBA`): 1,5 → B, 2,5 → A, 3,5 → AD. Así un estudiante a medio camino no baja de nivel. Antes de redondear se conservan 6 decimales, para que un 3,4999999… de coma flotante cuente como 3,5.
+- Lista vacía → `422 LOGROS_VACIOS`. Un peso por logro, todos o ninguno, y mayores a 0 (`PESOS_NO_CORRESPONDEN`, `PESOS_INCOMPLETOS`, `PESO_INVALIDO`).
+
+**Versiones**
+
+- Cada guardado crea una versión nueva (`version` + 1, empezando en 1) en estado `VIGENTE`; la anterior pasa a `ARCHIVADA` y queda como historial de solo lectura. No se editan versiones. Una sola vigente por año (`uq_regla_vigente_por_anio`).
+- La versión rige desde el bimestre elegido (`rigeDesdeId`). Si el año tiene bimestres es obligatorio y debe ser un bimestre del año que no esté cerrado. Sin bimestres, rige desde el inicio del año (`rigeDesde: null`).
+- Un bimestre usa la versión más reciente cuyo «rige desde» es ese bimestre o uno anterior (`versionAplicable`). Los bimestres ya cerrados conservan la versión con que se calcularon: AD-05 avisa «Este cambio no afectará los bimestres ya cerrados» antes de confirmar.
+- Guardar el mismo método y criterio que la vigente → `409 REGLA_SIN_CAMBIOS`.
+- Año `CERRADO` → `422 ANIO_CERRADO`.
+- La configuración guardada (`configuracion`) incluye la escala, el redondeo y quién la registró, para que el cálculo sea reproducible.
+
+**Fuera de alcance.** «El docente no puede cerrar el bimestre sin calificar todas las competencias» es parte del cierre de bimestre (US39, Sprint 3). AD-05 lo muestra bloqueado.
+
+**Para otros módulos.** `@/modules/academico` exporta `consolidarLogro(logros, regla, pesos?)`, `versionAplicable(versiones, numeroBimestre)`, `LOGROS`, `VALOR_LOGRO` y `REDONDEO_PONDERADO`. Ejemplo para US39:
+
+```ts
+import { consolidarLogro } from "@/modules/academico";
+const logro = consolidarLogro(["AD", "A", "AD", "A"], { metodo: "MODA", criterioDesempate: "MAYOR_JERARQUIA" }); // "AD"
+```
+
+## Códigos de error
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Método o criterio no válidos (`ULTIMO_REGISTRO` no se configura en US12), logros que no son AD, A, B o C |
+| `RIGE_DESDE_REQUERIDO` | 400 | «Elige el bimestre desde el que regirá la nueva versión.» |
+| `PESOS_INCOMPLETOS` | 400 | «Indica el peso de todas las competencias del curso o de ninguna.» |
+| `PESOS_NO_CORRESPONDEN` | 400 | Simulación con una cantidad de pesos distinta a la de logros |
+| `PESO_INVALIDO` | 400 | Peso de 0 o negativo |
+| `NO_ENCONTRADO` | 404 | El año no existe |
+| `REGLA_SIN_CAMBIOS` | 409 | «La regla vigente ya usa ese método y criterio de desempate.» |
+| `RIGE_DESDE_INVALIDO` | 422 | «El bimestre elegido no pertenece a este año académico.» |
+| `RIGE_DESDE_CERRADO` | 422 | «Ese bimestre ya está cerrado: la nueva versión debe regir desde un bimestre abierto.» |
+| `LOGROS_VACIOS` | 422 | «No hay logros para consolidar.» |
+| `ANIO_CERRADO` | 422 | El año está cerrado |
+
+## Auditoría (RF03)
+
+`CREAR_VERSION_REGLA_CONSOLIDACION` (entidad `regla_consolidacion`): versión anterior (método, criterio, rige desde) → nueva, en la misma transacción.
+
+## Dependencias entre módulos
+
+- Los bimestres con cierres cerrados o publicados se leen de `evaluacion` por `CierresProvider.periodosConCierres`.
+- El nombre del responsable se lee de `comunidad` por el puerto nuevo `PersonasProvider`.
 
 ---
 

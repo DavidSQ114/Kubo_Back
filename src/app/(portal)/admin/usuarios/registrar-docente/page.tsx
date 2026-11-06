@@ -1,4 +1,4 @@
-// AD-07 · Registrar docente y asignar cursos (US13, US14)
+// AD-07 · Registrar docente y asignar cursos (US13, US14, defecto D-07)
 "use client";
 
 import Link from "next/link";
@@ -8,15 +8,18 @@ import { anioPorDefecto, type AnioAcademico } from "@/components/admin/anio";
 import type { Area } from "@/components/admin/cursos";
 import {
   AccesoSistema,
+  avisoPersonaExistente,
   CargaAcademica,
   cuerpoDocente,
   DatosPersonales,
   DOCENTE_VACIO,
   erroresDeRegistro,
+  MENSAJE_DOCENTE_EXISTENTE,
   validarDocente,
   VistaPreviaCorreo,
   type DatosDocente,
   type DocenteRegistrado,
+  type PersonaEncontrada,
 } from "@/components/admin/docentes";
 import type { Docente } from "@/components/admin/grados";
 import { alertaError } from "@/components/admin/PortalAdmin";
@@ -41,6 +44,56 @@ export default function RegistrarDocentePage() {
   const [registrado, setRegistrado] = useState<DocenteRegistrado | null>(null);
   const [docenteId, setDocenteId] = useState("");
   const [anioElegido, setAnioElegido] = useState<string | null>(null);
+  // D-07: persona ya registrada con el DNI escrito (null = DNI nuevo); se consulta al completar los 8 dígitos
+  const [consulta, setConsulta] = useState<{ dni: string; persona: PersonaEncontrada | null } | null>(null);
+  const dniCompleto = /^\d{8}$/.test(datos.dni.trim()) ? datos.dni.trim() : null;
+
+  useEffect(() => {
+    if (!dniCompleto || registrado) return;
+    let vigente = true;
+    async function buscar() {
+      try {
+        const persona = await api<PersonaEncontrada | null>(`/comunidad/personas?dni=${dniCompleto}`);
+        if (!vigente) return;
+        setConsulta({ dni: dniCompleto!, persona });
+        // se usan los datos registrados: el backend solo agrega el perfil y no cambia los datos de la persona
+        if (persona && !persona.perfiles.includes("DOCENTE")) {
+          setDatos((d) => ({
+            ...d,
+            nombres: persona.nombres,
+            apellidos: persona.apellidos,
+            email: persona.email ?? d.email,
+          }));
+        }
+      } catch {
+        if (vigente) setConsulta(null); // sin la consulta, el backend igual valida al registrar
+      }
+    }
+    void buscar();
+    return () => {
+      vigente = false;
+    };
+  }, [dniCompleto, registrado]);
+
+  const persona = consulta && consulta.dni === dniCompleto ? consulta.persona : null;
+  const yaEsDocente = persona?.perfiles.includes("DOCENTE") ?? false;
+  const agregaPerfil = Boolean(persona) && !yaEsDocente;
+  const camposBloqueados: (keyof DatosDocente)[] = agregaPerfil
+    ? persona!.email
+      ? ["nombres", "apellidos", "email"]
+      : ["nombres", "apellidos"]
+    : [];
+
+  function cambiarDatos(cambios: Partial<DatosDocente>) {
+    setDatos((d) => {
+      const nuevo = { ...d, ...cambios };
+      // al cambiar el DNI de una persona ya registrada, se liberan los datos que se habían llenado con ella
+      if (cambios.dni !== undefined && agregaPerfil && cambios.dni.trim() !== dniCompleto) {
+        return { ...nuevo, nombres: "", apellidos: "", email: persona!.email ? "" : nuevo.email };
+      }
+      return nuevo;
+    });
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -67,6 +120,7 @@ export default function RegistrarDocentePage() {
   async function registrar() {
     setGeneral(null);
     const e = validarDocente(datos);
+    if (yaEsDocente) e.dni = MENSAJE_DOCENTE_EXISTENTE;
     setErrores(e);
     if (Object.keys(e).length) return;
     setEnviando(true);
@@ -136,10 +190,14 @@ export default function RegistrarDocentePage() {
         <div className="flex min-w-0 flex-col gap-6">
           <DatosPersonales
             datos={datos}
-            errores={errores}
+            errores={yaEsDocente && !registrado ? { ...errores, dni: MENSAJE_DOCENTE_EXISTENTE } : errores}
             especialidades={catalogos.especialidades}
             bloqueado={Boolean(registrado)}
-            onCambiar={(cambios) => setDatos((d) => ({ ...d, ...cambios }))}
+            camposBloqueados={camposBloqueados}
+            aviso={
+              agregaPerfil && !registrado ? <Alerta tipo="info" titulo={avisoPersonaExistente(persona!)} /> : undefined
+            }
+            onCambiar={cambiarDatos}
           />
           <CargaAcademica
             docentes={catalogos.docentes}
@@ -155,9 +213,10 @@ export default function RegistrarDocentePage() {
             datos={datos}
             registrado={registrado}
             enviarCorreo={enviarCorreo}
+            cuentaExistente={agregaPerfil && persona!.tieneCuenta}
             onEnviarCorreo={setEnviarCorreo}
           />
-          {!registrado && <VistaPreviaCorreo datos={datos} />}
+          {!registrado && !(agregaPerfil && persona!.tieneCuenta) && <VistaPreviaCorreo datos={datos} />}
         </div>
       </div>
 
@@ -172,7 +231,7 @@ export default function RegistrarDocentePage() {
               Cancelar
             </Boton>
             <Boton onClick={registrar} cargando={enviando} icono="check-blanco">
-              Registrar docente
+              {agregaPerfil ? "Agregar perfil Docente" : "Registrar docente"}
             </Boton>
           </>
         )}

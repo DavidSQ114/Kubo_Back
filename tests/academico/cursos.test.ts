@@ -96,14 +96,23 @@ describe("grados y horas del curso (US10)", () => {
 describe("competencias del plan (US11, RF09)", () => {
   it("acepta competencias del área del curso y numera el orden por posición", () => {
     const r = prepararCompetencias(
-      [{ competenciaId: "mat-c2" }, { competenciaId: "mat-c1", peso: 1.5 }],
+      [
+        { competenciaId: "mat-c2", peso: 1 },
+        { competenciaId: "mat-c1", peso: 1.5 },
+      ],
       MAT,
       catalogo,
     );
     expect(r).toEqual([
-      { competenciaId: "mat-c2", orden: 1, peso: null },
+      { competenciaId: "mat-c2", orden: 1, peso: 1 },
       { competenciaId: "mat-c1", orden: 2, peso: 1.5 },
     ]);
+  });
+  it("exige el peso de todas las competencias o de ninguna (US12, promedio ponderado)", () => {
+    const mezcla = [{ competenciaId: "mat-c2" }, { competenciaId: "mat-c1", peso: 40 }];
+    esperarError(() => prepararCompetencias(mezcla, MAT, catalogo), "PESOS_INCOMPLETOS");
+    const sinPesos = prepararCompetencias([{ competenciaId: "mat-c2" }, { competenciaId: "mat-c1" }], MAT, catalogo);
+    expect(sinPesos.map((c) => c.peso)).toEqual([null, null]);
   });
   it("respeta el orden indicado", () => {
     expect(prepararCompetencias([{ competenciaId: "mat-c1", orden: 3 }], MAT, catalogo)[0].orden).toBe(3);

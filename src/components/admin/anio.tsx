@@ -1,12 +1,13 @@
 // Piezas de AD-02 Año académico y bimestres (US06, US07): tipos, badges, formulario «Registrar año académico»,
-// tabla «Periodos de evaluación» y el modal que confirma cada cambio de estado del año.
+// tabla «Periodos de evaluación» (con modo «Editar bimestres»), los modales «Editar año» y «Eliminar año» y el que
+// confirma cada cambio de estado del año.
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fechaDia } from "@/lib/formato";
-import { alertaError } from "./PortalAdmin";
+import { alertaError, avisarCambioDeAnio } from "./PortalAdmin";
 
 export type EstadoAnio = "PLANIFICADO" | "EN_MATRICULA" | "EN_CURSO" | "EN_CIERRE" | "CERRADO";
 export type EstadoPeriodo = "INACTIVO" | "ACTIVO" | "EN_CIERRE" | "FINALIZADO";
@@ -18,6 +19,8 @@ export interface Periodo {
   fechaInicio: string;
   fechaFin: string;
   estado: EstadoPeriodo;
+  /** El año está En curso y hoy cae en este bimestre: se marca «Vigente» (no es un estado guardado). */
+  vigente: boolean;
 }
 
 export interface AnioAcademico {
@@ -160,6 +163,7 @@ export function FormularioAnio({ onCreado }: { onCreado: (anio: AnioAcademico) =
         body: { anio: Number(datos.anio) || undefined, fechaInicio: datos.fechaInicio, fechaFin: datos.fechaFin },
       });
       limpiar();
+      avisarCambioDeAnio();
       onCreado(creado);
     } catch (err) {
       const campo = err instanceof ApiError ? CAMPO_DEL_ERROR[err.codigo] : undefined;
@@ -261,20 +265,31 @@ function registroNotas(p: Periodo | undefined): string {
 }
 
 /**
- * Los 4 bimestres se guardan juntos. Para reiniciarlo con datos nuevos, el padre cambia su key (estándar 6.5).
- * Los bimestres FINALIZADOS y los años CERRADOS se muestran sin edición.
+ * Los 4 bimestres se guardan juntos. Se muestran sin edición hasta pulsar «Editar bimestres» (feedback del JP);
+ * un año sin bimestres empieza ya en edición. Los bimestres FINALIZADOS y los años CERRADOS no se editan.
+ * Para reiniciarlo con datos nuevos, el padre cambia su key (estándar 6.5). «acciones» son los botones del año.
  */
 export function FormularioBimestres({
   anio,
+  acciones,
   onGuardado,
 }: {
   anio: AnioAcademico;
+  acciones?: ReactNode;
   onGuardado: (mensaje: string) => void;
 }) {
   const [filas, setFilas] = useState(() => filasIniciales(anio));
+  const sinBimestres = anio.periodos.length === 0;
+  const soloLectura = anio.estado === "CERRADO";
+  const [editando, setEditando] = useState(sinBimestres && !soloLectura);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const soloLectura = anio.estado === "CERRADO";
+
+  function cancelar() {
+    setFilas(filasIniciales(anio));
+    setError(null);
+    setEditando(sinBimestres);
+  }
 
   function cambiar(numero: number, campo: "fechaInicio" | "fechaFin", valor: string) {
     setFilas((actuales) => actuales.map((f) => (f.numero === numero ? { ...f, [campo]: valor } : f)));
@@ -290,6 +305,7 @@ export function FormularioBimestres({
     setError(null);
     try {
       await api(`/academico/anios/${anio.id}/periodos`, { method: "PUT", body: { periodos: filas } });
+      avisarCambioDeAnio();
       onGuardado(`Se guardaron los bimestres del año ${anio.anio}.`);
     } catch (err) {
       setError(mensajeDe(err));
@@ -307,7 +323,7 @@ export function FormularioBimestres({
             subtitulo="Divide el año en 4 bimestres sin solapamientos"
           />
         </div>
-        {!soloLectura && (
+        {editando ? (
           <>
             <Boton
               type="button"
@@ -318,9 +334,23 @@ export function FormularioBimestres({
             >
               Agregar bimestre
             </Boton>
+            {!sinBimestres && (
+              <Boton type="button" variante="secundario" onClick={cancelar} disabled={guardando}>
+                Cancelar
+              </Boton>
+            )}
             <Boton type="submit" icono="check-blanco" cargando={guardando}>
-              Guardar configuración
+              {sinBimestres ? "Guardar configuración" : "Guardar cambios"}
             </Boton>
+          </>
+        ) : (
+          <>
+            {acciones}
+            {!soloLectura && (
+              <Boton type="button" variante="secundario" icono="act-edit" onClick={() => setEditando(true)}>
+                Editar bimestres
+              </Boton>
+            )}
           </>
         )}
       </div>
@@ -342,14 +372,23 @@ export function FormularioBimestres({
           <tbody>
             {filas.map((f) => {
               const guardado = anio.periodos.find((p) => p.numero === f.numero);
-              const editable = !soloLectura && guardado?.estado !== "FINALIZADO";
+              const editable = editando && guardado?.estado !== "FINALIZADO";
               const nombre = nombreBimestre(f.numero);
               return (
                 <tr
                   key={f.numero}
                   className="border-b border-borde text-[14px] leading-[1.4] text-texto last:border-b-0"
                 >
-                  <td className="px-4 py-3 font-semibold">{nombre}</td>
+                  <td className="px-4 py-3 font-semibold">
+                    <span className="flex flex-wrap items-center gap-2">
+                      {nombre}
+                      {guardado?.vigente && (
+                        <Badge tono="verde" punto>
+                          Vigente
+                        </Badge>
+                      )}
+                    </span>
+                  </td>
                   {(["fechaInicio", "fechaFin"] as const).map((campo) => (
                     <td key={campo} className={`px-4 ${editable ? "py-2" : "py-3"}`}>
                       {editable ? (
@@ -379,6 +418,11 @@ export function FormularioBimestres({
         </table>
       </div>
 
+      {editando && anio.periodos.some((p) => p.estado === "FINALIZADO") && (
+        <p className="text-[13px] leading-[1.4] text-texto-3">
+          Los bimestres finalizados no se editan: sus fechas se muestran como texto.
+        </p>
+      )}
       <div className="flex items-start gap-2">
         <Icono nombre="icon-info" size={16} className="mt-px" />
         <p className="text-[13px] leading-[1.4] text-texto-3">
@@ -441,6 +485,7 @@ export function ModalCambioEstado({
     setError(null);
     try {
       await api(`/academico/anios/${anio.id}/estado`, { method: "POST", body: { estado: destino } });
+      avisarCambioDeAnio();
       onListo(`El año ${anio.anio} pasó a «${ESTILO_ESTADO_ANIO[destino].texto}».`);
       cerrar();
     } catch (err) {
@@ -482,6 +527,147 @@ export function ModalCambioEstado({
           <p className="text-[14px] leading-[1.5] text-texto-2">{transicion.detalle(anio.anio)}</p>
         </>
       )}
+      {error && <Alerta tipo="error" titulo={error} />}
+    </Modal>
+  );
+}
+
+// ---------- Editar y eliminar el año (feedback del JP) ----------
+
+/**
+ * «Editar año»: cambia las fechas de inicio y fin. El número no cambia, así que la fecha de inicio debe seguir en
+ * ese año; el backend valida además el solapamiento con otros años y que los bimestres sigan dentro.
+ */
+export function ModalEditarAnio({
+  anio,
+  onCerrar,
+  onListo,
+}: {
+  anio: AnioAcademico;
+  onCerrar: () => void;
+  onListo: (mensaje: string) => void;
+}) {
+  const [fechas, setFechas] = useState({ fechaInicio: anio.fechaInicio, fechaFin: anio.fechaFin });
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const sinCambios = fechas.fechaInicio === anio.fechaInicio && fechas.fechaFin === anio.fechaFin;
+
+  async function guardar() {
+    setEnviando(true);
+    setErrores({});
+    setError(null);
+    try {
+      await api(`/academico/anios/${anio.id}`, { method: "PATCH", body: fechas });
+      avisarCambioDeAnio();
+      onListo(`Se actualizaron las fechas del año ${anio.anio}.`);
+      onCerrar();
+    } catch (err) {
+      if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
+        setErrores(err.detalles as Record<string, string>);
+      else if (err instanceof ApiError && err.codigo === "ANIO_NO_COINCIDE") {
+        setErrores({ fechaInicio: `La fecha de inicio debe estar en ${anio.anio}: el año debe coincidir con ella.` });
+      } else if (err instanceof ApiError && err.codigo === "FECHAS_INVALIDAS") setErrores({ fechaFin: err.message });
+      else setError(alertaError(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="icon-calendar"
+      tonoIcono="azul"
+      titulo={`Editar año ${anio.anio}`}
+      subtitulo="Cambia la vigencia del año. Sus bimestres deben quedar dentro de las nuevas fechas."
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton onClick={guardar} cargando={enviando} disabled={sinCambios} icono="check-blanco">
+            Guardar cambios
+          </Boton>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Campo
+          etiqueta="Fecha de inicio"
+          obligatorio
+          type="date"
+          icono="icon-calendar-gris"
+          value={fechas.fechaInicio}
+          onChange={(e) => setFechas((f) => ({ ...f, fechaInicio: e.target.value }))}
+          error={errores.fechaInicio}
+        />
+        <Campo
+          etiqueta="Fecha de fin"
+          obligatorio
+          type="date"
+          icono="icon-calendar-gris"
+          value={fechas.fechaFin}
+          onChange={(e) => setFechas((f) => ({ ...f, fechaFin: e.target.value }))}
+          error={errores.fechaFin}
+        />
+      </div>
+      {error && <Alerta tipo="error" titulo={error} />}
+    </Modal>
+  );
+}
+
+/** «Eliminar año»: solo un año Planificado sin secciones, planes ni matrículas; si no, el backend explica por qué. */
+export function ModalEliminarAnio({
+  anio,
+  onCerrar,
+  onListo,
+}: {
+  anio: AnioAcademico;
+  onCerrar: () => void;
+  onListo: (mensaje: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function eliminar() {
+    setEnviando(true);
+    setError(null);
+    try {
+      await api(`/academico/anios/${anio.id}`, { method: "DELETE" });
+      avisarCambioDeAnio();
+      onListo(`Se eliminó el año académico ${anio.anio}.`);
+      onCerrar();
+    } catch (err) {
+      setError(mensajeDe(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="act-trash"
+      titulo={`Eliminar el año ${anio.anio}`}
+      subtitulo="Esta acción no se puede deshacer."
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton variante="peligro" onClick={eliminar} cargando={enviando}>
+            Eliminar año
+          </Boton>
+        </>
+      }
+    >
+      <p className="text-[14px] leading-[1.5] text-texto-2">
+        Se eliminarán el año {anio.anio} ({fechaDia(anio.fechaInicio)} – {fechaDia(anio.fechaFin)}) y sus bimestres.
+        Solo es posible mientras está «Planificado» y no tiene secciones, planes de estudio ni matrículas.
+      </p>
       {error && <Alerta tipo="error" titulo={error} />}
     </Modal>
   );
