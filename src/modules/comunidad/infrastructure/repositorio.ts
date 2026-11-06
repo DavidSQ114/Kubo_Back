@@ -1,6 +1,7 @@
 // comunidad/infrastructure: consultas de persona y sus perfiles.
 // Excepción documentada: las LECTURAS del listado de usuarios incluyen la relación persona.usuario
-// (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada.
+// (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada, y la búsqueda por DNI
+// (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio.
 // Las ESCRITURAS sobre usuario solo las hace identidad.
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
@@ -45,6 +46,24 @@ export const personas = {
     db.persona.findUnique({
       where: { id: personaId },
       select: { id: true, nombres: true, apellidos: true, activo: true, ...selectPerfiles },
+    }),
+
+  porIds: (ids: string[], db: Db = prisma) =>
+    db.persona.findMany({ where: { id: { in: ids } }, select: { id: true, nombres: true, apellidos: true } }),
+
+  /** Persona del DNI con sus perfiles y el correo de su cuenta (D-07). */
+  detallePorDni: (dni: string, db: Db = prisma) =>
+    db.persona.findUnique({
+      where: { dni },
+      select: {
+        id: true,
+        dni: true,
+        nombres: true,
+        apellidos: true,
+        email: true,
+        usuario: { select: { email: true } },
+        ...selectPerfiles,
+      },
     }),
 
   porDni: (dni: string, db: Db = prisma) =>

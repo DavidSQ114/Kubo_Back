@@ -35,6 +35,15 @@ export const FiltroUsuariosSchema = z.object({
   tamano: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+// ---------- Personas por DNI (D-07) ----------
+
+export const ConsultaPersonaSchema = z.object({
+  dni: z
+    .string({ message: "Ingresa el DNI" })
+    .trim()
+    .regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
+});
+
 // ---------- Docentes (US13) ----------
 
 const MENSAJE_EMAIL = "Formato de correo electrónico inválido";

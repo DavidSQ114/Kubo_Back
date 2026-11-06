@@ -8,6 +8,7 @@ import type { DocenteResumen } from "@/modules/academico";
 import { asegurarCuenta, enviarBienvenida, type Autenticado } from "@/modules/identidad";
 import { accionPerfilDocente, normalizarTelefono } from "../domain/docentes";
 import { docentes, personas } from "../infrastructure/repositorio";
+import { personaParaPerfil } from "./personas";
 
 type FilaDocente = Awaited<ReturnType<typeof docentes.activos>>[number];
 
@@ -41,13 +42,14 @@ export interface DatosDocente {
 /**
  * Registra un Docente (US13). Si el DNI es de una persona nueva, crea persona, perfil y cuenta con contraseña
  * temporal (debe cambiarla al ingresar, US54). Si la persona ya existe con otro perfil, solo le agrega el perfil
- * Docente: no cambia sus datos ni crea otra cuenta. Todo en una transacción; el correo va después.
+ * Docente: no cambia sus datos ni crea otra cuenta, y los nombres enviados deben coincidir con los registrados
+ * (D-07, PERSONA_NO_COINCIDE). Todo en una transacción; el correo va después.
  */
 export async function registrarDocente(admin: Autenticado, datos: DatosDocente, urlBase: string, meta: MetaSolicitud) {
   let resultado;
   try {
     resultado = await prisma.$transaction(async (tx) => {
-      const existente = await personas.porDni(datos.dni, tx);
+      const existente = await personaParaPerfil(tx, datos);
       const persona =
         existente ??
         (await personas.crear(
