@@ -160,4 +160,9 @@ export const erroresMatricula = {
     ),
   reciboNoConfirmado: () =>
     new ErrorApp("RECIBO_NO_CONFIRMADO", "No se puede generar un recibo de un pago no confirmado", 422),
+
+  // ---------- Portal del apoderado (US42, US43, US44) ----------
+  /** 403 aunque el estudiante exista: el apoderado no distingue entre «no existe» y «no es tuyo». */
+  estudianteNoVinculado: () =>
+    new ErrorApp("ESTUDIANTE_NO_VINCULADO", "No tienes acceso a la información de este estudiante.", 403),
 };

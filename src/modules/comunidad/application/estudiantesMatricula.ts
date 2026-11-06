@@ -151,6 +151,37 @@ export async function nombresDeUsuarios(ids: string[]): Promise<Record<string, N
   );
 }
 
+export interface EstudianteVinculado {
+  estudianteId: string;
+  /** Código para pagar en el banco (AP-02 «¿Cómo pagar?»): el DNI del estudiante, solo para su apoderado. */
+  dni: string;
+  nombres: string;
+  apellidos: string;
+  parentesco: string;
+}
+
+/**
+ * Estudiantes activos vinculados a la persona como apoderado activo (US42). El portal del apoderado autoriza cada
+ * consulta contra esta lista: un estudiante fuera de ella no se muestra (403).
+ */
+export async function estudiantesVinculadosAPersona(personaId: string): Promise<EstudianteVinculado[]> {
+  const filas = await estudiantesMatricula.vinculadosAPersona(personaId);
+  const vistos = new Set<string>();
+  return filas.flatMap((v) => {
+    if (vistos.has(v.estudiante.id)) return [];
+    vistos.add(v.estudiante.id);
+    return [
+      {
+        estudianteId: v.estudiante.id,
+        dni: v.estudiante.persona.dni,
+        nombres: v.estudiante.persona.nombres,
+        apellidos: v.estudiante.persona.apellidos,
+        parentesco: v.parentesco,
+      },
+    ];
+  });
+}
+
 export interface ResponsableDePago {
   nombreCompleto: string;
   parentesco: string;

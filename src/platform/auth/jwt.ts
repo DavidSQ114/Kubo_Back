@@ -48,7 +48,35 @@ export async function firmarSeleccion(c: ClaimsSeleccion): Promise<string> {
     .sign(clave());
 }
 
-async function verificar(token: string, tipo: "acceso" | "seleccion") {
+/** El estudiante elegido en el portal del apoderado se recuerda 7 días (lo mismo que «Recordarme»). */
+export const DIAS_ESTUDIANTE_ELEGIDO = 7;
+
+/**
+ * Estudiante elegido por el apoderado (US42). Es solo una preferencia de navegación, ligada al usuario: el servidor
+ * vuelve a verificar el vínculo en cada consulta.
+ */
+export interface ClaimsEstudianteElegido {
+  sub: string; // usuarioId
+  est: string; // estudianteId
+}
+
+export async function firmarEstudianteElegido(c: ClaimsEstudianteElegido): Promise<string> {
+  return new SignJWT({ est: c.est, typ: "estudiante" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(c.sub)
+    .setIssuer(EMISOR)
+    .setIssuedAt()
+    .setExpirationTime(`${DIAS_ESTUDIANTE_ELEGIDO}d`)
+    .sign(clave());
+}
+
+export async function verificarEstudianteElegido(token: string): Promise<ClaimsEstudianteElegido | null> {
+  const p = await verificar(token, "estudiante");
+  if (!p || typeof p.est !== "string") return null;
+  return { sub: p.sub as string, est: p.est };
+}
+
+async function verificar(token: string, tipo: "acceso" | "seleccion" | "estudiante") {
   try {
     const { payload } = await jwtVerify(token, clave(), { issuer: EMISOR, algorithms: ["HS256"] });
     if (payload.typ !== tipo || typeof payload.sub !== "string") return null;

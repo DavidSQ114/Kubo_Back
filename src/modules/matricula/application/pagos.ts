@@ -376,7 +376,7 @@ export const registrarPagoAnual = (
 ) => registrarOperacion(admin, { ...datos, conceptoIds: [] }, meta, { matriculaId });
 
 /** ¿La operación se registró como pago anual? (lo guarda REGISTRAR_PAGO en la bitácora). */
-async function esPagoAnual(operacionId: string) {
+export async function esPagoAnual(operacionId: string) {
   const [registro] = await eventosDeAuditoria({
     entidad: ENTIDAD,
     entidadIds: [operacionId],
