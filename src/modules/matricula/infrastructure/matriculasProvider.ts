@@ -13,4 +13,5 @@ export const matriculasProviderMatricula: MatriculasProvider = {
     return Object.fromEntries(filas.map((f) => [f.seccionId as string, f._count._all]));
   },
   matriculasDeSeccion: (seccionId) => prisma.matricula.count({ where: { seccionId } }),
+  matriculasDelAnio: (anioAcademicoId) => prisma.matricula.count({ where: { anioAcademicoId } }),
 };

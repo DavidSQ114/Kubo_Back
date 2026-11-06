@@ -1,9 +1,11 @@
 // academico/infrastructure: único lugar que consulta las tablas de académico: anio_academico, periodo_evaluacion,
-// grado, seccion, aula, area_curricular, competencia, curso, plan_estudio, competencia_plan y asignacion_docente
-// (el módulo es su dueño).
+// grado, seccion, aula, area_curricular, competencia, curso, plan_estudio, competencia_plan, asignacion_docente,
+// regla_consolidacion y parametro_institucion (el módulo es su dueño).
 // Las columnas DATE se convierten aquí a texto "AAAA-MM-DD": el resto del módulo no ve objetos Date.
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
+import type { CriterioDesempate, EstadoRegla, MetodoConsolidacion } from "../domain/consolidacion";
 import type { AnioExistente, PeriodoGuardado } from "../domain/reglas";
 import type { EstadoCurso } from "../domain/cursos";
 import type { EstadoSeccion } from "../domain/secciones";
@@ -105,6 +107,22 @@ export const anios = {
       select: selectAnio,
     });
     return filaAnio(a);
+  },
+
+  /** Secciones y planes de estudio del año: con alguno, el año ya no se elimina. */
+  async uso(id: string, db: Db = prisma) {
+    const [secciones, planes] = await Promise.all([
+      db.seccion.count({ where: { anioAcademicoId: id } }),
+      db.planEstudio.count({ where: { anioAcademicoId: id } }),
+    ]);
+    return { secciones, planes };
+  },
+
+  /** Borra el año con sus bimestres (cascada), sus versiones de regla y sus parámetros propios. */
+  async eliminar(id: string, tx: Tx) {
+    await tx.reglaConsolidacion.deleteMany({ where: { anioAcademicoId: id } });
+    await tx.parametroInstitucion.deleteMany({ where: { anioAcademicoId: id } });
+    await tx.anioAcademico.delete({ where: { id }, select: { id: true } });
   },
 
   /** Bloquea la fila del año hasta el fin de la transacción (cambios de estado concurrentes). */
@@ -576,5 +594,90 @@ export const asignaciones = {
 
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM asignacion_docente WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+};
+
+// ---------- Reglas de consolidación (US12) ----------
+
+export interface ReglaFila {
+  id: string;
+  anioAcademicoId: string;
+  nombre: string;
+  metodo: MetodoConsolidacion;
+  criterioDesempate: CriterioDesempate;
+  configuracion: unknown;
+  version: number;
+  estado: EstadoRegla;
+  rigeDesde: { id: string; numero: number; nombre: string } | null;
+  creadaEn: string;
+}
+
+const selectRegla = {
+  id: true,
+  anioAcademicoId: true,
+  nombre: true,
+  metodo: true,
+  criterioDesempate: true,
+  configuracion: true,
+  version: true,
+  estado: true,
+  createdAt: true,
+  rigeDesde: { select: { id: true, numero: true, nombre: true } },
+} as const;
+
+function filaRegla(r: {
+  id: string;
+  anioAcademicoId: string;
+  nombre: string;
+  metodo: string;
+  criterioDesempate: string;
+  configuracion: unknown;
+  version: number;
+  estado: string;
+  createdAt: Date;
+  rigeDesde: { id: string; numero: number; nombre: string } | null;
+}): ReglaFila {
+  const { createdAt, ...resto } = r;
+  return {
+    ...resto,
+    metodo: r.metodo as MetodoConsolidacion,
+    criterioDesempate: r.criterioDesempate as CriterioDesempate,
+    estado: r.estado as EstadoRegla,
+    creadaEn: createdAt.toISOString(),
+  };
+}
+
+export const reglas = {
+  /** Versiones del año, de la más nueva a la más antigua. */
+  async delAnio(anioAcademicoId: string, db: Db = prisma): Promise<ReglaFila[]> {
+    const filas = await db.reglaConsolidacion.findMany({
+      where: { anioAcademicoId },
+      orderBy: { version: "desc" },
+      select: selectRegla,
+    });
+    return filas.map(filaRegla);
+  },
+
+  /** Archiva la versión VIGENTE (uq_regla_vigente_por_anio admite una sola por año). */
+  archivarVigente: (anioAcademicoId: string, tx: Tx) =>
+    tx.reglaConsolidacion.updateMany({
+      where: { anioAcademicoId, estado: "VIGENTE" },
+      data: { estado: "ARCHIVADA" },
+    }),
+
+  async crear(
+    data: {
+      anioAcademicoId: string;
+      rigeDesdeId: string | null;
+      nombre: string;
+      metodo: MetodoConsolidacion;
+      criterioDesempate: CriterioDesempate;
+      configuracion: Prisma.InputJsonValue;
+      version: number;
+    },
+    tx: Tx,
+  ): Promise<ReglaFila> {
+    const r = await tx.reglaConsolidacion.create({ data: { ...data, estado: "VIGENTE" }, select: selectRegla });
+    return filaRegla(r);
   },
 };

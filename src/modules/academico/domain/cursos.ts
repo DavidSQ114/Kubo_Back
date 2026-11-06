@@ -108,6 +108,9 @@ export function prepararCompetencias(
   yaEnElPlan: string[] = [],
 ): CompetenciaElegida[] {
   if (pedidas.length === 0) throw E.competenciasRequeridas();
+  // el promedio ponderado (US12) necesita el peso de todas o de ninguna: mezclarlas no tiene un cálculo claro
+  const conPeso = pedidas.filter((p) => p.peso != null).length;
+  if (conPeso > 0 && conPeso < pedidas.length) throw E.pesosIncompletos();
   const porId = new Map(catalogo.map((c) => [c.id, c]));
   const vistas = new Set<string>();
   return pedidas.map((p, i) => {

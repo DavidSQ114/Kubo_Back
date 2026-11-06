@@ -1,6 +1,8 @@
-// academico/schemas: validación de entradas de año, periodos, secciones, aulas, cursos y competencias (RNF16).
+// academico/schemas: validación de entradas de año, periodos, secciones, aulas, cursos, competencias y reglas de
+// consolidación (RNF16).
 // Mensajes en español (RNF09).
 import { z } from "zod";
+import { CRITERIOS_CONFIGURABLES, LOGROS, METODOS_CONSOLIDACION } from "./domain/consolidacion";
 import { ESTADOS_CURSO } from "./domain/cursos";
 import { CANTIDAD_BIMESTRES } from "./domain/reglas";
 import { ESTADOS_SECCION } from "./domain/secciones";
@@ -178,4 +180,28 @@ export const AsignacionSchema = z.object({
 export const ConsultaAsignacionesSchema = z.object({
   docenteId: z.string({ message: "Indica el docente" }).uuid("Docente no válido"),
   anioId: z.string().uuid("Año académico no válido").optional(),
+});
+
+// ---------- Reglas de consolidación (US12) ----------
+
+const metodo = z.enum(METODOS_CONSOLIDACION, { message: "Elige el método de consolidación" });
+const criterioDesempate = z.enum(CRITERIOS_CONFIGURABLES, { message: "Elige el criterio de desempate" });
+const MAXIMO_LOGROS_SIMULACION = 50;
+
+export const ReglaSchema = z.object({
+  metodo,
+  criterioDesempate: criterioDesempate.optional(),
+  rigeDesdeId: z.string().uuid("Bimestre no válido").nullable().optional(),
+});
+
+export const SimulacionSchema = z.object({
+  metodo,
+  criterioDesempate: criterioDesempate.optional(),
+  logros: z
+    .array(z.enum(LOGROS, { message: "Los logros deben ser AD, A, B o C" }), { message: "Envía la lista de logros" })
+    .max(MAXIMO_LOGROS_SIMULACION),
+  pesos: z
+    .array(z.number({ message: "El peso debe ser un número mayor a 0" }).nullable())
+    .max(MAXIMO_LOGROS_SIMULACION)
+    .optional(),
 });
