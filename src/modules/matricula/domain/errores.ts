@@ -70,4 +70,44 @@ export const erroresMatricula = {
       409,
       { pagos },
     ),
+
+  // ---------- Traslado de sección (US19, M-05) ----------
+  noTrasladable: (estado: string) =>
+    new ErrorApp(
+      "MATRICULA_NO_TRASLADABLE",
+      `Solo se traslada una matrícula «Matriculado». Esta está «${estado}».`,
+      409,
+    ),
+  trasladoOtroGrado: () =>
+    new ErrorApp("TRASLADO_OTRO_GRADO", "Solo se permite el traslado entre secciones del mismo grado", 422),
+  mismaSeccion: () =>
+    new ErrorApp("MISMA_SECCION", "El estudiante ya está en esa sección. Elige otra sección de destino.", 422),
+  destinoSinVacantes: (matriculados: number, aforo: number) =>
+    new ErrorApp("DESTINO_SIN_VACANTES", "La sección destino no tiene vacantes disponibles", 409, {
+      matriculados,
+      aforo,
+    }),
+  fechaTrasladoInvalida: (mensaje: string) => new ErrorApp("FECHA_TRASLADO_INVALIDA", mensaje, 422),
+
+  // ---------- Retiro del estudiante (US57, M-18) ----------
+  noRetirable: (estado: string) =>
+    new ErrorApp(
+      "MATRICULA_NO_RETIRABLE",
+      `Solo se registra el retiro de una matrícula «Matriculado». Esta está «${estado}».`,
+      409,
+    ),
+  motivoRetiroRequerido: () => new ErrorApp("MOTIVO_RETIRO_REQUERIDO", "Seleccione el motivo del retiro", 422),
+  fechaRetiroInvalida: (mensaje: string) => new ErrorApp("FECHA_RETIRO_INVALIDA", mensaje, 422),
+
+  // ---------- Ficha de matrícula en PDF (US20) ----------
+  fichaDatosPendientes: (pendientes: string[]) =>
+    new ErrorApp("FICHA_DATOS_PENDIENTES", "No se puede generar la ficha: existen datos obligatorios pendientes", 422, {
+      pendientes,
+    }),
+  fichaNoDisponible: (estado: string) =>
+    new ErrorApp(
+      "FICHA_NO_DISPONIBLE",
+      `La ficha solo se genera para una matrícula «Matriculado» o «Retirado». Esta está «${estado}».`,
+      409,
+    ),
 };

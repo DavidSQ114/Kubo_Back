@@ -19,6 +19,7 @@ import {
 } from "@/modules/academico";
 import { estudianteParaMatricula, idsEstudiantesPorBusqueda, resumenEstudiantes } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
+import { NOMBRE_MOTIVO_RETIRO } from "../domain/cambios";
 import {
   esExtemporanea,
   generarCronograma,
@@ -357,21 +358,26 @@ export async function listarMatriculas(f: FiltroMatriculas) {
 export async function detalleMatricula(matriculaId: string) {
   const m = await matriculas.porId(matriculaId);
   if (!m) throw E.noEncontrada();
-  const [estudiante, anio, secciones, lista, pagos] = await Promise.all([
+  const [estudiante, anio, secciones, lista, pagos, tramos] = await Promise.all([
     estudianteParaMatricula(m.estudianteId),
     obtenerAnio(m.anioAcademicoId),
     listarSecciones(m.anioAcademicoId),
     cuotas.deMatricula(m.id),
     contarPagosVigentes(m.id),
+    historial.deMatricula(m.id),
   ]);
   const seccion = secciones.find((s) => s.id === m.seccionId);
+  const nombreSeccion = (id: string) => {
+    const s = secciones.find((x) => x.id === id);
+    return s ? etiquetaSeccion(s) : "—";
+  };
   const vigentes = lista.filter((c) => c.estado !== "ANULADO");
   return {
     matriculaId: m.id,
     estado: m.estado,
     fechaMatricula: m.fechaMatricula,
     modalidadPago: m.modalidadPago,
-    anio: { id: anio.id, anio: anio.anio },
+    anio: { id: anio.id, anio: anio.anio, fechaInicio: anio.fechaInicio, fechaFin: anio.fechaFin },
     estudiante: estudiante && {
       estudianteId: estudiante.estudianteId,
       nombreCompleto: estudiante.nombreCompleto,
@@ -381,6 +387,8 @@ export async function detalleMatricula(matriculaId: string) {
       ? {
           id: seccion.id,
           nombre: etiquetaSeccion(seccion),
+          gradoId: seccion.grado.id,
+          grado: seccion.grado.nombre,
           aula: seccion.aula?.nombre ?? null,
           tutor: seccion.tutor?.nombreCompleto ?? null,
         }
@@ -394,7 +402,20 @@ export async function detalleMatricula(matriculaId: string) {
       total: deCentimos(vigentes.reduce((suma, c) => suma + aCentimos(c.monto), 0)),
     },
     anulacion: m.anuladoEn ? { anuladoEn: m.anuladoEn, motivo: m.motivoAnulacion } : null,
+    retiro:
+      m.retiradoEn && m.motivoRetiro
+        ? {
+            fechaRetiro: fechaEnLima(m.retiradoEn),
+            motivo: m.motivoRetiro,
+            nombreMotivo: NOMBRE_MOTIVO_RETIRO[m.motivoRetiro],
+            detalle: m.detalleRetiro,
+          }
+        : null,
+    historialSecciones: tramos.map((t) => ({ ...t, seccion: nombreSeccion(t.seccionId) })),
     pagos,
     puedeAnular: (m.estado === "EN_PROCESO" || m.estado === "MATRICULADO") && pagos === 0,
+    puedeTrasladar: m.estado === "MATRICULADO",
+    puedeRetirar: m.estado === "MATRICULADO",
+    puedeGenerarFicha: m.estado === "MATRICULADO" || m.estado === "RETIRADO",
   };
 }

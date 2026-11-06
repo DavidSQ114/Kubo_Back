@@ -393,6 +393,34 @@ export const estudiantesMatricula = {
       select: { id: true, gradoIngresoId: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
     }),
 
+  /** Datos completos del estudiante y de sus apoderados para la ficha de matrícula (US20). */
+  paraFicha: (id: string, db: Db = prisma) =>
+    db.estudiante.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        colegioProcedencia: true,
+        gradoIngreso: { select: { nombre: true } },
+        persona: {
+          select: { dni: true, nombres: true, apellidos: true, fechaNacimiento: true, sexo: true, direccion: true },
+        },
+        vinculosApoderado: {
+          orderBy: [{ esPrincipal: "desc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            parentesco: true,
+            esPrincipal: true,
+            autorizado: true,
+            apoderado: {
+              select: {
+                persona: { select: { dni: true, nombres: true, apellidos: true, telefono: true, email: true } },
+              },
+            },
+          },
+        },
+      },
+    }),
+
   /** Ids de los estudiantes cuyo nombre, apellido o inicio de DNI coincide con la búsqueda. */
   async idsPorBusqueda(q: string, db: Db = prisma) {
     const filas = await db.estudiante.findMany({ where: { persona: busquedaPersona(q) }, select: { id: true } });

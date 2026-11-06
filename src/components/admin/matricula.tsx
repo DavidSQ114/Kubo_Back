@@ -1,8 +1,9 @@
 // Piezas de AD-10 Matrícula en sección (US18) y su cronograma (US21): montos del año, tarjetas de sección, resumen
-// con el cronograma, listado de matrículas y los modales de detalle y de anulación (M-19).
+// con el cronograma, listado de matrículas y los modales de detalle y de anulación (M-19). Los modales de traslado,
+// retiro y ficha PDF (US19, US57, US20) están en cambiosMatricula.tsx.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fechaDia } from "@/lib/formato";
@@ -90,14 +91,32 @@ export interface DetalleMatricula {
   estado: EstadoMatricula;
   fechaMatricula: string;
   modalidadPago: ModalidadPago;
-  anio: { id: string; anio: number };
+  anio: { id: string; anio: number; fechaInicio: string; fechaFin: string };
   estudiante: { estudianteId: string; nombreCompleto: string; dni: string } | null;
-  seccion: { id: string; nombre: string; aula: string | null; tutor: string | null } | null;
+  seccion: {
+    id: string;
+    nombre: string;
+    gradoId: string;
+    grado: string;
+    aula: string | null;
+    tutor: string | null;
+  } | null;
   apoderados: (ApoderadoDelEstudiante & { esResponsablePago: boolean })[];
   cronograma: { cuotas: Cuota[]; total: string };
   anulacion: { anuladoEn: string; motivo: string | null } | null;
+  retiro: { fechaRetiro: string; motivo: string; nombreMotivo: string; detalle: string | null } | null;
+  historialSecciones: {
+    seccionId: string;
+    seccion: string;
+    fechaInicio: string;
+    fechaFin: string | null;
+    motivo: string | null;
+  }[];
   pagos: number;
   puedeAnular: boolean;
+  puedeTrasladar: boolean;
+  puedeRetirar: boolean;
+  puedeGenerarFicha: boolean;
 }
 
 export const MENSAJE_INCOMPLETA = "Complete la sección y el apoderado responsable para confirmar la matrícula";
@@ -348,14 +367,24 @@ export function TablaCronograma({ cuotas, total, conEstado }: { cuotas: Cuota[];
 
 // ---------- Detalle y anulación (M-19) ----------
 
+/**
+ * Detalle de una matrícula. `acciones` agrega botones al pie (trasladar, retirar, ficha PDF) y `extra` contenido al
+ * final (historial de secciones); se pasan desde la página para no acoplar este archivo con sus modales.
+ */
 export function ModalDetalle({
   matriculaId,
   onCerrar,
   onAnular,
+  acciones,
+  extra,
+  aviso,
 }: {
   matriculaId: string;
   onCerrar: () => void;
   onAnular: (d: DetalleMatricula) => void;
+  acciones?: (d: DetalleMatricula) => ReactNode;
+  extra?: (d: DetalleMatricula) => ReactNode;
+  aviso?: string | null;
 }) {
   const [detalle, setDetalle] = useState<DetalleMatricula | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -385,6 +414,7 @@ export function ModalDetalle({
       }
       pie={
         <>
+          {detalle && acciones?.(detalle)}
           {detalle?.puedeAnular && (
             <Boton variante="peligro" icono="icon-ban-blanco" onClick={() => onAnular(detalle)}>
               Anular matrícula
@@ -397,6 +427,7 @@ export function ModalDetalle({
       }
     >
       {error && <Alerta tipo="error" titulo={error} />}
+      {aviso && <Alerta tipo="error" titulo={aviso} />}
       {!detalle && !error && (
         <div className="flex items-center gap-3 text-[14px] text-texto-2">
           <Spinner claro={false} /> Cargando…
@@ -426,6 +457,14 @@ export function ModalDetalle({
               <dd className="text-texto">{detalle.modalidadPago === "ANUAL" ? "Anual" : "Mensual"}</dd>
             </div>
           </dl>
+          {detalle.retiro && (
+            <Alerta
+              tipo="info"
+              titulo={`Retirado el ${fechaDia(detalle.retiro.fechaRetiro)} · ${detalle.retiro.nombreMotivo}`}
+            >
+              {detalle.retiro.detalle ?? "Sin detalle adicional."}
+            </Alerta>
+          )}
           {detalle.anulacion && (
             <Alerta tipo="info" titulo={`Anulada el ${fechaDia(detalle.anulacion.anuladoEn.slice(0, 10))}`}>
               {detalle.anulacion.motivo}
@@ -453,6 +492,7 @@ export function ModalDetalle({
               <p className="text-[14px] text-texto-2">Aún no tiene cronograma: se genera al confirmar la matrícula.</p>
             )}
           </div>
+          {extra?.(detalle)}
         </>
       )}
     </Modal>
