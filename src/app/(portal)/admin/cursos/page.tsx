@@ -81,6 +81,26 @@ export default function CursosCompetenciasPage() {
     };
   }, [catalogos, anioId, recarga]);
 
+  // método de la regla vigente del año (US12): con «Promedio ponderado» se editan los pesos de las competencias
+  const [regla, setRegla] = useState<{ anioId: string; metodo: "MODA" | "PONDERADO" | null } | null>(null);
+  useEffect(() => {
+    if (!anioId) return;
+    let vigente = true;
+    async function cargar() {
+      try {
+        const r = await api<{ vigente: { metodo: "MODA" | "PONDERADO" } | null }>(`/academico/anios/${anioId}/reglas`);
+        if (vigente) setRegla({ anioId: anioId!, metodo: r.vigente?.metodo ?? null });
+      } catch {
+        if (vigente) setRegla({ anioId: anioId!, metodo: null }); // sin la regla, los pesos simplemente no se muestran
+      }
+    }
+    void cargar();
+    return () => {
+      vigente = false;
+    };
+  }, [anioId]);
+  const metodoVigente = regla && regla.anioId === anioId ? regla.metodo : null;
+
   useEffect(() => {
     if (!aviso) return;
     const t = setTimeout(() => setAviso(null), 6000);
@@ -295,6 +315,7 @@ export default function CursosCompetenciasPage() {
                     key={`${curso.id}-${anio.id}`}
                     curso={curso}
                     soloLectura={cerrado}
+                    metodoVigente={metodoVigente}
                     onGuardado={recargar}
                   />
                 )}

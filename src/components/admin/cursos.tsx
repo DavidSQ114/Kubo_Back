@@ -271,15 +271,21 @@ export function PanelGrados({
               />
               <span className="flex-1" />
               {marcado && (
-                <input
-                  aria-label={`Horas semanales de ${g.nombre}`}
-                  type="number"
-                  min={1}
-                  value={horas[g.id]}
-                  disabled={soloLectura}
-                  onChange={(e) => setHoras((h) => ({ ...h, [g.id]: e.target.value }))}
-                  className="w-14 rounded-md border border-borde px-2 py-1 text-right text-[14px] outline-none focus:border-kubo-azul"
-                />
+                <label className="flex items-center gap-1.5">
+                  <input
+                    aria-label={`Horas semanales de ${g.nombre}`}
+                    type="number"
+                    min={1}
+                    placeholder="Ej.: 6"
+                    value={horas[g.id]}
+                    disabled={soloLectura}
+                    onChange={(e) => setHoras((h) => ({ ...h, [g.id]: e.target.value }))}
+                    className="w-16 rounded-md border border-borde px-2 py-1 text-right text-[14px] outline-none placeholder:text-texto-3 focus:border-kubo-azul"
+                  />
+                  <span aria-hidden className="text-[12px] whitespace-nowrap text-texto-3">
+                    h/sem
+                  </span>
+                </label>
               )}
             </div>
           );
@@ -306,47 +312,72 @@ function FilaCompetencia({
   notas,
   onCambiar,
   deshabilitada,
+  peso,
 }: {
   competencia: Competencia;
   marcada: boolean;
   notas?: number;
   onCambiar: (v: boolean) => void;
   deshabilitada?: boolean;
+  /** Peso en el promedio ponderado (US12): solo se muestra si la regla vigente es «Promedio ponderado». */
+  peso?: { valor: string; onCambiar: (valor: string) => void };
 }) {
   return (
-    <label
-      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 ${
+    <div
+      className={`flex items-center gap-3 rounded-lg border px-3 py-3 ${
         marcada ? "border-kubo-azul bg-[rgba(27,77,137,0.04)]" : "border-borde"
-      } ${deshabilitada ? "cursor-not-allowed opacity-70" : ""}`}
+      } ${deshabilitada ? "opacity-70" : ""}`}
     >
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={marcada}
-        disabled={deshabilitada}
-        onChange={(e) => onCambiar(e.target.checked)}
-      />
-      <span
-        className={`flex size-[18px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] peer-focus-visible:ring-2 peer-focus-visible:ring-kubo-azul/40 ${
-          marcada ? "border-verde-oscuro bg-verde-oscuro" : "border-texto-3 bg-white"
-        }`}
+      <label
+        className={`flex min-w-0 flex-1 items-center gap-3 ${deshabilitada ? "cursor-not-allowed" : "cursor-pointer"}`}
       >
-        {marcada && <Icono nombre="check-blanco" size={14} />}
-      </span>
-      <span className="rounded bg-fondo px-2 py-0.5 text-[12px] font-bold text-texto-2">
-        {codigoCorto(competencia.codigo)}
-      </span>
-      <span className="flex-1 text-[14px] leading-[1.4] text-texto">
-        {competencia.nombre}
-        {!competencia.activo && <span className="text-texto-3"> (desactivada en el catálogo)</span>}
-      </span>
-      {notas !== undefined &&
-        (notas > 0 ? (
-          <Badge tono="gris">{plural(notas, "nota", "notas")}</Badge>
-        ) : (
-          <span className="text-[12px] whitespace-nowrap text-texto-3">Sin notas</span>
-        ))}
-    </label>
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          checked={marcada}
+          disabled={deshabilitada}
+          onChange={(e) => onCambiar(e.target.checked)}
+        />
+        <span
+          className={`flex size-[18px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] peer-focus-visible:ring-2 peer-focus-visible:ring-kubo-azul/40 ${
+            marcada ? "border-verde-oscuro bg-verde-oscuro" : "border-texto-3 bg-white"
+          }`}
+        >
+          {marcada && <Icono nombre="check-blanco" size={14} />}
+        </span>
+        <span className="rounded bg-fondo px-2 py-0.5 text-[12px] font-bold text-texto-2">
+          {codigoCorto(competencia.codigo)}
+        </span>
+        <span className="flex-1 text-[14px] leading-[1.4] text-texto">
+          {competencia.nombre}
+          {!competencia.activo && <span className="text-texto-3"> (desactivada en el catálogo)</span>}
+        </span>
+        {notas !== undefined &&
+          (notas > 0 ? (
+            <Badge tono="gris">{plural(notas, "nota", "notas")}</Badge>
+          ) : (
+            <span className="text-[12px] whitespace-nowrap text-texto-3">Sin notas</span>
+          ))}
+      </label>
+      {peso && marcada && (
+        <span className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={1}
+            step="any"
+            aria-label={`Peso de ${competencia.nombre}`}
+            placeholder="Ej.: 25"
+            value={peso.valor}
+            disabled={deshabilitada}
+            onChange={(e) => peso.onCambiar(e.target.value)}
+            className="w-20 rounded-md border border-borde bg-white px-2 py-1 text-right text-[14px] outline-none placeholder:text-texto-3 focus:border-kubo-azul"
+          />
+          <span aria-hidden className="text-[12px] text-texto-3">
+            %
+          </span>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -354,16 +385,22 @@ function FilaCompetencia({
 function EditorCompetencias({
   detalle,
   soloLectura,
+  ponderado,
   onDescartar,
   onGuardado,
 }: {
   detalle: DetallePlan;
   soloLectura: boolean;
+  /** La regla vigente del año es «Promedio ponderado» (US12): se editan los pesos. */
+  ponderado: boolean;
   onDescartar: () => void;
   onGuardado: (mensaje: string) => void;
 }) {
   const guardadas = new Map(detalle.competencias.map((c) => [c.competencia.id, c]));
   const [elegidas, setElegidas] = useState<string[]>(detalle.competencias.map((c) => c.competencia.id));
+  const [pesos, setPesos] = useState<Record<string, string>>(() =>
+    Object.fromEntries(detalle.competencias.map((c) => [c.competencia.id, c.peso == null ? "" : String(c.peso)])),
+  );
   const [bloqueo, setBloqueo] = useState<CompetenciaPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -385,10 +422,23 @@ function EditorCompetencias({
       setError("Debes seleccionar al menos una competencia");
       return;
     }
-    // el orden sigue el catálogo (C1, C2…); el peso guardado se conserva
+    // el orden sigue el catálogo (C1, C2…); sin regla ponderada, el peso guardado se conserva
     const competencias = visibles
       .filter((c) => elegidas.includes(c.id))
-      .map((c, i) => ({ competenciaId: c.id, orden: i + 1, peso: guardadas.get(c.id)?.peso ?? null }));
+      .map((c, i) => ({
+        competenciaId: c.id,
+        orden: i + 1,
+        peso: ponderado ? (pesos[c.id]?.trim() ? Number(pesos[c.id]) : null) : (guardadas.get(c.id)?.peso ?? null),
+      }));
+    const conPeso = competencias.filter((c) => c.peso != null);
+    if (conPeso.some((c) => !(c.peso! > 0))) {
+      setError("El peso debe ser un número mayor a 0");
+      return;
+    }
+    if (conPeso.length > 0 && conPeso.length < competencias.length) {
+      setError("Indica el peso de todas las competencias del curso o de ninguna.");
+      return;
+    }
     setEnviando(true);
     try {
       await api(`/academico/planes/${detalle.plan.id}/competencias`, { method: "PUT", body: { competencias } });
@@ -416,9 +466,15 @@ function EditorCompetencias({
             notas={guardadas.get(c.id)?.notas ?? (elegidas.includes(c.id) ? 0 : undefined)}
             deshabilitada={soloLectura}
             onCambiar={(v) => cambiar(c, v)}
+            peso={
+              ponderado
+                ? { valor: pesos[c.id] ?? "", onCambiar: (valor) => setPesos((p) => ({ ...p, [c.id]: valor })) }
+                : undefined
+            }
           />
         ))}
       </div>
+      {ponderado && <TotalPesos pesos={elegidas.map((id) => pesos[id] ?? "")} />}
       {bloqueo && (
         <Alerta tipo="error" titulo="No se puede desmarcar una competencia con notas registradas">
           “{bloqueo.competencia.nombre}” tiene {plural(bloqueo.notas, "nota registrada", "notas registradas")}.
@@ -439,13 +495,33 @@ function EditorCompetencias({
   );
 }
 
+const PORCENTAJE_COMPLETO = 100;
+
+/** «Total 100 %»: los pesos son relativos, pero sumar 100 ayuda a leerlos como porcentajes (AD-05). */
+function TotalPesos({ pesos }: { pesos: string[] }) {
+  const total = pesos.reduce((s, p) => s + (Number(p) || 0), 0);
+  const completo = Math.abs(total - PORCENTAJE_COMPLETO) < 0.01;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-fondo px-3 py-2 text-[14px]">
+      <span className="font-semibold text-texto">Total de pesos</span>
+      <span className="flex-1 text-[12px] text-texto-3">
+        Se usan en el promedio ponderado. Son relativos; se recomienda que sumen 100 %.
+      </span>
+      <span className={`font-bold ${completo ? "text-verde-oscuro" : "text-ambar-oscuro"}`}>{total} %</span>
+    </div>
+  );
+}
+
 export function PanelCompetencias({
   curso,
   soloLectura,
+  metodoVigente,
   onGuardado,
 }: {
   curso: Curso;
   soloLectura: boolean;
+  /** Método de la regla de consolidación vigente del año (US12), o null si no hay regla. */
+  metodoVigente: "MODA" | "PONDERADO" | null;
   onGuardado: (mensaje: string) => void;
 }) {
   const [planElegido, setPlanElegido] = useState<string | null>(null);
@@ -515,6 +591,17 @@ export function PanelCompetencias({
             Son fijas para todos los colegios, estatales y particulares. Aquí solo eliges cuáles evalúa este curso en{" "}
             {plan.grado.nombre}.
           </Alerta>
+          {metodoVigente === "PONDERADO" ? (
+            <p className="text-[13px] leading-[1.4] text-texto-2">
+              La regla vigente es «Promedio ponderado»: indica el peso de cada competencia para calcular el logro del
+              curso.
+            </p>
+          ) : (
+            <p className="text-[13px] leading-[1.4] text-texto-3">
+              Los pesos de las competencias se editan aquí cuando la regla vigente del año es «Promedio ponderado»
+              (Reglas de evaluación).
+            </p>
+          )}
           {!actual && (
             <div className="flex items-center gap-3 text-[14px] text-texto-2">
               <Spinner claro={false} /> Cargando competencias…
@@ -526,6 +613,7 @@ export function PanelCompetencias({
               key={`${plan.id}-${version}`}
               detalle={actual.detalle}
               soloLectura={soloLectura}
+              ponderado={metodoVigente === "PONDERADO"}
               onDescartar={() => setVersion((v) => v + 1)}
               onGuardado={(mensaje) => {
                 setVersion((v) => v + 1);
