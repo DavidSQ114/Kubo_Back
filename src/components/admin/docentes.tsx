@@ -1,10 +1,10 @@
-// Piezas de AD-07 Registrar docente y asignar cursos (US13, US14): datos personales, acceso al sistema,
-// vista previa del correo de bienvenida y carga académica (cursos y secciones del docente).
+// Piezas de AD-07 Registrar docente y asignar cursos (US13, US14): datos personales (con la búsqueda del DNI de
+// una persona ya registrada, D-07), acceso al sistema, vista previa del correo y carga académica del docente.
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Casilla, Icono, Spinner, Tarjeta } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, NOMBRE_ROL, type Rol } from "@/lib/api";
 import type { AnioAcademico } from "./anio";
 import type { Curso } from "./cursos";
 import { nombreSeccion, Selector, separarErrores, type Docente, type Seccion } from "./grados";
@@ -51,7 +51,32 @@ interface Asignacion {
   horarioPublicado: boolean;
 }
 
-const CAMPO_POR_CODIGO: Record<string, string> = { DOCENTE_EXISTENTE: "dni", EMAIL_EN_USO: "email" };
+const CAMPO_POR_CODIGO: Record<string, string> = {
+  DOCENTE_EXISTENTE: "dni",
+  PERSONA_NO_COINCIDE: "dni",
+  EMAIL_EN_USO: "email",
+};
+
+/** Respuesta de GET /comunidad/personas?dni= (D-07). */
+export interface PersonaEncontrada {
+  personaId: string;
+  nombres: string;
+  apellidos: string;
+  nombreCompleto: string;
+  email: string | null;
+  perfiles: Rol[];
+  /** Ya tiene cuenta: no se crea otra ni se envía contraseña temporal. */
+  tieneCuenta: boolean;
+}
+
+/** El mismo mensaje que da el backend (DOCENTE_EXISTENTE) cuando el DNI ya es de un docente activo. */
+export const MENSAJE_DOCENTE_EXISTENTE = "Ya existe un usuario registrado con este DNI";
+
+/** «Este DNI ya está registrado: Rosa Huamán (Apoderado). Se le agregará el perfil Docente con sus datos actuales.» */
+export function avisoPersonaExistente(p: PersonaEncontrada) {
+  const perfiles = p.perfiles.length ? p.perfiles.map((r) => NOMBRE_ROL[r]).join(", ") : "sin perfiles activos";
+  return `Este DNI ya está registrado: ${p.nombreCompleto} (${perfiles}). Se le agregará el perfil Docente con sus datos actuales.`;
+}
 
 /** Datos del formulario → cuerpo de POST /comunidad/docentes (los opcionales vacíos no se envían). */
 export const cuerpoDocente = (d: DatosDocente, enviarCorreo: boolean) => ({
@@ -116,17 +141,23 @@ export function DatosPersonales({
   errores,
   especialidades,
   bloqueado,
+  camposBloqueados = [],
+  aviso,
   onCambiar,
 }: {
   datos: DatosDocente;
   errores: Record<string, string>;
   especialidades: string[];
   bloqueado: boolean;
+  /** Campos que vienen de la persona ya registrada con ese DNI (D-07): no se editan. */
+  camposBloqueados?: (keyof DatosDocente)[];
+  /** Aviso bajo los campos, por ejemplo que el DNI ya está registrado. */
+  aviso?: ReactNode;
   onCambiar: (cambios: Partial<DatosDocente>) => void;
 }) {
   const campo = (clave: keyof DatosDocente) => ({
     value: datos[clave],
-    disabled: bloqueado,
+    disabled: bloqueado || camposBloqueados.includes(clave),
     error: errores[clave],
     onChange: (e: { target: { value: string } }) => onCambiar({ [clave]: e.target.value }),
   });
@@ -148,7 +179,7 @@ export function DatosPersonales({
             placeholder="juan.perez@kubo.edu.pe"
             {...campo("email")}
           />
-          {!errores.email && (
+          {!errores.email && !camposBloqueados.includes("email") && (
             <p className="text-[13px] leading-[1.4] text-texto-3">Aquí se enviarán las credenciales de acceso.</p>
           )}
         </div>
@@ -175,6 +206,7 @@ export function DatosPersonales({
           </option>
         ))}
       </Selector>
+      {aviso}
     </Tarjeta>
   );
 }
@@ -188,11 +220,14 @@ export function AccesoSistema({
   datos,
   registrado,
   enviarCorreo,
+  cuentaExistente = false,
   onEnviarCorreo,
 }: {
   datos: DatosDocente;
   registrado: DocenteRegistrado | null;
   enviarCorreo: boolean;
+  /** La persona del DNI ya tiene cuenta (D-07): conserva su contraseña y no recibe correo de bienvenida. */
+  cuentaExistente?: boolean;
   onEnviarCorreo: (v: boolean) => void;
 }) {
   const nombre = registrado?.nombreCompleto ?? (`${datos.nombres} ${datos.apellidos}`.trim() || "Nuevo docente");
@@ -221,11 +256,15 @@ export function AccesoSistema({
         <div className="flex flex-col gap-0.5">
           <p className="text-[13px] text-texto-3">Contraseña</p>
           <p className="text-[16px] font-semibold text-texto">
-            {registrado ? "Ya tenía una cuenta: usa su contraseña actual" : "Temporal · se genera al guardar"}
+            {registrado
+              ? "Ya tenía una cuenta: usa su contraseña actual"
+              : cuentaExistente
+                ? "Ya tiene una cuenta: ingresará con su contraseña actual"
+                : "Temporal · se genera al guardar"}
           </p>
         </div>
       )}
-      {!registrado && (
+      {!registrado && !cuentaExistente && (
         <Casilla
           etiqueta="Enviar correo de bienvenida con credenciales"
           checked={enviarCorreo}
