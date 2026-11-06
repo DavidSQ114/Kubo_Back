@@ -110,4 +110,41 @@ export const erroresMatricula = {
       `La ficha solo se genera para una matrícula «Matriculado» o «Retirado». Esta está «${estado}».`,
       409,
     ),
+
+  // ---------- Pagos (US22, US23, US04, US25) ----------
+  numeroOperacionRequerido: () =>
+    new ErrorApp("NUMERO_OPERACION_REQUERIDO", "El número de operación es obligatorio", 422),
+  montoNoCoincide: (totalCentimos: number) =>
+    new ErrorApp("MONTO_NO_COINCIDE", "El monto ingresado no coincide con el total de las cuotas seleccionadas", 422, {
+      total: `${Math.trunc(totalCentimos / 100)}.${String(totalCentimos % 100).padStart(2, "0")}`,
+    }),
+  sinCuotas: () => new ErrorApp("SIN_CUOTAS", "Selecciona al menos una cuota pendiente.", 422),
+  cuotaRepetida: () => new ErrorApp("CUOTA_REPETIDA", "Una cuota aparece más de una vez en el pago.", 422),
+  cuotaNoEncontrada: () => new ErrorApp("CUOTA_NO_ENCONTRADA", "Una de las cuotas elegidas no existe.", 404),
+  cuotasDeVariosEstudiantes: () =>
+    new ErrorApp("CUOTAS_DE_VARIOS_ESTUDIANTES", "Las cuotas de un pago deben ser del mismo estudiante.", 422),
+  /** «Esta pensión ya fue cancelada el 03/07/2026» (US23). */
+  cuotaYaPagada: (fecha: string | null) =>
+    new ErrorApp(
+      "CUOTA_YA_PAGADA",
+      `Esta pensión ya fue cancelada el ${fecha ? fecha.split("-").reverse().join("/") : "—"}`,
+      409,
+      { fecha },
+    ),
+  cuotaAnulada: () => new ErrorApp("CUOTA_ANULADA", "La cuota está anulada y no admite pagos.", 409),
+  fechaPagoFutura: () => new ErrorApp("FECHA_PAGO_FUTURA", "La fecha de pago no puede ser posterior a hoy.", 422),
+  pagoNoEncontrado: () => new ErrorApp("PAGO_NO_ENCONTRADO", "La operación de pago no existe.", 404),
+  pagoNoObservado: (estado: string) =>
+    new ErrorApp(
+      "PAGO_NO_OBSERVADO",
+      `Solo se confirma o descarta una operación «Observado». Esta está «${estado}».`,
+      409,
+    ),
+  pagoYaAnulado: () => new ErrorApp("PAGO_YA_ANULADO", "La operación de pago ya está anulada.", 409),
+  motivoAnulacionPagoRequerido: () =>
+    new ErrorApp("MOTIVO_ANULACION_REQUERIDO", "Selecciona el motivo de la anulación.", 422),
+  detalleAnulacionRequerido: () =>
+    new ErrorApp("DETALLE_ANULACION_REQUERIDO", "Con el motivo «Otro», describe la anulación en la observación.", 422),
+  reciboNoConfirmado: () =>
+    new ErrorApp("RECIBO_NO_CONFIRMADO", "No se puede generar un recibo de un pago no confirmado", 422),
 };

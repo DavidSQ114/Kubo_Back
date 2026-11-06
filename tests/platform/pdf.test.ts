@@ -46,6 +46,24 @@ describe("servicio de PDF", () => {
     expect(leido.getTitle()).toBe("Ficha de matrícula 2026");
   });
 
+  it("con una fecha fija produce los mismos bytes (recibo determinista, US25) y admite la marca ANULADO", async () => {
+    const doc = {
+      nombre: "recibo-pago",
+      institucion: "Institución Educativa Kubo",
+      titulo: "Recibo de pago N.° R-2026-000001",
+      fechaDocumento: new Date("2026-10-01T05:00:00.000Z"),
+      bloques: [
+        { tipo: "datos" as const, titulo: "Datos del pago", filas: [["Monto", "S/ 900.00"]] as [string, string][] },
+      ],
+    };
+    const a = await generarPdf(doc);
+    const b = await generarPdf(doc);
+    expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
+    const anulado = await generarPdf({ ...doc, marcaAgua: "ANULADO" });
+    expect(Buffer.from(anulado).equals(Buffer.from(a))).toBe(false);
+    expect((await PDFDocument.load(anulado)).getCreationDate()?.toISOString()).toBe("2026-10-01T05:00:00.000Z");
+  });
+
   it("si falla, el error solo nombra el documento y el tipo de falla, sin los datos (log_error)", async () => {
     const datoPersonal = "71234567";
     const fallido = generarPdf({

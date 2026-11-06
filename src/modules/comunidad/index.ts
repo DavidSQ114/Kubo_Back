@@ -24,6 +24,7 @@ export { vincularApoderado, type DatosVinculo } from "./application/vinculos";
 export {
   estudianteParaMatricula,
   estudianteParaFicha,
+  nombresDeUsuarios,
   resumenEstudiantes,
   idsEstudiantesPorBusqueda,
   type ApoderadoDelEstudiante,
@@ -31,5 +32,6 @@ export {
   type EstudianteResumen,
   type EstudianteFicha,
   type ApoderadoFicha,
+  type NombreUsuario,
 } from "./application/estudiantesMatricula";
 export { configurarMatriculaBorradorProvider, type MatriculaBorrador, type MatriculaBorradorProvider } from "./puertos";
