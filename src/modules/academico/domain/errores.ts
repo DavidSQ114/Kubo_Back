@@ -26,6 +26,8 @@ export const erroresAcademico = {
   notasSinPublicar: () =>
     new ErrorApp("NOTAS_SIN_PUBLICAR", "No se puede cerrar el año: existen notas sin publicar", 422),
   anioCerrado: () => new ErrorApp("ANIO_CERRADO", "El año académico está cerrado y ya no se puede modificar.", 422),
+  montoInvalido: () =>
+    new ErrorApp("MONTO_INVALIDO", "Ingresa un monto mayor a 0 con hasta dos decimales (por ejemplo, 350.00).", 400),
   periodosIncompletos: () =>
     new ErrorApp("PERIODOS_INCOMPLETOS", "Registra los 4 bimestres, del I al IV, sin repetir ninguno.", 400),
   periodoFechasInvalidas: (nombre: string) =>

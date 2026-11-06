@@ -1,8 +1,17 @@
 // academico: interfaz pública. Otros módulos y las rutas importan SOLO desde aquí
 // (US06 año, US07 periodos, US08 grados y secciones, US09 aulas, US10 cursos, US11 competencias,
-// US12 reglas de consolidación, US14 asignaciones).
+// US12 reglas de consolidación, US14 asignaciones, montos del año para US18 y US21).
 export { ESTADOS_ANIO, NOMBRE_ESTADO_ANIO, ESTADOS_PERIODO, type EstadoAnio, type EstadoPeriodo } from "./domain/tipos";
-export { ESTADOS_SECCION, verificarVacantes, type EstadoSeccion, type Vacantes } from "./domain/secciones";
+export {
+  ESTADOS_SECCION,
+  calcularVacantes,
+  verificarVacantes,
+  type EstadoSeccion,
+  type Vacantes,
+} from "./domain/secciones";
+export { aCentimos, deCentimos, type MontosAnio } from "./domain/montos";
+export { fechaEnLima } from "./domain/reglas";
+export { montosDelAnio, guardarMontos, seccionBloqueadaParaMatricula } from "./application/montos";
 export { ESTADOS_CURSO, verificarCompetenciasConfiguradas, type EstadoCurso } from "./domain/cursos";
 export {
   LOGROS,
