@@ -397,6 +397,139 @@ export function ModalRegistrarPago({
   );
 }
 
+// ---------- M-15 · Pago anual adelantado (US58) ----------
+
+export const MENSAJE_MONTO_ANUAL = "El monto no coincide con el total pendiente";
+
+export function ModalPagoAnual({
+  cuenta,
+  onCerrar,
+  onRegistrado,
+}: {
+  cuenta: EstadoCuenta;
+  onCerrar: () => void;
+  onRegistrado: (r: ResultadoPago) => void;
+}) {
+  const vigentes = cuenta.cuotas.filter((c) => c.estado !== "ANULADO");
+  const pagadas = vigentes.filter((c) => c.estado === "PAGADO");
+  const pendientes = vigentes.filter((c) => c.estado === "PENDIENTE");
+  const suma = (lista: CuotaCuenta[]) => lista.reduce((t, c) => t + centimos(c.monto), 0);
+  const total = suma(pendientes);
+  const [monto, setMonto] = useState(aMonto(total));
+  const [fecha, setFecha] = useState(hoyEnLima());
+  const [numero, setNumero] = useState("");
+  const [medio, setMedio] = useState<MedioPago | "">("TRANSFERENCIA");
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [general, setGeneral] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function registrar() {
+    const e: Record<string, string> = {};
+    if (!numero.trim()) e.numeroOperacion = MENSAJE_SIN_NUMERO;
+    if (!medio) e.medioPago = "Elige el medio de pago";
+    setErrores(e);
+    if (Object.keys(e).length) return;
+    setEnviando(true);
+    setGeneral(null);
+    try {
+      const r = await api<ResultadoPago>(`/matricula/matriculas/${cuenta.matricula!.matriculaId}/pago-anual`, {
+        method: "POST",
+        body: { monto: monto.trim(), medioPago: medio, numeroOperacion: numero, fechaPago: fecha },
+      });
+      onRegistrado(r);
+    } catch (err) {
+      const r = separarErrores(err);
+      setErrores(r.campos);
+      setGeneral(r.general);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const fila = (texto: string, valor: string, clase = "text-texto") => (
+    <div className="flex justify-between gap-3 border-b border-borde py-2 text-[14px] last:border-0">
+      <span className="text-texto-2">{texto}</span>
+      <span className={`font-semibold ${clase}`}>{valor}</span>
+    </div>
+  );
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="nav-wallet"
+      tonoIcono="azul"
+      titulo="Pago anual adelantado"
+      subtitulo={`${cuenta.estudiante.nombreCompleto}${cuenta.matricula?.seccion ? ` · ${cuenta.matricula.seccion}` : ""} · año académico ${cuenta.matricula?.anio.anio ?? ""}`}
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton icono="check-blanco" onClick={registrar} cargando={enviando} disabled={!pendientes.length}>
+            Registrar pago anual
+          </Boton>
+        </>
+      }
+    >
+      <Alerta tipo="info" titulo="Pago de todas las cuotas pendientes en una sola operación">
+        El colegio no tiene definido ningún descuento por pago adelantado: el total es la suma de las cuotas pendientes.
+      </Alerta>
+      <div className="flex flex-col">
+        {fila(`${vigentes.length} cuotas del año`, soles(aMonto(suma(vigentes))))}
+        {fila(`Cuotas ya pagadas (${pagadas.length})`, `− ${soles(aMonto(suma(pagadas)))}`, "text-verde-oscuro")}
+        {fila(`Total a pagar hoy (${pendientes.length} pendientes)`, soles(aMonto(total)))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Campo
+          etiqueta="Monto recibido (S/)"
+          obligatorio
+          inputMode="decimal"
+          value={monto}
+          error={errores.monto}
+          onChange={(e) => setMonto(e.target.value)}
+        />
+        <Campo
+          etiqueta="Fecha de pago"
+          obligatorio
+          type="date"
+          max={hoyEnLima()}
+          value={fecha}
+          error={errores.fechaPago}
+          onChange={(e) => setFecha(e.target.value)}
+        />
+        <Campo
+          etiqueta="N.° de operación"
+          obligatorio
+          maxLength={40}
+          value={numero}
+          error={errores.numeroOperacion}
+          onChange={(e) => setNumero(e.target.value)}
+        />
+        <Selector
+          etiqueta="Medio de pago"
+          obligatorio
+          valor={medio}
+          error={errores.medioPago}
+          onCambiar={(v) => setMedio(v as MedioPago)}
+        >
+          <option value="">Elige el medio</option>
+          {MEDIOS_PAGO.map((m) => (
+            <option key={m.valor} value={m.valor}>
+              {m.texto}
+            </option>
+          ))}
+        </Selector>
+      </div>
+      <Alerta tipo="aviso" titulo="Al confirmar">
+        Las cuotas pendientes pasan a «Pagado», la modalidad de pago de la matrícula cambia a «Anual», se emite un único
+        comprobante por el total y el estudiante sale del panel de morosidad.
+      </Alerta>
+      {general && <Alerta tipo="error" titulo={general} />}
+    </Modal>
+  );
+}
+
 // ---------- M-02 · Anular pago (US04) ----------
 
 export function ModalAnularPago({
