@@ -9,7 +9,7 @@ Guía paso a paso para correr Kubo en **una EC2 Ubuntu 24.04 con PostgreSQL en R
 | Pieza | Dónde | Detalle |
 |---|---|---|
 | Aplicación (frontend + API) | EC2 `t3.small` (2 GB de RAM + 2 GB de swap), Ubuntu 24.04 | `kubo.service` ejecuta `next start` en `127.0.0.1:3000` desde `/opt/kubo/current` |
-| HTTPS | Caddy en la misma EC2 | Certificado automático de Let's Encrypt para `<ip-con-guiones>.sslip.io` (la Elastic IP) |
+| HTTPS | Caddy en la misma EC2 | Certificado automático de Let's Encrypt para `<ip-con-guiones>.sslip.io` (la Elastic IP) o para un dominio propio (ver «Dominio propio (DuckDNS)») |
 | Base de datos | RDS PostgreSQL `db.t4g.micro` | Sin acceso público: solo la EC2 llega al puerto 5432; conexión cifrada (`sslmode=require`) |
 | Despliegue | La propia EC2 | `kubo-desplegar.timer` revisa `main` al arrancar y cada 5 minutos, y ejecuta `deploy/aws/desplegar.sh` |
 | Acceso al servidor | Session Manager | Sin SSH ni puerto 22 abierto; sin llaves |
@@ -45,7 +45,8 @@ En el servidor:
 /opt/kubo/current → releases/<sha> El que está en uso
 /opt/kubo/shared/logs/             despliegue.log y el log de la aplicación (LOG_DIR)
 /etc/kubo/kubo.env                 Variables (dueño kubo, chmod 600)
-/etc/kubo/caddy.env                Solo el dominio, para Caddy
+/etc/kubo/caddy.env                Solo los dominios (principal y respaldo), para Caddy
+/etc/kubo/dominio                  Dominio propio, opcional (una línea)
 /etc/kubo/rds-global-bundle.pem    Certificado de AWS RDS (para sslmode=require)
 ```
 
@@ -131,7 +132,7 @@ El script deja todo listo y al final muestra el **dominio**, por ejemplo `https:
 - crea el usuario `kubo` y las carpetas de `/opt/kubo`;
 - crea `/etc/kubo/kubo.env` desde la plantilla, sin valores;
 - descarga el certificado de RDS;
-- configura Caddy con el dominio de la Elastic IP;
+- configura Caddy con el dominio: el de `/etc/kubo/dominio` si existe y apunta a la instancia, o el de sslip.io de la Elastic IP;
 - instala las unidades systemd y activa el timer.
 
 Se puede volver a ejecutar sin riesgo: no pisa `kubo.env`. Hazlo cuando cambien los archivos de `deploy/aws`:
@@ -151,7 +152,7 @@ nano /etc/kubo/kubo.env
 |---|---|
 | `DATABASE_URL` | Reemplaza `<usuario>` (`kubo_admin`), `<clave>` y `<endpoint-rds>`. Deja el resto de la URL como está: base `kubo`, `sslmode=require`, `sslrootcert` y la zona UTC |
 | `JWT_SECRET` | Uno nuevo, de 32 caracteres o más: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
-| `APP_URL` | `https://` + el dominio que mostró `instalar.sh` |
+| `APP_URL` | `https://` + el dominio principal que mostró `instalar.sh` |
 | `SMTP_*` | Opcional. Sin SMTP los correos no salen y la pantalla muestra la contraseña temporal para entregarla |
 
 Guarda con Ctrl+O, Enter y Ctrl+X. El archivo queda con dueño `kubo` y permisos 600: no lo copies ni lo pegues en chats o capturas.
@@ -187,13 +188,54 @@ sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && 
 
 Abre `https://<dominio>`, ingresa con `admin@kubo.edu.pe` y la contraseña inicial del seed, y **cámbiala de inmediato**: el sistema lo exige en el primer ingreso.
 
+## Dominio propio (DuckDNS)
+
+Opcional. Por defecto Kubo responde en `https://<ip-con-guiones>.sslip.io`. Con un subdominio gratuito de DuckDNS, por ejemplo `kubo-codecoffee.duckdns.org`, ese pasa a ser el **dominio principal**. El de sslip.io queda como **respaldo**: redirige con un 308 al principal y conserva la ruta, así que los enlaces viejos (incluidos los de los correos ya enviados) siguen funcionando.
+
+### 1. Crear el subdominio
+
+1. Entra a [duckdns.org](https://www.duckdns.org) con una cuenta del equipo y crea el subdominio (por ejemplo `kubo-codecoffee`).
+2. En **current ip** escribe la **Elastic IP** de `kubo-web` (EC2 → Elastic IPs) y pulsa **update ip**. La Elastic IP no cambia, así que no hace falta instalar ningún actualizador en la EC2.
+3. **No publiques el token de DuckDNS.** Con él cualquiera puede apuntar el dominio a otro servidor. No va en el repositorio, ni en `kubo.env`, ni en capturas o chats.
+
+Comprueba desde la EC2 (Session Manager) que el dominio ya apunta a la instancia. Debe mostrar la Elastic IP:
+
+```bash
+getent ahostsv4 kubo-codecoffee.duckdns.org
+```
+
+### 2. Configurar la EC2
+
+```bash
+echo kubo-codecoffee.duckdns.org > /etc/kubo/dominio
+nano /etc/kubo/kubo.env        # APP_URL="https://kubo-codecoffee.duckdns.org"
+git -C /root/kubo-instalador pull
+bash /root/kubo-instalador/deploy/aws/instalar.sh
+systemctl restart kubo.service
+```
+
+`instalar.sh` usa el dominio propio solo si resuelve a la IP pública de la instancia. Si no, avisa y se queda con el de sslip.io: corrige la IP en DuckDNS, espera un par de minutos y vuelve a ejecutarlo. Al terminar muestra el dominio principal y avisa si `APP_URL` no coincide con él. `APP_URL` se lee al arrancar la app, por eso se reinicia `kubo.service`; no hace falta volver a desplegar.
+
+Comprueba:
+
+```bash
+curl -s https://kubo-codecoffee.duckdns.org/api/v1/salud
+curl -sI https://<ip-con-guiones>.sslip.io/inicio | grep -i -e '^HTTP' -e '^location'
+```
+
+El primero responde `"estado":"ok"`; el segundo, `308` con `location: https://kubo-codecoffee.duckdns.org/inicio`.
+
+**Las sesiones abiertas en el dominio anterior se pierden.** Las cookies de sesión pertenecen a cada dominio: tras el cambio, cada usuario vuelve a iniciar sesión una vez en el dominio nuevo.
+
+Para volver a sslip.io: `rm /etc/kubo/dominio`, `APP_URL` con el dominio de sslip.io, `instalar.sh` y `systemctl restart kubo.service`.
+
 ## En cada sesión del Learner Lab
 
 1. **Start Lab** y espera el círculo verde. Abre la consola de AWS.
 2. **EC2 → Instances:** `kubo-web` debe estar *Running*. Si está *Stopped*: **Instance state → Start**.
 3. **RDS → Databases:** `kubo-db` debe estar *Available*. Si está *Stopped*: **Actions → Start**. Tarda unos minutos.
 4. **Espera el despliegue.** Al arrancar, la instancia revisa `main` en 1 minuto y despliega si hay commits nuevos (5 a 10 minutos). Si nada cambió, la app arranca en segundos.
-5. **Abre el dominio** (`https://<ip-con-guiones>.sslip.io`). Para confirmar la versión: `https://<dominio>/api/v1/salud`.
+5. **Abre el dominio principal** (el propio o `https://<ip-con-guiones>.sslip.io`). Para confirmar la versión: `https://<dominio>/api/v1/salud`.
 6. **Al terminar:** RDS → `kubo-db` → **Actions → Stop temporarily**, si no se detuvo solo. AWS vuelve a encender una base detenida a los 7 días. La EC2 se detiene sola al acabar la sesión del lab.
 
 ## Operación
@@ -216,6 +258,7 @@ Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve 
 |---|---|---|
 | Session Manager no deja conectar | La instancia acaba de arrancar o no tiene `LabInstanceProfile` | Esperar 2 a 3 minutos; asignar el perfil (*Modify IAM role*) y reiniciar |
 | El navegador no abre el dominio o falla el certificado | Puerto 80 o 443 cerrado en `kubo-web`, o la IP cambió | Revisar el grupo de seguridad; usar la Elastic IP y volver a ejecutar `instalar.sh` (escribe el dominio nuevo); `journalctl -u caddy -n 50` |
+| `instalar.sh` avisa que el dominio propio «resuelve a … y no a …» | El subdominio no apunta a la Elastic IP o el DNS aún no se actualizó | Corregir la IP en DuckDNS, esperar un par de minutos y volver a ejecutar `instalar.sh`; mientras tanto el principal es el de sslip.io |
 | `502 Bad Gateway` | `kubo.service` no está corriendo (primer despliegue en curso o error al arrancar) | `tail` del log de despliegue; `journalctl -u kubo.service -n 100` |
 | El log dice «Falta completar /etc/kubo/kubo.env» | La línea `DATABASE_URL` sigue con `<usuario>`, `<clave>` o `<endpoint-rds>` | Paso 6 y `systemctl start --no-block kubo-desplegar.service` |
 | `P1001: Can't reach database server` en las migraciones | RDS detenida, endpoint mal escrito o `kubo-db` no admite al grupo `kubo-web` | Iniciar RDS; revisar el endpoint y la regla 5432 del grupo `kubo-db` |
