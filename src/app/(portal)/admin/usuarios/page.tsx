@@ -149,8 +149,14 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         <Boton
           variante="secundario"
           icono="icon-userplus"
-          disabled
-          title="Disponible cuando se construya el módulo comunidad (RF12)"
+          onClick={() => router.push("/admin/usuarios/registrar-estudiante")}
+        >
+          Registrar estudiante
+        </Boton>
+        <Boton
+          variante="secundario"
+          icono="icon-userplus"
+          onClick={() => router.push("/admin/usuarios/registrar-apoderado")}
         >
           Registrar apoderado
         </Boton>
