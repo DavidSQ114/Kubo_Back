@@ -24,6 +24,7 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 | CP-US06-34 | US06 | alterno | 2026 «En curso»; hoy entre bimestres (por ejemplo 30/07/2026) | 1. Abrir el portal. | — | La insignia dice «Año 2026 · Vacaciones». |
 | CP-US06-35 | US06 | alterno | Solo 2026 «En matrícula» | 1. Abrir el portal. | — | La insignia dice «Año 2026 · En matrícula». Tras «Iniciar clases» en AD-02 se actualiza sin recargar. |
 | CP-US06-36 | US06 | alterno | Sin años, o todos «Cerrado» | 1. Abrir el portal. | — | No hay insignia (API `GET /academico/anios/actual` → `null`). |
+| CP-US06-37 | US06 | alterno | Año 2028 recién creado, sin bimestres (defecto D-08) | 1. Abrir AD-02 con 2028. 2. Revisar los botones del formulario de bimestres. 3. «Eliminar año» y confirmar. | — | Junto a «Agregar bimestre» y «Guardar configuración» se ven «Eliminar año» y «Editar año». Al eliminarlo, 2028 desaparece de la lista. |
 
 ## US07 · Editar bimestres en modo explícito y bimestre vigente
 

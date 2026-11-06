@@ -325,6 +325,8 @@ export function FormularioBimestres({
         </div>
         {editando ? (
           <>
+            {/* un año recién creado empieza editando: sin esto no se podría eliminar ni editar (D-08) */}
+            {sinBimestres && acciones}
             <Boton
               type="button"
               variante="secundario"
