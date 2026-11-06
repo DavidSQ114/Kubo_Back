@@ -343,7 +343,9 @@ export function Modal({
           </button>
         </div>
         <div className="flex flex-col gap-4 overflow-y-auto p-6">{children}</div>
-        <div className="flex items-center justify-end gap-3 border-t border-borde bg-fondo px-6 py-4">{pie}</div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-borde bg-fondo px-6 py-4">
+          {pie}
+        </div>
       </div>
     </div>
   );

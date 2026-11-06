@@ -302,7 +302,9 @@ export function ModalRetiro({
         ))}
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <span className="text-texto-2">
-            {`Se conservan · ${efecto.seConservan.length} cuota${efecto.seConservan.length === 1 ? "" : "s"} pagadas, vencidas o anteriores al retiro`}
+            {efecto.seConservan.length === 1
+              ? "Se conserva · 1 cuota pagada, vencida o anterior al retiro"
+              : `Se conservan · ${efecto.seConservan.length} cuotas pagadas, vencidas o anteriores al retiro`}
           </span>
           <span className="font-semibold text-texto">{efecto.totalConservado}</span>
         </div>
