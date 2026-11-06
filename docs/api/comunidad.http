@@ -1,4 +1,4 @@
-# Pruebas manuales de la API de comunidad (usuarios y administradores).
+# Pruebas manuales de la API de comunidad (usuarios, administradores, docentes, apoderados y estudiantes).
 # Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
 # Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
 # (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
@@ -71,3 +71,95 @@ POST {{base}}/comunidad/docentes
 Content-Type: application/json
 
 { "dni": "45678912", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "juan.perez@kubo.edu.pe", "especialidad": "Matemática" }
+
+# ===================================================================
+# Apoderados (US15), estudiantes (US17) y vínculos. Datos ficticios.
+# Precondición para el borrador: un año «En matrícula» o «En curso» (academico.http).
+# ===================================================================
+
+### 14. Grados para el grado de ingreso
+# @name grados
+GET {{base}}/academico/grados
+
+@grado = {{grados.response.body.$.data[0].id}}
+
+### 15. Teléfono con 8 dígitos → 400 «El número de teléfono debe tener 9 dígitos»
+POST {{base}}/comunidad/apoderados
+Content-Type: application/json
+
+{ "dni": "41234567", "nombres": "Jorge Luis", "apellidos": "Quispe Huamán", "fechaNacimiento": "1980-05-10", "email": "jorge.quispe@correo.pe", "telefono": "98765432", "direccion": "Jr. Lima 123, Lima", "ocupacion": "Ingeniero" }
+
+### 16. Registrar apoderado (persona nueva) → 201 con passwordTemporal y rol Apoderado
+# @name apoderado
+POST {{base}}/comunidad/apoderados
+Content-Type: application/json
+
+{ "dni": "41234567", "nombres": "Jorge Luis", "apellidos": "Quispe Huamán", "fechaNacimiento": "1980-05-10", "email": "jorge.quispe@correo.pe", "telefono": "987 654 321", "direccion": "Jr. Lima 123, Lima", "ocupacion": "Ingeniero" }
+
+@apoderado = {{apoderado.response.body.$.data.apoderadoId}}
+
+### 17. Mismo DNI otra vez → 409 APODERADO_EXISTENTE «Ya existe un apoderado registrado con este DNI» (details.apoderadoId)
+POST {{base}}/comunidad/apoderados
+Content-Type: application/json
+
+{ "dni": "41234567", "nombres": "Jorge Luis", "apellidos": "Quispe Huamán", "fechaNacimiento": "1980-05-10", "email": "jorge.quispe@correo.pe", "telefono": "987654321", "direccion": "Jr. Lima 123, Lima", "ocupacion": "Ingeniero" }
+
+### 18. DNI del docente del bloque 5 → 201 con personaExistia: true (se agrega el perfil Apoderado y se completan sus datos)
+# @name apoderadoDocente
+POST {{base}}/comunidad/apoderados
+Content-Type: application/json
+
+{ "dni": "45872136", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "fechaNacimiento": "1986-06-14", "email": "juan.perez@kubo.edu.pe", "telefono": "912345678", "direccion": "Av. Brasil 900, Jesús María", "ocupacion": "Docente" }
+
+@apoderado2 = {{apoderadoDocente.response.body.$.data.apoderadoId}}
+
+### 19. Buscar apoderados por DNI o nombre → 200 { items, paginacion }
+GET {{base}}/comunidad/apoderados?q=quispe
+
+### 20. Estudiante sin apoderados → 400 «Debe asociar al menos un apoderado antes de continuar»
+POST {{base}}/comunidad/estudiantes
+Content-Type: application/json
+
+{ "dni": "78451236", "nombres": "Valeria Sofía", "apellidos": "Quispe Rojas", "fechaNacimiento": "2012-04-22", "gradoIngresoId": "{{grado}}", "apoderados": [] }
+
+### 21. Dos apoderados principales → 422 PRINCIPAL_INVALIDO
+POST {{base}}/comunidad/estudiantes
+Content-Type: application/json
+
+{ "dni": "78451236", "nombres": "Valeria Sofía", "apellidos": "Quispe Rojas", "fechaNacimiento": "2012-04-22", "gradoIngresoId": "{{grado}}", "apoderados": [{ "apoderadoId": "{{apoderado}}", "parentesco": "Padre", "esPrincipal": true }, { "apoderadoId": "{{apoderado2}}", "parentesco": "Tío", "esPrincipal": true }] }
+
+### 22. Registrar estudiante («Guardar») → 201 con matricula: null
+# @name estudiante
+POST {{base}}/comunidad/estudiantes
+Content-Type: application/json
+
+{ "dni": "78451236", "nombres": "Valeria Sofía", "apellidos": "Quispe Rojas", "fechaNacimiento": "2012-04-22", "gradoIngresoId": "{{grado}}", "sexo": "FEMENINO", "colegioProcedencia": "I.E. San Martín de Porres", "apoderados": [{ "apoderadoId": "{{apoderado}}", "parentesco": "Padre", "esPrincipal": true }] }
+
+@estudiante = {{estudiante.response.body.$.data.estudianteId}}
+
+### 23. Mismo DNI de estudiante → 409 «Ya existe un estudiante registrado con este DNI»
+POST {{base}}/comunidad/estudiantes
+Content-Type: application/json
+
+{ "dni": "78451236", "nombres": "Valeria Sofía", "apellidos": "Quispe Rojas", "fechaNacimiento": "2012-04-22", "gradoIngresoId": "{{grado}}", "apoderados": [{ "apoderadoId": "{{apoderado}}", "parentesco": "Padre", "esPrincipal": true }] }
+
+### 24. «Guardar como borrador» → 201 con matricula { anio, estado: "EN_PROCESO" } (sin sección ni cronograma)
+POST {{base}}/comunidad/estudiantes
+Content-Type: application/json
+
+{ "dni": "79124563", "nombres": "Diego", "apellidos": "Quispe Rojas", "fechaNacimiento": "2014-09-12", "gradoIngresoId": "{{grado}}", "borrador": true, "apoderados": [{ "apoderadoId": "{{apoderado}}", "parentesco": "Padre", "esPrincipal": true }] }
+
+### 25. Buscar estudiantes → 200 (cada uno con sus apoderados, el principal primero)
+GET {{base}}/comunidad/estudiantes?q=quispe
+
+### 26. Vincular otro apoderado como principal → 201 { esPrincipal: true, cambioPrincipal: true }
+POST {{base}}/comunidad/vinculos
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "apoderadoId": "{{apoderado2}}", "parentesco": "Tío", "esPrincipal": true }
+
+### 27. El mismo vínculo otra vez → 409 VINCULO_EXISTENTE
+POST {{base}}/comunidad/vinculos
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "apoderadoId": "{{apoderado2}}", "parentesco": "Tío" }

@@ -159,9 +159,9 @@ src/modules/identidad/
 | Módulo | Archivo de esquema | Responsabilidad | Estado |
 |---|---|---|---|
 | **identidad** | identidad.prisma | Cuentas, sesiones, contraseñas, bloqueo | Implementado |
-| **comunidad** | comunidad.prisma | Personas, perfiles (administrador, docente, apoderado, alumno) | Implementado: usuarios, administradores y docentes (US13) |
+| **comunidad** | comunidad.prisma | Personas, perfiles (administrador, docente, apoderado, alumno) | Implementado: usuarios, administradores, docentes (US13), apoderados (US15), estudiantes y vínculos (US17) |
 | **academico** | academico.prisma | Año, periodos, grados, secciones, aulas, currículo | En curso: año, periodos, grados, secciones, aulas, cursos y competencias (US06–US11) |
-| **matricula** | matricula.prisma | Matrícula, pensiones y pagos | Pendiente (ya implementa el puerto `MatriculasProvider` de academico) |
+| **matricula** | matricula.prisma | Matrícula, pensiones y pagos | Pendiente (ya implementa los puertos `MatriculasProvider` de academico y `MatriculaBorradorProvider` de comunidad) |
 | **horarios** | horarios.prisma | Bloques, horarios y asistencia | Pendiente (ya implementa el puerto `HorariosProvider` de academico) |
 | **evaluacion** | evaluacion.prisma | Notas por competencia, cierres, rectificaciones | Pendiente (ya implementa el puerto `CierresProvider` de academico) |
 | **aula-virtual** | aula-virtual.prisma | Material de estudio y trabajos | Pendiente |

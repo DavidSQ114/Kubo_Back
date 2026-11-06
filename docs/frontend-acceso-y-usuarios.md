@@ -119,3 +119,45 @@ src/components/ui/index.tsx                                   Boton variante «e
 | «Registrar docente» abajo, una sola vez | Tras registrar cambia a «Terminar» | La pantalla sigue abierta para asignar cursos |
 | Insignia «Año 2026 · Bimestre III en curso» | Se muestra con datos reales del año por defecto | Sprint 2 (barra superior común del portal) |
 | Sin búsqueda del DNI | Alerta de persona ya registrada, campos bloqueados y «Agregar perfil Docente» | Defecto D-07 (Sprint 2) |
+
+# AD-08 · Registrar apoderado (US15) y AD-09 · Registrar estudiante (US17)
+
+Pantallas `/admin/usuarios/registrar-apoderado` y `/admin/usuarios/registrar-estudiante`, según los frames **AD-08 · Registrar apoderado** y **AD-09 · Registrar estudiante** de la página «1 · Prototipo escritorio - Propuesta» del Figma (capturas en `docs/figma/AD-08-registrar-apoderado.png` y `docs/figma/AD-09-registrar-estudiante.png`). Se llega con los botones «Registrar apoderado» y «Registrar estudiante» de AD-06, y entre ellas con «Registrar apoderado» (AD-09) y «Registrar un estudiante» (AD-08).
+
+## Archivos
+
+```
+src/app/(portal)/admin/usuarios/registrar-apoderado/page.tsx    AD-08: datos del apoderado, estudiantes a cargo,
+                                                                 resumen y acceso al portal
+src/app/(portal)/admin/usuarios/registrar-estudiante/page.tsx   AD-09: datos del estudiante, apoderados vinculados,
+                                                                 validaciones, «Guardar» y «Guardar como borrador»
+src/components/admin/apoderados.tsx                              Buscador por DNI o nombre, fila de vínculo
+                                                                 (parentesco, principal, autorizado), validaciones
+```
+
+## Qué muestra
+
+- **AD-08 · Paso 1 · Datos del apoderado:** DNI con «Validar DNI» (consulta `GET /comunidad/personas?dni=`), nombres, apellidos, fecha de nacimiento, ocupación, correo, teléfono celular y dirección, todos obligatorios.
+  - DNI de una persona con otro perfil: alerta «Esta persona ya está registrada como Docente» y se precargan y bloquean nombres y apellidos; el botón pasa a «Agregar perfil Apoderado».
+  - DNI que ya es apoderado: alerta ámbar «Ya existe un apoderado registrado con este DNI» con cuántos estudiantes tiene; los datos quedan bloqueados y el botón pasa a «Vincular estudiantes» (no se crea un duplicado). Lo mismo ocurre si el backend responde `APODERADO_EXISTENTE` al guardar.
+  - Teléfono de menos de 9 dígitos: «El número de teléfono debe tener 9 dígitos» bajo el campo.
+- **AD-08 · Paso 2 · Estudiantes a cargo:** buscador de estudiantes ya registrados (DNI o nombre) con «Vincular»; cada estudiante agregado pide parentesco, «Apoderado principal» y «Autorizado», y dice quién es el principal actual o si lo reemplazará.
+- **AD-08 · Resumen y Acceso al portal:** apoderado, estudiantes por vincular, el rol Apoderado, el usuario (correo), la casilla del correo de bienvenida y, al guardar, la contraseña temporal una sola vez.
+- **AD-09 · Datos del estudiante:** nombres, apellidos, DNI («8 dígitos. No puede repetirse entre estudiantes.»), fecha de nacimiento, sexo (opcional), grado de ingreso, colegio de procedencia (opcional) y dirección (opcional). Al completar el DNI se consulta la persona: si ya es estudiante, «Ya existe un estudiante registrado con este DNI» bajo el campo; si tiene otro perfil, se precargan sus nombres.
+- **AD-09 · Apoderados vinculados:** buscador de apoderados (DNI o nombre); cada uno con parentesco, principal y autorizado. El primero queda como principal; marcar a otro desmarca al anterior. Sin apoderados, al guardar aparece «Debe asociar al menos un apoderado antes de continuar».
+- **AD-09 · Validaciones:** «DNI con 8 dígitos», «DNI no registrado», «Apoderado vinculado» (con el principal) y «Datos obligatorios completos», en verde, rojo o pendiente.
+- **AD-09 · Guardar / Guardar como borrador:** «Guardar» registra al estudiante con sus vínculos; «Guardar como borrador» además deja su matrícula «En proceso» (sin sección ni cronograma) y el aviso dice en qué año.
+
+## Diferencias con el Figma (y por qué)
+
+| En el Figma | En el código | Motivo |
+|---|---|---|
+| AD-08: «Parentesco» en los datos del apoderado | Parentesco, principal y autorizado en cada estudiante vinculado | Son datos del vínculo (`VinculoApoderado`): un apoderado puede ser madre de uno y tutora de otro |
+| AD-08: fecha de nacimiento y dirección sin `*`, sin ocupación | Todos obligatorios y con «Ocupación» | El Backlog (US15) pide DNI, nombres, apellidos, fecha de nacimiento, correo, teléfono, dirección y ocupación; manda el Backlog |
+| AD-08: formulario «Nuevo estudiante» dentro del paso 2 | El paso 2 solo vincula estudiantes ya registrados; «Registrar un estudiante» lleva a AD-09 | US17 exige un apoderado existente y su propio formulario y validaciones; así hay un solo registro de estudiantes |
+| AD-08: «Guardar y matricular» | «Guardar apoderado» (o «Agregar perfil Apoderado» / «Vincular estudiantes») | La matrícula en sección es del bloque 3 (US18) |
+| AD-08: «Registrar un estudiante suelto» en el resumen | «Registrar un estudiante» tras guardar | Mismo motivo: el estudiante se registra en AD-09 |
+| AD-08: vínculo «principal» automático para todos | El principal se elige por vínculo; si el estudiante no tenía, el nuevo lo es | Cada estudiante tiene exactamente un principal (US17) |
+| AD-09: «Guardar y matricular» y pasos 2 y 3 activos | «Guardar» y los pasos 2 y 3 en gris | La matrícula en sección y el cronograma son del bloque 3 |
+| AD-09: menú lateral con «Matrícula» activo | «Usuarios» activo y «Volver a Usuarios» | El módulo Matrícula aún no tiene pantalla; el frame también vuelve a Usuarios |
+| AD-09: «Dirección» sin indicar si es opcional | «Dirección (opcional)» | El Backlog no la pide para el estudiante |
