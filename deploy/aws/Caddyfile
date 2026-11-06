@@ -1,6 +1,16 @@
 # Proxy inverso con HTTPS automático (Let's Encrypt) hacia Kubo en 127.0.0.1:3000.
-# KUBO_DOMINIO = <ip-con-guiones>.sslip.io de la Elastic IP; instalar.sh lo escribe en /etc/kubo/caddy.env.
+# instalar.sh escribe en /etc/kubo/caddy.env:
+#   KUBO_DOMINIO           principal: el de /etc/kubo/dominio si resuelve a la IP de la instancia; si no, el de sslip.io
+#   KUBO_DOMINIO_RESPALDO  siempre <ip-con-guiones>.sslip.io de la Elastic IP
+# Si los dos coinciden, instalar.sh quita el bloque de respaldo: Caddy no admite dos sitios con la misma dirección.
 {$KUBO_DOMINIO} {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:3000
 }
+
+# --- respaldo: inicio ---
+# el dominio de sslip.io redirige al principal con la misma ruta y query, para que los enlaces viejos sigan funcionando
+{$KUBO_DOMINIO_RESPALDO} {
+	redir https://{$KUBO_DOMINIO}{uri} 308
+}
+# --- respaldo: fin ---

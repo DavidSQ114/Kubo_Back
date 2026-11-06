@@ -3,7 +3,9 @@
 # Session Manager y es idempotente: volver a ejecutarlo actualiza los scripts, las unidades y el dominio.
 #   sudo bash deploy/aws/instalar.sh
 # Deja: swap de 2 GB, Node 22, git, Caddy y cliente de PostgreSQL; usuario kubo con /opt/kubo; la plantilla
-# /etc/kubo/kubo.env (sin valores); el dominio <ip-con-guiones>.sslip.io para Caddy y las unidades systemd.
+# /etc/kubo/kubo.env (sin valores); el dominio para Caddy y las unidades systemd.
+# Dominio: si existe /etc/kubo/dominio (una línea, por ejemplo kubo-codecoffee.duckdns.org) y resuelve a la IP
+# pública de la instancia, es el principal y <ip-con-guiones>.sslip.io redirige a él; si no, el principal es sslip.io.
 set -euo pipefail
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,6 +17,17 @@ TAMANO_SWAP="2G"
 URL_CERTIFICADO_RDS="https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
 
 paso() { printf '\n==> %s\n' "$*"; }
+aviso() { printf 'AVISO: %s\n' "$*" >&2; }
+
+# Primera línea de /etc/kubo/dominio, sin espacios y en minúsculas (vacío si no existe).
+leer_dominio_propio() {
+  if [[ -f "$CONFIG/dominio" ]]; then head -n 1 "$CONFIG/dominio" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'; fi
+}
+
+# ¿El dominio resuelve (registro A) a la IP pública de la instancia?
+resuelve_a_la_instancia() {
+  getent ahostsv4 "$1" | awk '{print $1}' | grep -qxF "$IP_PUBLICA"
+}
 
 if [[ $EUID -ne 0 ]]; then
   echo "Ejecuta como root: sudo bash $0" >&2
@@ -83,13 +96,43 @@ if [[ -z "$IP_PUBLICA" ]]; then
   echo "La instancia no tiene IP pública: asocia la Elastic IP y vuelve a ejecutar este script." >&2
   exit 1
 fi
-DOMINIO="${IP_PUBLICA//./-}.sslip.io"
-# archivo aparte para que Caddy no reciba los secretos de kubo.env
-printf 'KUBO_DOMINIO=%s\n' "$DOMINIO" >"$CONFIG/caddy.env"
-chmod 644 "$CONFIG/caddy.env"
+DOMINIO_RESPALDO="${IP_PUBLICA//./-}.sslip.io"
+DOMINIO="$DOMINIO_RESPALDO"
+DOMINIO_PROPIO="$(leer_dominio_propio)"
+if [[ -n "$DOMINIO_PROPIO" && "$DOMINIO_PROPIO" != "$DOMINIO_RESPALDO" ]]; then
+  if [[ ! "$DOMINIO_PROPIO" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]]; then
+    aviso "$CONFIG/dominio tiene «$DOMINIO_PROPIO», que no es un dominio válido. Se usa $DOMINIO_RESPALDO."
+  elif ! resuelve_a_la_instancia "$DOMINIO_PROPIO"; then
+    RESUELTO="$(getent ahostsv4 "$DOMINIO_PROPIO" | awk '{print $1}' | sort -u | paste -sd ' ' || true)"
+    aviso "$DOMINIO_PROPIO resuelve a «${RESUELTO:-nada}» y no a $IP_PUBLICA. Se usa $DOMINIO_RESPALDO."
+    aviso "Apunta el dominio a la Elastic IP, espera un par de minutos y vuelve a ejecutar este script."
+  else
+    DOMINIO="$DOMINIO_PROPIO"
+  fi
+fi
+echo "Principal: $DOMINIO  ·  Respaldo: $DOMINIO_RESPALDO"
 
 paso "Caddy y systemd"
-install -o root -g root -m 644 "$DIR_SCRIPT/Caddyfile" /etc/caddy/Caddyfile
+CADDYFILE_NUEVO="$(mktemp)"
+if [[ "$DOMINIO" == "$DOMINIO_RESPALDO" ]]; then
+  # sin dominio propio no hay a quién redirigir: se quita el bloque de respaldo
+  sed '/^# --- respaldo: inicio ---$/,/^# --- respaldo: fin ---$/d' "$DIR_SCRIPT/Caddyfile" >"$CADDYFILE_NUEVO"
+else
+  cp "$DIR_SCRIPT/Caddyfile" "$CADDYFILE_NUEVO"
+fi
+# se valida antes de reemplazar el que está en uso: si falla, Caddy sigue con la configuración anterior
+if ! VALIDACION="$(KUBO_DOMINIO="$DOMINIO" KUBO_DOMINIO_RESPALDO="$DOMINIO_RESPALDO" \
+  caddy validate --adapter caddyfile --config "$CADDYFILE_NUEVO" 2>&1)"; then
+  printf '%s\n' "$VALIDACION" >&2
+  rm -f "$CADDYFILE_NUEVO"
+  echo "El Caddyfile no es válido: no se reinicia Caddy." >&2
+  exit 1
+fi
+install -o root -g root -m 644 "$CADDYFILE_NUEVO" /etc/caddy/Caddyfile
+rm -f "$CADDYFILE_NUEVO"
+# archivo aparte para que Caddy no reciba los secretos de kubo.env
+printf 'KUBO_DOMINIO=%s\nKUBO_DOMINIO_RESPALDO=%s\n' "$DOMINIO" "$DOMINIO_RESPALDO" >"$CONFIG/caddy.env"
+chmod 644 "$CONFIG/caddy.env"
 install -d -m 755 /etc/systemd/system/caddy.service.d
 printf '[Service]\nEnvironmentFile=%s/caddy.env\n' "$CONFIG" >/etc/systemd/system/caddy.service.d/kubo.conf
 for unidad in kubo.service kubo-desplegar.service kubo-desplegar.timer; do
@@ -120,7 +163,15 @@ systemctl enable caddy >/dev/null
 systemctl restart caddy
 
 paso "Listo"
-echo "Dominio: https://$DOMINIO"
+echo "Dominio principal: https://$DOMINIO"
+if [[ "$DOMINIO" != "$DOMINIO_RESPALDO" ]]; then
+  echo "Respaldo: https://$DOMINIO_RESPALDO (redirige al principal con la misma ruta)"
+fi
+echo "Recuerda: APP_URL en $CONFIG/kubo.env debe ser https://$DOMINIO"
+APP_URL_ACTUAL="$(sed -n 's/^APP_URL=//p' "$CONFIG/kubo.env" | tail -n 1 | tr -d "\"'")"
+if [[ -n "$APP_URL_ACTUAL" && "$APP_URL_ACTUAL" != *"<"* && "$APP_URL_ACTUAL" != "https://$DOMINIO" ]]; then
+  aviso "APP_URL es $APP_URL_ACTUAL. Cámbialo a https://$DOMINIO y reinicia: systemctl restart kubo.service"
+fi
 # solo las líneas de las variables, no los comentarios de la plantilla
 if grep -Eq '^DATABASE_URL=.*<(usuario|clave|endpoint-rds)>|^JWT_SECRET=""' "$CONFIG/kubo.env"; then
   echo "Falta completar $CONFIG/kubo.env (DATABASE_URL, JWT_SECRET y APP_URL=https://$DOMINIO)."
