@@ -110,3 +110,7 @@ export const FiltroMorosidadSchema = z.object({
   mesesMinimos: z.coerce.number().int().min(1).max(MESES_MINIMOS_MAXIMO).optional(),
   orden: z.enum(ORDENES_MOROSIDAD).default("MONTO"),
 });
+
+// ---------- Portal del apoderado (US42, US43) ----------
+
+export const ElegirHijoSchema = z.object({ estudianteId: id("Elige un estudiante") });

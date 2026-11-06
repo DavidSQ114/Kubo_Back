@@ -1,4 +1,4 @@
-// Inicio temporal para Docente, Apoderado y Alumno hasta que se construyan sus portales.
+// Inicio temporal para Docente y Alumno hasta que se construyan sus portales (el Apoderado ya tiene /apoderado).
 // El Docente ve aquí «Mis cursos»: sus cursos y secciones asignados (US14, criterio 1).
 "use client";
 
@@ -60,7 +60,8 @@ export default function InicioPage() {
     api<Sesion>("/identidad/sesion")
       .then((s) => {
         if (s.debeCambiarPassword) router.replace("/cambiar-password");
-        else if (s.rolActivo === "ADMINISTRADOR") router.replace(inicioPorRol(s.rolActivo));
+        else if (s.rolActivo === "ADMINISTRADOR" || s.rolActivo === "APODERADO")
+          router.replace(inicioPorRol(s.rolActivo));
         else setSesion(s);
       })
       .catch((e) => router.replace(destinoPorErrorDeSesion(e) ?? "/login"));

@@ -1,7 +1,7 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58) y morosidad (US24)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24) y portal del apoderado (US42, US43, US44)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)). Ejemplos en [matricula.http](matricula.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)). Ejemplos en [matricula.http](matricula.http).
 
 Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/montos` (ver [academico.md](academico.md#montos-del-año-us21)).
 
@@ -26,6 +26,10 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `GET /matricula/pagos/{id}/comprobante` | — | `application/pdf` (recibo) |
 | `POST /matricula/matriculas/{id}/pago-anual` | `{ monto, medioPago, numeroOperacion, fechaPago }` | `201 { operacion, aviso, correo }` (US58) |
 | `GET /matricula/morosidad` | `?anioId=&gradoId=&seccionId=&mesesMinimos=&orden=MONTO` | `PanelMorosidad` (US24) |
+| `GET /matricula/apoderado/hijos` | — | `{ hijos: HijoPortal[], seleccionadoId }` (US42, **Apoderado**) |
+| `PUT /matricula/apoderado/hijo-elegido` | `{ estudianteId }` | `{ estudianteId }` y la cookie `kubo_estudiante` (US42, **Apoderado**) |
+| `GET /matricula/apoderado/hijos/{id}/pagos` | `?anioId=` | `PagosDelHijo` (US43, **Apoderado**) |
+| `GET /matricula/apoderado/hijos/{id}/cuotas/{cuotaId}/comprobante` | — | `application/pdf` (US44, **Apoderado**) |
 
 ### Situación del estudiante (AD-10)
 
@@ -213,6 +217,60 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
 - Sin caché: quien paga sale del listado en la siguiente consulta.
 - El filtro por grado se resuelve con las secciones del grado (por el `index.ts` de académico). Matricula no lee tablas de otros módulos.
 
+## Portal del apoderado (US42, US43, US44)
+
+Rutas de solo lectura para el rol `APODERADO` (pantallas AC-05, AP-01 y AP-02). Lo único que escriben es la auditoría de la descarga y la cookie del hijo elegido.
+
+**Autorización por vínculo (IDOR).** En cada solicitud el servidor calcula los hijos de la persona en sesión: estudiantes activos con un `vinculo_apoderado` hacia su perfil de apoderado activo **y** con una matrícula visible. Si el `{id}` de la URL (o el `estudianteId` del cuerpo) no está en esa lista, responde `403 ESTUDIANTE_NO_VINCULADO` «No tienes acceso a la información de este estudiante.», aunque el estudiante exista.
+
+**Matrícula visible:** `MATRICULADO` en un año «En matrícula», «En curso» o «En cierre», o `RETIRADO` en un año «En curso» o «En cierre». Si un hijo tiene dos, se muestra primero la del año en curso; `?anioId=` elige la otra. Las matrículas `EN_PROCESO` y `ANULADO` no se muestran.
+
+### Hijos y selección (US42, AC-05)
+
+`GET /matricula/apoderado/hijos`:
+
+```jsonc
+{ "hijos": [{ "estudianteId": "…", "nombres": "Valeria", "nombreCompleto": "Valeria Quispe Rojas", "iniciales": "VQ",
+              "anio": 2026, "estadoMatricula": "MATRICULADO", "nombreEstadoMatricula": "Matriculado",
+              "grado": "3° de secundaria", "seccion": "B", "seccionCorta": "3° B", "cuotasVencidas": 2 }],
+  "seleccionadoId": null }
+```
+
+- `seleccionadoId`: con un solo hijo, ese hijo (la pantalla entra directo a su panel). Con dos o más, el elegido antes si sigue en la lista; si no, `null` y la pantalla muestra la selección. Sin hijos, `hijos: []` y la pantalla muestra un mensaje.
+- `PUT /matricula/apoderado/hijo-elegido` `{ estudianteId }` verifica el vínculo (403 si no) y guarda la elección en la cookie **httpOnly** `kubo_estudiante`: un JWT firmado con `JWT_SECRET` (`sub` = usuario, `est` = estudiante, 7 días), con `Path=/api/v1/matricula/apoderado` y `SameSite=Lax`. La cookie no autoriza nada: solo se usa si es del mismo usuario y el hijo sigue vinculado. Se borra al cerrar sesión.
+
+### Deudas y pagos (US43, AP-02)
+
+`GET /matricula/apoderado/hijos/{id}/pagos?anioId=`:
+
+```jsonc
+{ "estudiante": { "estudianteId": "…", "nombres": "Valeria", "nombreCompleto": "Valeria Quispe Rojas", "codigoPago": "78451236" },
+  "matricula": { "anioId": "…", "anio": 2026, "estado": "MATRICULADO", "nombreEstado": "Matriculado",
+                 "fechaMatricula": "2026-02-27", "grado": "3° de secundaria", "seccion": "3° B" },
+  "anios": [{ "anioId": "…", "anio": 2026 }], "hoy": "2026-11-06",
+  "resumen": { "pagado": "3500.00", "cuotasPagadas": 8, "pendiente": "450.00", "cuotasPendientes": 1,
+               "vencido": "900.00", "cuotasVencidas": 2, "alDia": false },
+  "cuotas": [{ "cuotaId": "…", "tipo": "PENSION", "mes": 9, "concepto": "Pensión de setiembre 2026", "monto": "450.00",
+               "fechaVencimiento": "2026-09-05", "estado": "VENCIDO", "nombreEstado": "Vencido", "fechaPago": null,
+               "comprobanteDisponible": false, "enRevision": false }],
+  "anuladas": [] }
+```
+
+- Cuota de matrícula y pensiones generadas (10, o solo las posteriores a la fecha de matrícula si fue extemporánea, US21), en orden de vencimiento.
+- **Estado** calculado, no guardado: `PAGADO`; `VENCIDO` si está `PENDIENTE` y vence **antes** de hoy (fecha de Lima); si no, `PENDIENTE`. Las cuotas `ANULADO` van aparte en `anuladas` y no cuentan en el resumen.
+- Un pago **Observado** no cambia la cuota: sigue «Pendiente» o «Vencido» y no suma en «Pagado»; `enRevision: true` solo avisa que tesorería lo revisa.
+- `resumen.alDia`: sin cuotas pendientes ni vencidas → la pantalla muestra «Estás al día con tus pagos».
+- `codigoPago` es el DNI del estudiante (código para pagar en el banco, AP-02); solo lo recibe su apoderado. No se envían datos de otros apoderados, ni las operaciones, ni quién registró los pagos.
+
+### Comprobante de una cuota (US44)
+
+`GET /matricula/apoderado/hijos/{id}/cuotas/{cuotaId}/comprobante` → `application/pdf`, el mismo recibo de US25 de la operación **confirmada** que pagó la cuota (si una operación cubrió varias cuotas, todas descargan el mismo PDF).
+
+- Nombre: `Recibo_<Mes><Año>_<NombreApellido>.pdf`, sin tildes, ñ ni espacios: `Recibo_Marzo2026_ValeriaQuispe.pdf`, `Recibo_Matricula2026_ValeriaQuispe.pdf` y, si la operación fue un pago anual (US58), `Recibo_Anual2026_DiegoQuispe.pdf`.
+- Cuota «Pendiente» o «Vencido» (o con una operación solo Observado): `422 RECIBO_NO_CONFIRMADO` «No se puede generar un recibo de un pago no confirmado».
+- Cuota de otro estudiante con el `{id}` de un hijo propio: `404 CUOTA_NO_ENCONTRADA`. Estudiante ajeno: `403 ESTUDIANTE_NO_VINCULADO`.
+- Auditoría `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y el número del comprobante: solo ids, sin nombres ni DNI.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -234,6 +292,7 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
 | `RECIBO_NO_CONFIRMADO` | 422 | «No se puede generar un recibo de un pago no confirmado» |
 | `PAGO_NO_OBSERVADO` · `PAGO_YA_ANULADO` · `CUOTA_ANULADA` | 409 | Estado que no permite confirmar, descartar, anular o pagar |
 | `PAGO_NO_ENCONTRADO` · `CUOTA_NO_ENCONTRADA` | 404 | No existe |
+| `ESTUDIANTE_NO_VINCULADO` | 403 | Portal del apoderado: «No tienes acceso a la información de este estudiante.» |
 | `MONTO_NO_COINCIDE_PENDIENTE` | 422 | «El monto no coincide con el total pendiente» (pago anual, `details.total`) |
 | `SIN_CUOTAS_PENDIENTES` | 422 | Pago anual sin cuotas pendientes |
 | `PAGO_ANUAL_NO_PERMITIDO` | 409 | Pago anual de una matrícula que no está Matriculado |
@@ -249,6 +308,8 @@ Los pagos (US04) se registran con `entidad_afectada = "operacion_pago"`:
 - `REGISTRAR_PAGO`: `administradorId`, `fechaHora`, `monto`, `conceptos`, `numeroOperacion`, `medioPago`, `fechaPago`, `estadoResultante` («PAGADO» u «OBSERVADO») y `comprobante`.
 - `CONFIRMAR_PAGO_OBSERVADO`: estado anterior y nuevo, monto, conceptos, número, comprobante y `confirmadoPorId`.
 - `ANULAR_PAGO`: estado anterior, motivo, monto, conceptos, número, comprobante, cuotas revertidas y, al descartar, `decision: "DESCARTAR_OBSERVADO"`. La columna `motivo` guarda «MOTIVO: observación».
+
+El portal del apoderado registra `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y `comprobante`.
 
 La bitácora es inmutable (trigger `tg_auditoria_inmutable`) y `platform/auditoria` la lee con `eventosDeAuditoria` para el log de AD-11. Los montos del año registran `GUARDAR_MONTOS_ANIO` (valores anteriores y nuevos). El DNI no se escribe en la auditoría ni en los logs.
 

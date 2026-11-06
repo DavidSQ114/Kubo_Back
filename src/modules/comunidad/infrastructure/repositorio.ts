@@ -412,6 +412,25 @@ export const estudiantesMatricula = {
       select: { id: true, persona: { select: { nombres: true, apellidos: true } } },
     }),
 
+  /**
+   * Estudiantes activos vinculados a la persona como apoderado activo (portal del apoderado, US42). Es la base de la
+   * autorización: el apoderado solo ve a estos estudiantes.
+   */
+  vinculadosAPersona: (personaId: string, db: Db = prisma) =>
+    db.vinculoApoderado.findMany({
+      where: {
+        apoderado: { personaId, activo: true, persona: { activo: true } },
+        estudiante: { activo: true, persona: { activo: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        parentesco: true,
+        estudiante: {
+          select: { id: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
+        },
+      },
+    }),
+
   /** Datos completos del estudiante y de sus apoderados para la ficha de matrícula (US20). */
   paraFicha: (id: string, db: Db = prisma) =>
     db.estudiante.findUnique({

@@ -24,6 +24,7 @@ export { vincularApoderado, type DatosVinculo } from "./application/vinculos";
 export {
   estudianteParaMatricula,
   estudianteParaFicha,
+  estudiantesVinculadosAPersona,
   nombresDeUsuarios,
   responsablesDeVinculos,
   resumenEstudiantes,
@@ -32,6 +33,7 @@ export {
   type EstudianteParaMatricula,
   type EstudianteResumen,
   type EstudianteFicha,
+  type EstudianteVinculado,
   type ApoderadoFicha,
   type NombreUsuario,
   type ResponsableDePago,

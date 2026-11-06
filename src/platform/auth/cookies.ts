@@ -1,10 +1,11 @@
 // platform/auth: cookies de sesión.
 // - kubo_at: token de acceso (15 min), disponible para toda la aplicación.
 // - kubo_rt: refresh token, solo viaja a /api/v1/identidad (renovar y cerrar sesión).
-// Ambas httpOnly (el JavaScript del navegador no puede leerlas) y SameSite=Lax.
+// - kubo_estudiante: estudiante elegido en el portal del apoderado (US42), solo viaja a /api/v1/matricula/apoderado.
+// Todas httpOnly (el JavaScript del navegador no puede leerlas) y SameSite=Lax.
 // También se acepta "Authorization: Bearer <token>" para probar con REST Client o Postman.
 import type { NextRequest, NextResponse } from "next/server";
-import { MINUTOS_ACCESS_TOKEN } from "./jwt";
+import { DIAS_ESTUDIANTE_ELEGIDO, MINUTOS_ACCESS_TOKEN } from "./jwt";
 
 export const COOKIE_ACCESO = "kubo_at";
 export const COOKIE_REFRESH = "kubo_rt";
@@ -35,7 +36,32 @@ export function escribirCookiesSesion(
   }
 }
 
+/** Estudiante elegido en el portal del apoderado (US42): JWT firmado, solo lo leen las rutas del portal. */
+export const COOKIE_ESTUDIANTE = "kubo_estudiante";
+const RUTA_PORTAL_APODERADO = "/api/v1/matricula/apoderado";
+
+export function escribirCookieEstudiante(res: NextResponse, token: string) {
+  res.cookies.set(COOKIE_ESTUDIANTE, token, {
+    httpOnly: true,
+    secure: seguro(),
+    sameSite: "lax",
+    path: RUTA_PORTAL_APODERADO,
+    maxAge: DIAS_ESTUDIANTE_ELEGIDO * 24 * 60 * 60,
+  });
+}
+
+export function leerCookieEstudiante(req: NextRequest): string | null {
+  return req.cookies.get(COOKIE_ESTUDIANTE)?.value ?? null;
+}
+
 export function borrarCookiesSesion(res: NextResponse) {
+  res.cookies.set(COOKIE_ESTUDIANTE, "", {
+    httpOnly: true,
+    secure: seguro(),
+    sameSite: "lax",
+    path: RUTA_PORTAL_APODERADO,
+    maxAge: 0,
+  });
   res.cookies.set(COOKIE_ACCESO, "", { httpOnly: true, secure: seguro(), sameSite: "lax", path: "/", maxAge: 0 });
   res.cookies.set(COOKIE_REFRESH, "", {
     httpOnly: true,

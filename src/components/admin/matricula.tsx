@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fechaDia } from "@/lib/formato";
+import { fechaDia, soles } from "@/lib/formato";
 import { Avatar } from "./apoderados";
 import { BarraOcupacion, Selector, separarErrores, type Grado, type Seccion } from "./grados";
 import { alertaError } from "./PortalAdmin";
@@ -145,11 +145,8 @@ export const MOTIVOS_ANULACION = [
   { valor: "OTRO", texto: "Otro motivo" },
 ] as const;
 
-/** «1700.00» → «S/ 1 700.00» (sin pasar por float). */
-export function soles(monto: string) {
-  const [enteros, decimales = "00"] = monto.split(".");
-  return `S/ ${enteros.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}.${decimales}`;
-}
+// «1700.00» → «S/ 1 700.00»: vive en lib/formato porque también lo usa el portal del apoderado.
+export { soles };
 
 export const etiquetaSeccion = (s: Pick<Seccion, "nombre" | "grado">) => `${s.grado.numero}° ${s.nombre}`;
 

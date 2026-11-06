@@ -59,3 +59,32 @@ export function diaMes(fecha: string): string {
   const [, mes, dia] = fecha.split("-");
   return `${dia}/${mes}`;
 }
+
+/** «1700.00» → «S/ 1 700.00» (sin pasar por float). */
+export function soles(monto: string) {
+  const [enteros, decimales = "00"] = monto.split(".");
+  return `S/ ${enteros.replace(/\B(?=(\d{3})+(?!\d))/g, " ")}.${decimales}`;
+}
+
+const DIAS_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MESES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "setiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/** "2026-11-06" → "viernes 6 de noviembre de 2026" (saludo de AP-01). Fecha sin hora: no cambia de zona. */
+export function fechaLarga(fecha: string): string {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const diaSemana = new Date(Date.UTC(anio, mes - 1, dia)).getUTCDay();
+  return `${DIAS_SEMANA[diaSemana]} ${dia} de ${MESES[mes - 1]} de ${anio}`;
+}
