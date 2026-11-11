@@ -153,6 +153,14 @@ export function puedeActualizarIntento(actual: EstadoIntento, nuevo: "PENDIENTE"
   return false;
 }
 
+/**
+ * D-09: `data.id` tal como entra en el manifiesto de x-signature. Según la documentación de webhooks de Checkout Pro
+ * (Orders), un id alfanumérico con mayúsculas se pasa a minúsculas antes de firmar: «ORD01JQ4S4KY8HWQ6NA5PXB65B3D3» se
+ * firma como «ord01jq4s4ky8hwq6na5pxb65b3d3». Un id numérico (la simulación del panel) no cambia. Solo afecta a la
+ * firma: la order se consulta con el id original.
+ */
+export const idParaFirma = (dataId: string) => dataId.toLowerCase();
+
 /** US71: se concilian los intentos Pendiente creados hace más de diez minutos. */
 export const limiteConciliacion = (ahora: Date) =>
   new Date(ahora.getTime() - MINUTOS_ANTES_DE_CONCILIAR * MS_POR_MINUTO);

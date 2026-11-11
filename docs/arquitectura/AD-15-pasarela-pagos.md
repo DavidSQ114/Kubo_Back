@@ -36,7 +36,11 @@ Decisión AD-15, Figura 11 (flujo del pago en línea) y escenario de calidad AC1
 | Consultar el pago (`consultarPago`) | `GET https://api.mercadopago.com/v1/orders/{id}` | Se leen `status`, `status_detail`, `total_amount`, `total_paid_amount` y `external_reference`. Un 404 (`order_not_found`) se trata como order desconocida. Lo usan el webhook, la pantalla de retorno y la conciliación (US71). |
 | Aviso (webhook) | `POST {APP_URL}/api/v1/matricula/pagos/webhooks/pasarela?data.id=<order>&type=order` | Evento «Order (Mercado Pago)», configurado en *Tus integraciones → Webhooks*. Cuerpo con `action` (por ejemplo, `order.processed`), `type: "order"` y `data.id`. |
 
-**Firma `x-signature`.** La cabecera tiene la forma `ts=<timestamp>,v1=<hex>`. Kubo arma el manifiesto `id:<data.id de la query>;request-id:<cabecera x-request-id>;ts:<ts>;` (omitiendo las partes ausentes), calcula HMAC-SHA256 con `MP_WEBHOOK_SECRET` y lo compara en tiempo constante con `v1`. Lo hace `WebhookSignatureValidator.validate` del SDK oficial. Si no coincide, responde **401** `FIRMA_INVALIDA` y no consulta nada. Si coincide, responde **200** `{ recibido: true }` y consulta la order después.
+**Firma `x-signature`.** La cabecera tiene la forma `ts=<timestamp>,v1=<hex>`. Kubo arma el manifiesto `id:<data.id>;request-id:<cabecera x-request-id>;ts:<ts>;`, omitiendo las partes ausentes:
+- `data.id` se toma **solo de la query** de la URL del aviso. El del cuerpo no se usa.
+- Si es alfanumérico, va **en minúsculas** (ver [D-09](#d-09--los-avisos-reales-respondían-401-firma_invalida)).
+
+Con ese manifiesto calcula HMAC-SHA256 en hexadecimal con `MP_WEBHOOK_SECRET` y lo compara en tiempo constante con `v1`. Lo hace `WebhookSignatureValidator.validate` del SDK oficial, al que Kubo ya le pasa el id en minúsculas (`idParaFirma` en `domain/pasarela.ts`). Si no coincide, responde **401** `FIRMA_INVALIDA` y no consulta nada. Si coincide, responde **200** `{ recibido: true }` y consulta la order después con el id **original**, porque las mayúsculas sí importan en `GET /v1/orders/{id}`.
 
 ### Estados de una order y cómo los interpreta Kubo
 
@@ -52,6 +56,28 @@ Decisión AD-15, Figura 11 (flujo del pago en línea) y escenario de calidad AC1
 
 Un aviso nunca retrocede un intento resuelto: Aprobado y Observado son finales. Un Rechazado o Expirado solo cambia si después llega un pago acreditado (el apoderado reintentó con otra tarjeta en la misma order).
 
+### D-09 · Los avisos reales respondían 401 FIRMA_INVALIDA
+
+**Síntoma (AWS, sprint 3).** La «Simulación» del panel de Mercado Pago (`data.id=123456`) pasaba la firma. Los avisos de orders reales (`data.id=ORDTST…`) respondían `401 FIRMA_INVALIDA`. Los pagos igual se registraban, porque la pantalla de retorno consulta la order servidor a servidor. Sin ella, habrían esperado a la conciliación (US71).
+
+**Causa.** La documentación de webhooks de Checkout Pro vía Orders, en la pestaña «Sin SDKs», paso 2, dice:
+- `[data.id_url]` es el `data.id` de los *query params* de la URL;
+- si `data.id` viene con caracteres alfanuméricos en mayúsculas, hay que pasarlo a minúsculas antes de usarlo en el manifiesto. Su ejemplo: `ORD01JQ4S4KY8HWQ6NA5PXB65B3D3` se usa como `ord01jq4s4ky8hwq6na5pxb65b3d3`.
+
+El `WebhookSignatureValidator` del SDK `mercadopago` 3.6.1 **no** cambia el id: solo le quita los espacios y arma `id:${dataId}`. Kubo le pasaba el id tal como llegaba, en mayúsculas, y el HMAC no coincidía. Con un id numérico no se nota, porque pasarlo a minúsculas no lo cambia. La prueba unitaria de la firma tampoco lo detectó: firmaba con el id en mayúsculas, igual que el código.
+
+**Corrección.**
+- `idParaFirma` pasa el `data.id` a minúsculas solo para la firma.
+- El `data.id` se toma únicamente de la query: el del cuerpo no va firmado y podría no coincidir.
+- La order se consulta con el id original.
+- Pruebas en `tests/matricula/firmaWebhook.test.ts`, con firmas calculadas como Mercado Pago:
+  - order real en mayúsculas (pasa);
+  - simulación numérica (pasa);
+  - firma alterada, otra clave u otro id (401, sin la clave en el log).
+- Sin la corrección, la prueba de la order en mayúsculas falla igual que en AWS.
+
+**Fuente.** https://www.mercadopago.com.pe/developers/es/docs/checkout-pro-orders/resources/notifications/webhooks (export en Markdown: misma URL con `.md`), consultada el 11/11/2026. Si una versión futura del SDK pasa el id a minúsculas, aplicarlo dos veces no cambia el resultado.
+
 ### Fuentes consultadas (11/11/2026)
 
 - Checkout Pro con Orders, crear y configurar la order: https://www.mercadopago.com.pe/developers/es/docs/checkout-pro-orders/create-order (el contenido es el mismo que en la versión .com.br).
@@ -59,6 +85,7 @@ Un aviso nunca retrocede un intento resuelto: Aprobado y Observado son finales. 
 - Referencia `GET /v1/orders/{id}`: https://www.mercadopago.com.ar/developers/es/reference/online-payments/checkout-pro/get-order/get. La versión de Perú respondió 404 ese día.
 - Estados de la order: https://www.mercadopago.com.pe/developers/es/docs/checkout-pro-orders/payment-management/status/order-status.
 - Notificaciones (evento «Order (Mercado Pago)»): https://www.mercadopago.com.pe/developers/es/docs/checkout-pro-orders/notifications.
+- Webhooks de Checkout Pro vía Orders, validación de `x-signature` («Sin SDKs»): https://www.mercadopago.com.pe/developers/es/docs/checkout-pro-orders/resources/notifications/webhooks (D-09).
 - SDK oficial: https://github.com/mercadopago/sdk-nodejs (`Order`, `WebhookSignatureValidator`).
 
 **Pendiente de confirmar con las credenciales de prueba:** el juego de caracteres permitido en `external_reference` (la página lo trunca) y si el sandbox acepta `http://localhost` en las URL de retorno. En local se usa la pasarela falsa.

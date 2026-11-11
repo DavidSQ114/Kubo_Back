@@ -1,7 +1,7 @@
 // matricula/infrastructure: elige el adaptador de PasarelaPagos según PASARELA (mercadopago | falsa) y valida la firma
 // x-signature de los avisos (webhook) con MP_WEBHOOK_SECRET, con el validador del SDK oficial de Mercado Pago.
 import { WebhookSignatureValidator } from "mercadopago";
-import type { PasarelaPagos } from "../../domain/pasarela";
+import { idParaFirma, type PasarelaPagos } from "../../domain/pasarela";
 import { leerConfigPasarela } from "./config";
 import { pasarelaFalsa } from "./falsa";
 import { pasarelaMercadoPago } from "./mercadoPago";
@@ -24,6 +24,8 @@ export function obtenerPasarela(): PasarelaPagos | null {
 /**
  * ¿El aviso viene de la pasarela? Recalcula el HMAC-SHA256 de «id:[data.id];request-id:[x-request-id];ts:[ts];» con
  * MP_WEBHOOK_SECRET y lo compara en tiempo constante con v1 de x-signature. null: pago en línea apagado.
+ * `dataId` es el `data.id` de la query. El validador del SDK (3.6.1) lo usa tal cual, así que aquí se pasa ya en
+ * minúsculas, como pide la documentación para los ids alfanuméricos de Orders (D-09).
  */
 export function firmaAvisoValida(aviso: {
   firma: string | null;
@@ -36,7 +38,7 @@ export function firmaAvisoValida(aviso: {
     WebhookSignatureValidator.validate({
       xSignature: aviso.firma ?? undefined,
       xRequestId: aviso.requestId ?? undefined,
-      dataId: aviso.dataId ?? undefined,
+      dataId: aviso.dataId ? idParaFirma(aviso.dataId) : undefined,
       secret: config.MP_WEBHOOK_SECRET,
     });
     return true;

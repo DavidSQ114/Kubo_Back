@@ -301,7 +301,7 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 ### Aviso de la pasarela (webhook) · público, sin sesión
 
 `POST /matricula/pagos/webhooks/pasarela?data.id=<order>&type=order`. Mercado Pago lo envía con el evento «Order (Mercado Pago)».
-1. Valida `x-signature` (`ts=…,v1=…`) con `x-request-id`, el `data.id` de la query y `MP_WEBHOOK_SECRET`. Si no coincide: `401 FIRMA_INVALIDA`.
+1. Valida `x-signature` (`ts=…,v1=…`) con `x-request-id`, el `data.id` **de la query** y `MP_WEBHOOK_SECRET`. Si no coincide: `401 FIRMA_INVALIDA`. En el manifiesto, el `data.id` alfanumérico va en minúsculas (`ORDTST01…` → `ordtst01…`), como pide la documentación de Orders; la order se consulta con el id original ([D-09](../arquitectura/AD-15-pasarela-pagos.md#d-09--los-avisos-reales-respondían-401-firma_invalida)). El `data.id` del cuerpo no se usa.
 2. Responde `200 { recibido: true }` de inmediato. Un aviso de otro tipo también responde 200 y se ignora.
 3. Después consulta `GET /v1/orders/{data.id}`. Solo se considera pagada si `status = processed`, `status_detail = accredited`, `total_paid_amount = total_amount` = monto del intento y `external_reference` = el del intento.
 4. Registra la operación con el mismo caso de uso de US22: cuotas bloqueadas, monto exacto, recibo (US25), correo y `REGISTRAR_PAGO` con actor Sistema (`usuario_id` nulo) y `origen: "PASARELA"`. La operación queda con `medioPago: "PASARELA"`, `origen: "PASARELA"`, `numeroOperacion` y `referenciaExterna` = id de la order, y `registradoPor: "Sistema (pago en línea)"`.
