@@ -1,4 +1,4 @@
-// Enumeraciones del diagrama de clases v4.2 (34).
+// Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago).
 
 enum Rol {
   ADMINISTRADOR
@@ -123,6 +123,22 @@ enum MedioPago {
   TRANSFERENCIA
   DEPOSITO
   TARJETA
+  PASARELA
+}
+
+// Sprint 3 (US70): quién originó la operación de pago
+enum OrigenPago {
+  TESORERIA
+  PASARELA
+}
+
+// Sprint 3 (US70, US71): estado de un intento de pago en línea
+enum EstadoIntentoPago {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  EXPIRADO
+  OBSERVADO
 }
 
 enum DiaSemana {
@@ -218,6 +234,7 @@ enum MotivoAnulacion {
   PAGO_DUPLICADO
   SOLICITUD_APODERADO
   OTRO
+  DEVUELTO
 }
 
 enum MotivoRetiro {
