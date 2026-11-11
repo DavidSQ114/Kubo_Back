@@ -34,6 +34,9 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 | CP-US70-18 | US70 | excepción | `PASARELA="falsa"` con `NODE_ENV=production` | 1. Arrancar la app e ir a AP-02. | — | No aparece «Pagar». El log avisa una vez «Pasarela de pagos mal configurada» con el nombre de la variable, sin valores. |
 | CP-US70-19 | US70 | básico | CP-US70-04 | 1. Revisar la auditoría de la operación. | — | `REGISTRAR_PAGO` con `usuario_id` nulo, `actor: "SISTEMA"`, `origen: "PASARELA"`, `referenciaExterna` e `intentoId`. Llega el correo con el recibo (o el aviso `SMTP_NO_CONFIGURADO`). |
 | CP-US70-20 | US70 | excepción | PC-F | 1. Pago acreditado por un monto distinto al del intento (prueba de integración). | — | No se registra la operación. El intento queda «Observado» («El monto pagado no coincide con las cuotas») y el log tiene un aviso. |
+| CP-US70-21 | US70 (D-09) | básico | PC-MP en AWS | 1. Pagar una cuota en el checkout de prueba. 2. Revisar el log de la app al llegar el aviso «Order (Mercado Pago)». | `data.id=ORDTST…` (alfanumérico, en mayúsculas) | El aviso responde `200` (no `401 FIRMA_INVALIDA`) y el log muestra «Order de la pasarela procesada» con resultado `REGISTRADO`, **antes** de abrir la pantalla de retorno. La order se consulta con el id original en mayúsculas. Unitaria: `tests/matricula/firmaWebhook.test.ts`. |
+| CP-US70-22 | US70 (D-09) | alterno | PC-MP | 1. En el panel de Mercado Pago, «Simular notificación» del webhook. | `data.id=123456` (numérico) | Sigue respondiendo `200`. El log muestra «Aviso de una order sin intento en Kubo». |
+| CP-US70-23 | US70 (D-09) | excepción | PC-MP | 1. Reenviar un aviso real cambiando un carácter de `v1` en `x-signature`. | Misma order | `401 FIRMA_INVALIDA`. No se consulta la order y el log no muestra la clave secreta. |
 
 ## US71 · Conciliación y devolución de pagos en línea
 
@@ -56,5 +59,6 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 
 | Archivo | Qué cubre |
 |---|---|
+| `tests/matricula/firmaWebhook.test.ts` | D-09: id de la order en minúsculas para la firma; aviso real con id alfanumérico en mayúsculas (pasa y conserva el id original), simulación numérica (pasa), firma alterada, otra clave u otro id (401) y la ruta con 401 sin la clave en el log. |
 | `tests/matricula/pasarela.test.ts` | Monto del intento (válido, cuota pagada, otro estudiante, dos matrículas); expiración a los 30 min y límite de conciliación de 10 min; cuándo un cobro es pagado (monto pagado, total y referencia); estados de Orders (`processed/accredited`, `failed`, `canceled`, `expired`, `created`, `processing`, devueltos); montos de texto a céntimos; Observado por cuota pagada, anulada o monto distinto; devolución y descarte; configuración con Zod; firma `x-signature` válida e inválida. |
 | `tests/matricula/pasarela.integracion.test.ts` | 401 de la ruta con firma inválida; aviso duplicado y simultáneo (una sola operación); cuota ya pagada → Observado y devolución con auditoría; carrera con un pago manual (la cuota se cobra una vez); conciliación (aprobado y expirado); monto distinto; intento ajeno. |

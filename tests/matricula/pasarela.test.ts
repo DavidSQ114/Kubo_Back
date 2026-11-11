@@ -209,8 +209,11 @@ describe("firma x-signature del aviso (US70)", () => {
     process.env = { ...original };
   });
 
+  // como Mercado Pago: el data.id va en minúsculas en el manifiesto (D-09)
   const firmar = (dataId: string, requestId: string, ts: string, secreto = SECRETO) =>
-    `ts=${ts},v1=${createHmac("sha256", secreto).update(`id:${dataId};request-id:${requestId};ts:${ts};`).digest("hex")}`;
+    `ts=${ts},v1=${createHmac("sha256", secreto)
+      .update(`id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`)
+      .digest("hex")}`;
 
   it("acepta la firma calculada con la clave y rechaza otra clave, otro id o una firma ausente", () => {
     process.env.PASARELA = "falsa";

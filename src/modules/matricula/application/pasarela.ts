@@ -101,8 +101,9 @@ export async function crearIntentoPago(
 // ---------- US70 · Aviso de la pasarela (webhook) ----------
 
 /**
- * Valida el aviso: firma x-signature (401 si no coincide) y tipo. Devuelve el id de la order a consultar, o null si
- * el aviso no es de una order (se responde 200 y se ignora).
+ * Valida el aviso: firma x-signature (401 si no coincide) y tipo. `dataId` es el `data.id` de la query, el mismo que
+ * firma Mercado Pago. Devuelve el id de la order a consultar con su forma original (las mayúsculas importan en
+ * GET /v1/orders/{id}), o null si el aviso no es de una order (se responde 200 y se ignora).
  */
 export function validarAvisoPasarela(aviso: {
   firma: string | null;
