@@ -260,3 +260,54 @@ GET {{base}}/matricula/apoderado/hijos/{{hijo}}/cuotas/{{cuotaPagada}}/comproban
 
 ### 47. Comprobante de una cuota pendiente o vencida → 422 RECIBO_NO_CONFIRMADO
 GET {{base}}/matricula/apoderado/hijos/{{hijo}}/cuotas/{{cuotaPendiente}}/comprobante
+
+# ---------- Pago en línea (US70) y devolución (US71) ----------
+# Desarrollo con PASARELA="falsa" y MP_WEBHOOK_SECRET en .env. Inicia sesión como APODERADO para 48 a 52.
+@intento = 00000000-0000-0000-0000-000000000000
+@operacionPasarela = 00000000-0000-0000-0000-000000000000
+
+### 48. Iniciar un pago en línea → 201 { intentoId, monto (lo calcula el servidor), urlCheckout }
+POST {{base}}/matricula/apoderado/pagos/intentos
+Content-Type: application/json
+
+{ "estudianteId": "{{hijo}}", "conceptoIds": ["{{cuotaPendiente}}"] }
+
+### 49. Intento con una cuota ya pagada → 409 CUOTA_YA_PAGADA
+POST {{base}}/matricula/apoderado/pagos/intentos
+Content-Type: application/json
+
+{ "estudianteId": "{{hijo}}", "conceptoIds": ["{{cuotaPagada}}"] }
+
+### 50. Simular el checkout (solo PASARELA=falsa) → estado APROBADO con comprobante
+POST {{base}}/matricula/apoderado/pagos/intentos/{{intento}}/simular
+Content-Type: application/json
+
+{ "resultado": "APROBADO" }
+
+### 51. Estado del intento (pantalla de retorno)
+GET {{base}}/matricula/apoderado/pagos/intentos/{{intento}}
+
+### 52. Estado de cuenta: «pagoEnLinea» y «pagable» en cada cuota
+GET {{base}}/matricula/apoderado/hijos/{{hijo}}/pagos
+
+### 53. Aviso con una firma inventada → 401 FIRMA_INVALIDA (no se registra nada)
+POST {{base}}/matricula/pagos/webhooks/pasarela?data.id=ORD01JQ4S4KY8HWQ6NA5PXB65B3D3&type=order
+Content-Type: application/json
+x-signature: ts=1742505638,v1=0000000000000000000000000000000000000000000000000000000000000000
+x-request-id: prueba-firma-invalida
+
+{ "action": "order.processed", "type": "order", "data": { "id": "ORD01JQ4S4KY8HWQ6NA5PXB65B3D3" } }
+
+# Con sesión de ADMINISTRADOR:
+
+### 54. Registrar la devolución de un pago en línea Observado → Anulado, «Devuelto»
+POST {{base}}/matricula/pagos/{{operacionPasarela}}/devolver
+Content-Type: application/json
+
+{ "detalle": "Devolución ficticia en el panel de prueba" }
+
+### 55. Descartar un pago en línea Observado → 409 USAR_DEVOLUCION
+POST {{base}}/matricula/pagos/{{operacionPasarela}}/descartar
+Content-Type: application/json
+
+{}

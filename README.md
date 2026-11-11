@@ -81,7 +81,7 @@ kubo/
 │  │  ├─ academico.prisma        AnioAcademico, PeriodoEvaluacion, Grado, Seccion, Aula, AreaCurricular,
 │  │  │                          Curso, Competencia, PlanEstudio, CompetenciaPlan, AsignacionDocente,
 │  │  │                          ReglaConsolidacion, ParametroInstitucion
-│  │  ├─ matricula.prisma        Matricula, HistorialSeccion, ConceptoCobro, OperacionPago, Pago, Comprobante
+│  │  ├─ matricula.prisma        Matricula, HistorialSeccion, ConceptoCobro, OperacionPago, Pago, Comprobante, IntentoPago
 │  │  ├─ horarios.prisma         BloqueHorario, Horario, DetalleHorario, SesionClase,
 │  │  │                          AsistenciaEstudiante, AsistenciaDocente
 │  │  ├─ evaluacion.prisma       CierreCalificacion, Nota, ResultadoConsolidado,
@@ -242,7 +242,7 @@ POST /api/v1/matricula/matriculas/{id}/confirmar
 | `identidad` | Login, sesiones, bloqueo por intentos, recuperación y cambio de contraseña | Usuario, Sesion, TokenRecuperacion |
 | `comunidad` | Personas (un registro por DNI) y sus roles; vínculo apoderado–estudiante | Persona, Estudiante, Apoderado, Administrador, Docente, VinculoApoderado |
 | `academico` | Año, bimestres, grados, secciones, aulas, currículo, plan de estudios, asignación docente, reglas y parámetros | AnioAcademico, Seccion, Curso, Competencia, PlanEstudio, AsignacionDocente… |
-| `matricula` | Matrícula en dos pasos, traslados, retiros, cronograma de cobros, pagos y comprobantes | Matricula, ConceptoCobro, OperacionPago, Pago, Comprobante… |
+| `matricula` | Matrícula en dos pasos, traslados, retiros, cronograma de cobros, pagos y comprobantes, pago en línea con Mercado Pago y su conciliación | Matricula, ConceptoCobro, OperacionPago, Pago, Comprobante, IntentoPago… |
 | `horarios` | Horarios versionados sin cruces, sesiones de clase y asistencia de alumnos y docentes | Horario, DetalleHorario, SesionClase, AsistenciaEstudiante… |
 | `evaluacion` | Notas por competencia, cierre, consolidación, publicación y rectificaciones | CierreCalificacion, Nota, ResultadoConsolidado… |
 | `aula-virtual` | Unidades, materiales, enlaces de clase, trabajos y entregas | UnidadDidactica, MaterialEstudio, Trabajo, EntregaTrabajo… |
@@ -290,6 +290,7 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run db:reset` | Borra la base, la recrea y vuelve a cargar los datos iniciales (solo en desarrollo) |
 | `npm run db:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` sin borrar nada (base remota) |
 | `npm run db:seed:remoto` | Carga los datos iniciales en la base de `DATABASE_URL` sin usar Docker (base remota) |
+| `npm run conciliar-pagos` | Concilia los pagos en línea pendientes con la pasarela (US71); en AWS lo ejecuta un timer cada 15 minutos |
 
 `npm install` ejecuta `prisma generate` automáticamente (`postinstall`). El despliegue está descrito en `docs/DESPLIEGUE.md`.
 

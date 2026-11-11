@@ -229,6 +229,60 @@ El primero responde `"estado":"ok"`; el segundo, `308` con `location: https://ku
 
 Para volver a sslip.io: `rm /etc/kubo/dominio`, `APP_URL` con el dominio de sslip.io, `instalar.sh` y `systemctl restart kubo.service`.
 
+## Pago en línea (Mercado Pago, modo de prueba)
+
+US70 y US71. Solo **modo de prueba**: no se procesan pagos reales. Detalle técnico en [AD-15](arquitectura/AD-15-pasarela-pagos.md). Sin estas variables el portal no muestra «Pagar» y todo lo demás funciona igual.
+
+### 1. Cuenta y credenciales de prueba
+
+1. En https://www.mercadopago.com.pe/developers → **Tus integraciones**, crea (o abre) la aplicación de Checkout Pro con **Orders**.
+2. En **Cuentas de prueba**, crea un *vendedor* y un *comprador* de prueba. La API de Orders no acepta credenciales `TEST-`: se usan las **credenciales de producción del vendedor de prueba**, que solo mueven dinero ficticio. Copia su *Access Token* (`APP_USR-…`).
+3. Nunca pegues el token en un chat, un commit ni un ticket (estándar, sección 8).
+
+### 2. Configurar el webhook en Mercado Pago
+
+1. **Tus integraciones → (aplicación) → Webhooks → Configurar notificaciones**, en el modo de prueba.
+2. URL: `https://<dominio>/api/v1/matricula/pagos/webhooks/pasarela` (el dominio de `APP_URL`, con HTTPS).
+3. Evento: **Order (Mercado Pago)**. Guarda.
+4. **Revelar clave secreta**: esa es `MP_WEBHOOK_SECRET`. Kubo la usa para validar `x-signature`. Sin ella, todos los avisos responden 401.
+
+### 3. Cargar las claves en el servidor sin que queden en pantalla ni en el historial
+
+En Session Manager, como root (`sudo -i`). `read -s` no muestra lo que se pega y los valores no quedan en el historial de bash:
+
+```bash
+read -rs -p "MP_ACCESS_TOKEN: " MP_TOKEN; echo
+read -rs -p "MP_WEBHOOK_SECRET: " MP_SECRETO; echo
+ARCHIVO=/etc/kubo/kubo.env
+sed -i '/^PASARELA=/d;/^MP_ACCESS_TOKEN=/d;/^MP_WEBHOOK_SECRET=/d' "$ARCHIVO"
+printf 'PASARELA="mercadopago"\nMP_ACCESS_TOKEN="%s"\nMP_WEBHOOK_SECRET="%s"\n' "$MP_TOKEN" "$MP_SECRETO" >>"$ARCHIVO"
+unset MP_TOKEN MP_SECRETO
+chown kubo:kubo "$ARCHIVO" && chmod 600 "$ARCHIVO"
+systemctl restart kubo.service
+grep -c '^MP_' "$ARCHIVO"   # 2 (cuenta las líneas sin mostrar los valores)
+```
+
+`APP_URL` debe ser el dominio con `https://`: con él se arman las URL de retorno del checkout.
+
+### 4. Timer de conciliación (US71)
+
+`instalar.sh` instala y activa `kubo-conciliar-pagos.timer`, que ejecuta `npm run conciliar-pagos` cada 15 minutos. En un servidor instalado antes de este cambio, se activa **una vez** con:
+
+```bash
+install -o root -g root -m 644 /opt/kubo/current/deploy/aws/systemd/kubo-conciliar-pagos.{service,timer} /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now kubo-conciliar-pagos.timer
+systemctl list-timers kubo-conciliar-pagos.timer
+```
+
+Sin `PASARELA`, la conciliación termina enseguida sin hacer nada.
+
+### 5. Comprobar
+
+1. En Mercado Pago, **Simular notificación** del webhook. Debe responder 200. El log de la app muestra «Aviso de una order sin intento en Kubo», porque la order simulada no existe en Kubo.
+2. Como apoderado de prueba: AP-02 → «Pagar» → «Ir a pagar». Paga en el checkout con el comprador de prueba y una tarjeta de prueba. La pantalla de retorno debe mostrar «Pago aprobado».
+3. Resultado de la conciliación: `journalctl -u kubo-conciliar-pagos.service -n 20`.
+
 ## En cada sesión del Learner Lab
 
 1. **Start Lab** y espera el círculo verde. Abre la consola de AWS.
@@ -249,6 +303,7 @@ Para volver a sslip.io: `rm /etc/kubo/dominio`, `APP_URL` con el dominio de ssli
 | Saber qué commit está en uso | `readlink -f /opt/kubo/current` o `curl -s localhost:3000/api/v1/salud` |
 | Volver a mano al release anterior | `ls -t /opt/kubo/releases`, luego `ln -sfn /opt/kubo/releases/<sha> /opt/kubo/current && systemctl restart kubo.service` |
 | Ver el HTTPS | `systemctl status caddy` y `journalctl -u caddy -n 50` |
+| Conciliar pagos en línea ya (US71) | `systemctl start kubo-conciliar-pagos.service` y `journalctl -u kubo-conciliar-pagos.service -n 20` |
 
 Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve al anterior, la base ya tiene la migración nueva: por eso las migraciones deben ser compatibles con la versión anterior (agregar columnas o tablas, no borrarlas en el mismo cambio).
 
@@ -269,3 +324,6 @@ Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve 
 | «No pasó la salud» y volvió al anterior | La app no arrancó o no llega a la base | `journalctl -u kubo.service -n 100`; `curl -s localhost:3000/api/v1/salud` |
 | El disco se llena | Releases y logs | `df -h /`; se guardan solo 3 releases; `rm -rf /opt/kubo/releases/<sha-viejo>` si hace falta (nunca el de `current`) |
 | La base aparece encendida sin haberla iniciado | AWS reinicia una RDS detenida a los 7 días | Detenerla otra vez al terminar la sesión |
+| No aparece «Pagar» en AP-02 | Falta `PASARELA`, `MP_ACCESS_TOKEN` o `MP_WEBHOOK_SECRET`, o tienen un valor demasiado corto | `journalctl -u kubo.service \| grep -i pasarela` (solo nombra las variables); paso 3 de «Pago en línea» |
+| Los avisos de Mercado Pago responden 401 | `MP_WEBHOOK_SECRET` no es la clave secreta del webhook de la aplicación | Revelarla otra vez en Mercado Pago y volver a cargarla (paso 3); la conciliación registra los pagos aprobados mientras tanto |
+| Un pago aprobado queda «En proceso» | El aviso no llegó (EC2 apagada o URL mal configurada) | Esperar a la conciliación (máximo 25 minutos) o `systemctl start kubo-conciliar-pagos.service` |
