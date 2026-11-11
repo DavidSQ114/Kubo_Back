@@ -161,6 +161,38 @@ export const erroresMatricula = {
   reciboNoConfirmado: () =>
     new ErrorApp("RECIBO_NO_CONFIRMADO", "No se puede generar un recibo de un pago no confirmado", 422),
 
+  // ---------- Pago en línea (US70) y devolución (US71) ----------
+  pagoEnLineaNoDisponible: () =>
+    new ErrorApp(
+      "PAGO_EN_LINEA_NO_DISPONIBLE",
+      "El pago en línea no está disponible en este momento. Puedes pagar en tesorería.",
+      409,
+    ),
+  pasarelaNoResponde: () =>
+    new ErrorApp(
+      "PASARELA_NO_RESPONDE",
+      "No pudimos conectar con la pasarela de pagos. Inténtalo de nuevo en unos minutos.",
+      502,
+    ),
+  cuotasDeVariasMatriculas: () =>
+    new ErrorApp("CUOTAS_DE_VARIAS_MATRICULAS", "Elige cuotas de un mismo año académico.", 422),
+  intentoNoEncontrado: () => new ErrorApp("INTENTO_NO_ENCONTRADO", "No encontramos ese pago en línea.", 404),
+  firmaInvalida: () => new ErrorApp("FIRMA_INVALIDA", "La notificación no tiene una firma válida de la pasarela.", 401),
+  simulacionNoDisponible: () =>
+    new ErrorApp("SIMULACION_NO_DISPONIBLE", "La pasarela de prueba solo está disponible en desarrollo.", 409),
+  devolucionNoPermitida: () =>
+    new ErrorApp(
+      "DEVOLUCION_NO_PERMITIDA",
+      "Solo se registra la devolución de un pago en línea en estado «Observado».",
+      409,
+    ),
+  usarDevolucion: () =>
+    new ErrorApp(
+      "USAR_DEVOLUCION",
+      "Un pago en línea observado no se descarta: registra su devolución cuando el dinero se haya devuelto.",
+      409,
+    ),
+
   // ---------- Portal del apoderado (US42, US43, US44) ----------
   /** 403 aunque el estudiante exista: el apoderado no distingue entre «no existe» y «no es tuyo». */
   estudianteNoVinculado: () =>

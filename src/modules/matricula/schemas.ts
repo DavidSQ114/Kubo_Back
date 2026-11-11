@@ -114,3 +114,39 @@ export const FiltroMorosidadSchema = z.object({
 // ---------- Portal del apoderado (US42, US43) ----------
 
 export const ElegirHijoSchema = z.object({ estudianteId: id("Elige un estudiante") });
+
+// ---------- Pago en línea (US70) y devolución (US71) ----------
+
+export const IntentoPagoSchema = z.object({
+  estudianteId: id("Elige un estudiante"),
+  conceptoIds: z
+    .array(id("Cuota no válida"), { message: "Selecciona al menos una cuota pendiente." })
+    .min(1, "Selecciona al menos una cuota pendiente.")
+    .max(MAXIMO_CUOTAS_POR_PAGO, "Demasiadas cuotas en un solo pago."),
+});
+
+/** Solo con la pasarela falsa (desarrollo y pruebas). */
+export const SimularPagoSchema = z.object({
+  resultado: z.enum(["APROBADO", "RECHAZADO", "EN_PROCESO", "EXPIRADO"], { message: "Resultado no válido" }),
+});
+
+/** Largo máximo aceptado para el id de una order y el tipo del aviso. */
+const LARGO_MAXIMO_ID_EXTERNO = 100;
+const idExterno = z.string().trim().min(1).max(LARGO_MAXIMO_ID_EXTERNO);
+
+/** Query del aviso «Order (Mercado Pago)»: ?data.id=ORD…&type=order. */
+export const ConsultaAvisoPasarelaSchema = z.object({
+  "data.id": idExterno.optional(),
+  type: idExterno.optional(),
+});
+
+/** Cuerpo del aviso; solo se leen el tipo y data.id (el resto lo trae la consulta a la pasarela). */
+export const AvisoPasarelaSchema = z.object({
+  type: idExterno.optional(),
+  action: idExterno.optional(),
+  data: z.object({ id: z.union([idExterno, z.number().int().nonnegative()]).transform(String).optional() }).optional(),
+});
+
+export const DevolucionSchema = z.object({
+  detalle: z.string().trim().max(300, "Observación demasiado larga").nullable().optional(),
+});

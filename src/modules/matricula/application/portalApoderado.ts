@@ -22,6 +22,7 @@ import {
 import { cuotas as cuotasMatricula } from "../infrastructure/repositorio";
 import { cuotasDePago, matriculasDeEstudiante, operaciones } from "../infrastructure/pagos";
 import { esPagoAnual, reciboDePago } from "./pagos";
+import { pagoEnLineaDisponible } from "./pasarela";
 
 const iniciales = (nombres: string, apellidos: string) =>
   `${nombres.trim().charAt(0)}${apellidos.trim().charAt(0)}`.toUpperCase();
@@ -54,7 +55,7 @@ async function hijosAutorizados(personaId: string): Promise<HijoAutorizado[]> {
 }
 
 /** El hijo pedido, si está vinculado a la persona en sesión; si no, 403 ESTUDIANTE_NO_VINCULADO. */
-async function hijoAutorizado(auth: Autenticado, estudianteId: string): Promise<HijoAutorizado> {
+export async function hijoAutorizado(auth: Autenticado, estudianteId: string): Promise<HijoAutorizado> {
   const hijos = await hijosAutorizados(auth.personaId);
   verificarHijoAutorizado(
     hijos.map((h) => h.estudianteId),
@@ -165,6 +166,8 @@ export async function pagosDelHijo(auth: Autenticado, estudianteId: string, anio
       comprobanteDisponible: Boolean(pago?.comprobante),
       // US23: un pago «Observado» no cuenta como pagado; solo se avisa que tesorería lo está revisando
       enRevision: estado !== "PAGADO" && enRevision.has(c.id),
+      // US70: se puede pagar en línea una cuota Pendiente o Vencida que no esté en revisión
+      pagable: (estado === "PENDIENTE" || estado === "VENCIDO") && !enRevision.has(c.id),
     };
   });
   const vigentes = cuotas.filter((c) => c.estado !== "ANULADO");
@@ -188,6 +191,8 @@ export async function pagosDelHijo(auth: Autenticado, estudianteId: string, anio
     },
     anios: hijo.matriculas.map((x) => ({ anioId: x.anioAcademicoId, anio: x.anio })),
     hoy,
+    // US70: el botón «Pagar» solo aparece si hay una pasarela configurada
+    pagoEnLinea: pagoEnLineaDisponible(),
     resumen: {
       pagado: deCentimos(r.pagadoCentimos),
       cuotasPagadas: r.cuotasPagadas,

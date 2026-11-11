@@ -1,6 +1,7 @@
 // matricula/application: pensiones y pagos (AD-11). Registro de pago manual (US22, M-01), pagos con número de
 // operación repetido que quedan Observado (US23), anulación con motivo (US04, M-02), recibo en PDF con correlativo
-// (US25, M-03) y estado de cuenta del estudiante. Cada escritura va en una transacción con las cuotas bloqueadas.
+// (US25, M-03), estado de cuenta del estudiante, registro de un pago en línea aprobado por el Sistema (US70) y su
+// devolución (US71). Cada escritura va en una transacción con las cuotas bloqueadas.
 import { createHash } from "node:crypto";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -34,8 +35,17 @@ import {
   verificarPagoAnulable,
   verificarReciboDisponible,
   type MedioPago,
+  type MotivoAnulacionElegible,
   type MotivoAnulacionPago,
 } from "../domain/pagos";
+import {
+  estadoPagoPasarela,
+  MOTIVO_DEVOLUCION,
+  NOMBRE_ORIGEN_PAGO,
+  verificarDescartable,
+  verificarDevolucionPosible,
+  type OrigenPago,
+} from "../domain/pasarela";
 import { cuotas as cuotasMatricula, historial, matriculas } from "../infrastructure/repositorio";
 import {
   comprobantes,
@@ -44,10 +54,13 @@ import {
   operaciones,
   type OperacionFila,
 } from "../infrastructure/pagos";
+import { intentos } from "../infrastructure/intentos";
 
 export const AVISO_NUMERO_REPETIDO = "Este número de operación ya fue utilizado en otro pago";
 const INSTITUCION_POR_DEFECTO = "Institución Educativa Kubo";
-const ACCIONES_PAGO = ["REGISTRAR_PAGO", "CONFIRMAR_PAGO_OBSERVADO", "ANULAR_PAGO"];
+const ACCIONES_PAGO = ["REGISTRAR_PAGO", "CONFIRMAR_PAGO_OBSERVADO", "ANULAR_PAGO", "REGISTRAR_DEVOLUCION"];
+/** Quién aparece como registrador de un pago en línea (US70): no hay usuario, lo registra el Sistema. */
+const NOMBRE_SISTEMA = "Sistema (pago en línea)";
 const ENTIDAD = "operacion_pago";
 
 const rutaRecibo = (operacionId: string) => `/api/v1/matricula/pagos/${operacionId}/comprobante`;
@@ -70,6 +83,7 @@ interface ContextoRecibo {
  * traslado posterior no cambie el documento), apoderado responsable y quién registró el pago.
  */
 async function contextoRecibo(op: Pick<OperacionFila, "matriculaId" | "fechaPago" | "registradoPorId">) {
+  const registrador = op.registradoPorId;
   const m = await matriculas.porId(op.matriculaId);
   if (!m) throw E.noEncontrada();
   const [estudiante, anio, secciones, tramos, institucion, nombres] = await Promise.all([
@@ -78,7 +92,7 @@ async function contextoRecibo(op: Pick<OperacionFila, "matriculaId" | "fechaPago
     listarSecciones(m.anioAcademicoId),
     historial.deMatricula(m.id),
     obtenerParametro<string>("NOMBRE_INSTITUCION"),
-    nombresDeUsuarios([op.registradoPorId]),
+    nombresDeUsuarios(registrador ? [registrador] : []),
   ]);
   if (!estudiante) throw E.estudianteNoEncontrado();
   const seccionId = seccionEnFecha(tramos, op.fechaPago) ?? m.seccionId;
@@ -90,7 +104,7 @@ async function contextoRecibo(op: Pick<OperacionFila, "matriculaId" | "fechaPago
     anio: anio.anio,
     seccion: seccion ? `${seccion.grado.numero}° ${seccion.nombre}` : null,
     responsable: responsable && { nombreCompleto: responsable.nombreCompleto, email: responsable.email },
-    registradoPor: nombres[op.registradoPorId]?.nombreCorto ?? "—",
+    registradoPor: registrador ? (nombres[registrador]?.nombreCorto ?? "—") : NOMBRE_SISTEMA,
   } satisfies ContextoRecibo;
 }
 
@@ -233,10 +247,28 @@ interface PagoAnual {
   matriculaId: string;
 }
 
+/** Quién registra: un Administrador desde tesorería (US22) o el Sistema con un pago en línea (US70). */
+interface Actor {
+  usuarioId: string | null;
+  origen: OrigenPago;
+}
+
+/** Pago en línea aprobado: la order de la pasarela y el intento que lo originó (US70). */
+interface DatosPasarela {
+  ordenId: string;
+  intentoId: string;
+  estadoExterno: string;
+}
+
+interface OpcionesRegistro {
+  anual: PagoAnual | null;
+  pasarela: DatosPasarela | null;
+}
+
 /** Cambia la modalidad a Anual y deja CAMBIAR_MODALIDAD_PAGO (US58), dentro de la transacción del pago. */
 async function pasarAModalidadAnual(
   tx: Tx,
-  admin: Autenticado,
+  usuarioId: string,
   datos: { matriculaId: string; operacionId: string; anterior: ModalidadPago },
   meta: MetaSolicitud,
 ) {
@@ -244,7 +276,7 @@ async function pasarAModalidadAnual(
   await registrarAuditoria(
     tx,
     {
-      usuarioId: admin.usuarioId,
+      usuarioId,
       entidad: "matricula",
       entidadId: datos.matriculaId,
       accion: "CAMBIAR_MODALIDAD_PAGO",
@@ -256,28 +288,55 @@ async function pasarAModalidadAnual(
   );
 }
 
+type CuotaBloqueada = Awaited<ReturnType<typeof cuotasDePago.bloqueadas>>[number] & { montoCentimos: number };
+
 /**
- * Núcleo del registro de un pago (US22 y US58). En una transacción bloquea el número de operación y las filas de las
- * cuotas (en el pago anual, todas las Pendiente de la matrícula):
- * - una cuota ya pagada: «Esta pensión ya fue cancelada el [fecha]» (US23);
+ * Estado de la operación nueva. Tesorería (US22, US23): el monto debe ser exactamente la suma y un número de operación
+ * ya usado la deja Observado. Pasarela (US70): las cuotas se validan recién ahora (no se reservaron); una ya pagada o
+ * anulada, o un monto que no cuadra, la deja Observado con el motivo, sin rechazar el aviso.
+ */
+async function estadoDeLaOperacion(
+  tx: Tx,
+  datos: { conceptoIds: string[]; cuotas: CuotaBloqueada[]; montoCentimos: number; numero: string },
+  opciones: OpcionesRegistro,
+) {
+  if (opciones.pasarela) return estadoPagoPasarela(datos.conceptoIds, datos.cuotas, datos.montoCentimos);
+  const suma = verificarCuotasPagables(datos.conceptoIds, datos.cuotas);
+  if (opciones.anual) verificarMontoAnual(datos.montoCentimos, suma);
+  else verificarMontoExacto(datos.montoCentimos, suma);
+  return { estado: estadoInicialPago(await operaciones.numeroUsado(tx, datos.numero)), motivo: null };
+}
+
+/**
+ * Núcleo del registro de un pago (US22, US58 y US70). En una transacción bloquea el número de operación (o la order de
+ * la pasarela) y las filas de las cuotas (en el pago anual, todas las Pendiente de la matrícula):
+ * - una cuota ya pagada: «Esta pensión ya fue cancelada el [fecha]» (US23); en un pago en línea, Observado (US70);
  * - el monto debe ser exactamente la suma (sin pagos parciales ni descuentos);
  * - con un número de operación ya usado en otra operación no anulada queda Observado y no toca las cuotas;
  * - si no, Confirmado: las cuotas pasan a Pagado y se emite UN comprobante con su correlativo (US25); en el pago
  *   anual, además, la matrícula pasa a modalidad Anual (CAMBIAR_MODALIDAD_PAGO).
- * Auditoría REGISTRAR_PAGO (US04). La copia del recibo se envía después de confirmar.
+ * Una order de la pasarela ya registrada no se registra otra vez (idempotencia, índice único). Auditoría
+ * REGISTRAR_PAGO (US04) con el actor (usuario o Sistema) y el origen. La copia del recibo se envía después de confirmar.
  */
-async function registrarOperacion(admin: Autenticado, datos: DatosPago, meta: MetaSolicitud, anual: PagoAnual | null) {
+async function registrarOperacion(actor: Actor, datos: DatosPago, meta: MetaSolicitud, opciones: OpcionesRegistro) {
+  const { anual, pasarela } = opciones;
   const numero = normalizarNumeroOperacion(datos.numeroOperacion);
   const montoCentimos = aCentimos(datos.monto);
   const hoy = fechaEnLima(new Date());
   verificarFechaPago(datos.fechaPago, hoy);
   const matriculaId = anual?.matriculaId ?? (await cuotasDePago.porIds(datos.conceptoIds))[0]?.matriculaId;
   const ctx = matriculaId
-    ? await contextoRecibo({ matriculaId, fechaPago: datos.fechaPago, registradoPorId: admin.usuarioId })
+    ? await contextoRecibo({ matriculaId, fechaPago: datos.fechaPago, registradoPorId: actor.usuarioId })
     : null;
 
   const resultado = await prisma.$transaction(async (tx) => {
-    await operaciones.bloquearNumero(tx, numero);
+    if (pasarela) {
+      await operaciones.bloquearReferencia(tx, pasarela.ordenId);
+      const yaRegistrada = await operaciones.idPorReferencia(tx, pasarela.ordenId);
+      if (yaRegistrada) return { id: yaRegistrada, estado: null, motivo: null, comprobante: null, repetido: true };
+    } else {
+      await operaciones.bloquearNumero(tx, numero);
+    }
     let conceptoIds = datos.conceptoIds;
     let modalidadAnterior: ModalidadPago | null = null;
     if (anual) {
@@ -288,35 +347,36 @@ async function registrarOperacion(admin: Autenticado, datos: DatosPago, meta: Me
       verificarPagoAnualPosible(m.estado, NOMBRE_ESTADO_MATRICULA[m.estado], conceptoIds.length);
       modalidadAnterior = m.modalidadPago;
     }
-    const lista = await cuotasDePago.bloqueadas(tx, conceptoIds);
-    const suma = verificarCuotasPagables(
-      conceptoIds,
-      lista.map((c) => ({ ...c, montoCentimos: aCentimos(c.monto) })),
+    const lista = (await cuotasDePago.bloqueadas(tx, conceptoIds)).map((c) => ({
+      ...c,
+      montoCentimos: aCentimos(c.monto),
+    }));
+    const { estado, motivo } = await estadoDeLaOperacion(
+      tx,
+      { conceptoIds, cuotas: lista, montoCentimos, numero },
+      opciones,
     );
-    if (anual) verificarMontoAnual(montoCentimos, suma);
-    else verificarMontoExacto(montoCentimos, suma);
-    const estado = estadoInicialPago(await operaciones.numeroUsado(tx, numero));
     const id = await operaciones.crear(tx, {
       numeroOperacion: numero,
       medioPago: datos.medioPago,
       fechaPago: datos.fechaPago,
       montoCentimos,
       estado,
-      registradoPorId: admin.usuarioId,
-      confirmadoPorId: estado === "CONFIRMADO" ? admin.usuarioId : null,
-      cuotas: conceptoIds.map((cid) => ({
-        id: cid,
-        montoCentimos: aCentimos(lista.find((c) => c.id === cid)!.monto),
-      })),
+      registradoPorId: actor.usuarioId,
+      confirmadoPorId: estado === "CONFIRMADO" ? actor.usuarioId : null,
+      origen: actor.origen,
+      referenciaExterna: pasarela?.ordenId ?? null,
+      motivoObservacion: motivo,
+      cuotas: conceptoIds.map((cid) => ({ id: cid, montoCentimos: lista.find((c) => c.id === cid)!.montoCentimos })),
     });
     let comprobante: Awaited<ReturnType<typeof emitirComprobante>> | null = null;
     if (estado === "CONFIRMADO") {
       await cuotasDePago.marcar(tx, conceptoIds, "PENDIENTE", "PAGADO");
       comprobante = await emitirComprobante(tx, (await operaciones.porId(id, tx))!, ctx!, Number(hoy.slice(0, 4)));
-      if (anual && modalidadAnterior) {
+      if (anual && modalidadAnterior && actor.usuarioId) {
         await pasarAModalidadAnual(
           tx,
-          admin,
+          actor.usuarioId,
           { matriculaId: anual.matriculaId, operacionId: id, anterior: modalidadAnterior },
           meta,
         );
@@ -325,12 +385,14 @@ async function registrarOperacion(admin: Autenticado, datos: DatosPago, meta: Me
     await registrarAuditoria(
       tx,
       {
-        usuarioId: admin.usuarioId,
+        usuarioId: actor.usuarioId,
         entidad: ENTIDAD,
         entidadId: id,
         accion: "REGISTRAR_PAGO",
         nuevo: {
-          administradorId: admin.usuarioId,
+          administradorId: actor.usuarioId,
+          actor: actor.usuarioId ? "USUARIO" : "SISTEMA",
+          origen: actor.origen,
           fechaHora: new Date().toISOString(),
           monto: deCentimos(montoCentimos),
           conceptos: resumenCuotas(lista),
@@ -338,28 +400,63 @@ async function registrarOperacion(admin: Autenticado, datos: DatosPago, meta: Me
           medioPago: datos.medioPago,
           fechaPago: datos.fechaPago,
           estadoResultante: estado === "CONFIRMADO" ? "PAGADO" : "OBSERVADO",
+          motivoObservacion: motivo,
           comprobante: comprobante?.numero ?? null,
           // si queda Observado, la confirmación lo lee para cambiar la modalidad a Anual (US58)
           tipoPago: anual ? "ANUAL" : "CUOTAS",
           matriculaId,
+          ...(pasarela ? { referenciaExterna: pasarela.ordenId, intentoId: pasarela.intentoId } : {}),
         },
       },
       meta,
     );
-    return { id, estado, comprobante };
+    if (pasarela) {
+      await intentos.marcarResultado(tx, pasarela.intentoId, {
+        estado: estado === "CONFIRMADO" ? "APROBADO" : "OBSERVADO",
+        operacionPagoId: id,
+        detalle: motivo,
+        estadoExterno: pasarela.estadoExterno,
+      });
+    }
+    return { id, estado, motivo, comprobante, repetido: false };
   });
 
   const correo = resultado.comprobante ? await enviarCopia(resultado.comprobante, ctx!, meta.requestId) : null;
-  return {
-    operacion: await detalleOperacion(resultado.id),
-    aviso: resultado.estado === "OBSERVADO" ? AVISO_NUMERO_REPETIDO : null,
-    correo,
-  };
+  const aviso = resultado.estado === "OBSERVADO" ? (resultado.motivo ?? AVISO_NUMERO_REPETIDO) : null;
+  return { operacion: await detalleOperacion(resultado.id), aviso, correo, repetido: resultado.repetido };
 }
+
+const desdeTesoreria = (admin: Autenticado): Actor => ({ usuarioId: admin.usuarioId, origen: "TESORERIA" });
 
 /** Registra un pago manual de las cuotas elegidas (US22, US23). */
 export const registrarPago = (admin: Autenticado, datos: DatosPago, meta: MetaSolicitud) =>
-  registrarOperacion(admin, datos, meta, null);
+  registrarOperacion(desdeTesoreria(admin), datos, meta, { anual: null, pasarela: null });
+
+/**
+ * Registra un pago en línea aprobado (US70), con el mismo núcleo que el pago manual: cuotas bloqueadas, monto exacto,
+ * recibo (US25), correo y auditoría (US04), con actor Sistema y origen PASARELA. Idempotente por la order: un aviso
+ * repetido devuelve la operación ya registrada con `repetido: true`.
+ */
+export const registrarPagoPasarela = (
+  intento: { id: string; conceptoIds: string[]; montoCentimos: number },
+  cobro: { ordenId: string; estadoExterno: string },
+  meta: MetaSolicitud,
+) =>
+  registrarOperacion(
+    { usuarioId: null, origen: "PASARELA" },
+    {
+      conceptoIds: intento.conceptoIds,
+      monto: deCentimos(intento.montoCentimos),
+      medioPago: "PASARELA",
+      numeroOperacion: cobro.ordenId,
+      fechaPago: fechaEnLima(new Date()),
+    },
+    meta,
+    {
+      anual: null,
+      pasarela: { ordenId: cobro.ordenId, intentoId: intento.id, estadoExterno: cobro.estadoExterno },
+    },
+  );
 
 export type DatosPagoAnual = Omit<DatosPago, "conceptoIds">;
 
@@ -373,7 +470,11 @@ export const registrarPagoAnual = (
   matriculaId: string,
   datos: DatosPagoAnual,
   meta: MetaSolicitud,
-) => registrarOperacion(admin, { ...datos, conceptoIds: [] }, meta, { matriculaId });
+) =>
+  registrarOperacion(desdeTesoreria(admin), { ...datos, conceptoIds: [] }, meta, {
+    anual: { matriculaId },
+    pasarela: null,
+  });
 
 /** ¿La operación se registró como pago anual? (lo guarda REGISTRAR_PAGO en la bitácora). */
 export async function esPagoAnual(operacionId: string) {
@@ -416,7 +517,12 @@ export async function confirmarPagoObservado(admin: Autenticado, operacionId: st
     if (anual) {
       const m = await matriculas.porId(op.matriculaId, tx);
       if (m && m.modalidadPago !== "ANUAL") {
-        await pasarAModalidadAnual(tx, admin, { matriculaId: m.id, operacionId, anterior: m.modalidadPago }, meta);
+        await pasarAModalidadAnual(
+          tx,
+          admin.usuarioId,
+          { matriculaId: m.id, operacionId, anterior: m.modalidadPago },
+          meta,
+        );
       }
     }
     await registrarAuditoria(
@@ -458,6 +564,7 @@ export async function descartarPagoObservado(
     const op = await operaciones.porId(operacionId, tx);
     if (!op) throw E.pagoNoEncontrado();
     verificarObservado(op.estado);
+    verificarDescartable(op.origen);
     const observacion = datos.detalle?.trim() || null;
     await operaciones.anular(tx, operacionId, {
       anuladoPorId: admin.usuarioId,
@@ -500,7 +607,7 @@ export async function descartarPagoObservado(
 export async function anularPago(
   admin: Autenticado,
   operacionId: string,
-  datos: { motivo?: MotivoAnulacionPago | null; detalle?: string | null },
+  datos: { motivo?: MotivoAnulacionElegible | null; detalle?: string | null },
   meta: MetaSolicitud,
 ) {
   const motivo = verificarMotivoAnulacionPago(datos.motivo, datos.detalle);
@@ -547,6 +654,57 @@ export async function anularPago(
   return { operacion: await detalleOperacion(operacionId) };
 }
 
+// ---------- Registrar devolución de un pago en línea Observado (US71) ----------
+
+/**
+ * Tesorería ya devolvió el dinero de un pago en línea Observado (por ejemplo, la cuota estaba pagada por otro medio):
+ * la operación pasa a Anulado con el motivo «Devuelto». Sus cuotas no cambian (nunca se marcaron como pagadas). La
+ * devolución en sí se hace en el panel de la pasarela. Queda REGISTRAR_DEVOLUCION en la auditoría.
+ */
+export async function registrarDevolucion(
+  admin: Autenticado,
+  operacionId: string,
+  datos: { detalle?: string | null },
+  meta: MetaSolicitud,
+) {
+  await prisma.$transaction(async (tx) => {
+    await operaciones.bloquear(tx, operacionId);
+    const op = await operaciones.porId(operacionId, tx);
+    if (!op) throw E.pagoNoEncontrado();
+    verificarDevolucionPosible(op);
+    const observacion = datos.detalle?.trim() || null;
+    await operaciones.anular(tx, operacionId, {
+      anuladoPorId: admin.usuarioId,
+      anuladoEn: new Date(),
+      motivoAnulacion: "DEVUELTO",
+      observacion,
+    });
+    await registrarAuditoria(
+      tx,
+      {
+        usuarioId: admin.usuarioId,
+        entidad: ENTIDAD,
+        entidadId: operacionId,
+        accion: "REGISTRAR_DEVOLUCION",
+        anterior: { estado: "OBSERVADO", motivoObservacion: op.motivoObservacion },
+        nuevo: {
+          estado: "ANULADO",
+          motivo: "DEVUELTO",
+          origen: op.origen,
+          monto: op.monto,
+          conceptos: resumenCuotas(op.cuotas),
+          numeroOperacion: op.numeroOperacion,
+          referenciaExterna: op.referenciaExterna,
+          cuotasRevertidas: 0,
+        },
+        motivo: observacion ? `${MOTIVO_DEVOLUCION}: ${observacion}` : MOTIVO_DEVOLUCION,
+      },
+      meta,
+    );
+  });
+  return { operacion: await detalleOperacion(operacionId) };
+}
+
 // ---------- Recibo en PDF (US25, M-03) ----------
 
 /**
@@ -582,11 +740,17 @@ async function vistaOperaciones(lista: OperacionFila[]) {
     lista.flatMap((o) => [o.registradoPorId, o.confirmadoPorId, o.anuladoPorId].filter((x): x is string => !!x)),
   );
   const nombre = (id: string | null) => (id ? (nombres[id]?.nombreCorto ?? "—") : null);
+  const registrador = (o: OperacionFila) => (o.registradoPorId ? nombre(o.registradoPorId) : NOMBRE_SISTEMA);
   return Promise.all(
     lista.map(async (o) => ({
       operacionId: o.id,
       numeroOperacion: o.numeroOperacion,
       medioPago: o.medioPago,
+      nombreMedioPago: NOMBRE_MEDIO_PAGO[o.medioPago],
+      origen: o.origen,
+      nombreOrigen: NOMBRE_ORIGEN_PAGO[o.origen],
+      referenciaExterna: o.referenciaExterna,
+      motivoObservacion: o.motivoObservacion,
       fechaPago: o.fechaPago,
       registradoEn: o.registradoEn,
       monto: o.monto,
@@ -598,7 +762,7 @@ async function vistaOperaciones(lista: OperacionFila[]) {
         url: rutaRecibo(o.id),
         enviadoEn: o.comprobante.enviadoEn,
       },
-      registradoPor: nombre(o.registradoPorId),
+      registradoPor: registrador(o),
       confirmadoPor: nombre(o.confirmadoPorId),
       anulacion:
         o.estado === "ANULADO" && o.motivoAnulacion
@@ -610,8 +774,11 @@ async function vistaOperaciones(lista: OperacionFila[]) {
               anuladoEn: o.anuladoEn,
             }
           : null,
-      // US23: con qué otras operaciones comparte el número (solo para las Observado)
-      mismoNumero: o.estado === "OBSERVADO" ? await operaciones.conMismoNumero(o.numeroOperacion, o.id) : [],
+      // US23: con qué otras operaciones comparte el número (solo para las Observado de tesorería)
+      mismoNumero:
+        o.estado === "OBSERVADO" && o.origen === "TESORERIA"
+          ? await operaciones.conMismoNumero(o.numeroOperacion, o.id)
+          : [],
     })),
   );
 }
@@ -623,15 +790,26 @@ export async function detalleOperacion(operacionId: string) {
   return (await vistaOperaciones([op]))[0];
 }
 
+const TIPO_EVENTO: Record<string, string> = {
+  ANULAR_PAGO: "Anulación",
+  CONFIRMAR_PAGO_OBSERVADO: "Confirmación",
+  REGISTRAR_DEVOLUCION: "Devolución",
+};
+
 /** Texto corto de un evento del log de pagos de AD-11. */
 function detalleEvento(accion: string, nuevo: Record<string, unknown>) {
   const conceptos = Array.isArray(nuevo.conceptos) ? (nuevo.conceptos as string[]).join(", ") : "";
-  const base = `Op. ${String(nuevo.numeroOperacion ?? "")}${nuevo.comprobante ? ` · ${String(nuevo.comprobante)}` : ""}`;
-  if (accion === "ANULAR_PAGO") {
+  const enLinea = nuevo.origen === "PASARELA" ? " · en línea" : "";
+  const comprobante = nuevo.comprobante ? ` · ${String(nuevo.comprobante)}` : "";
+  const base = `Op. ${String(nuevo.numeroOperacion ?? "")}${comprobante}${enLinea}`;
+  if (accion === "ANULAR_PAGO" || accion === "REGISTRAR_DEVOLUCION") {
     const motivo = NOMBRE_MOTIVO_ANULACION_PAGO[nuevo.motivo as MotivoAnulacionPago] ?? String(nuevo.motivo ?? "");
     return `${base} · ${conceptos} · motivo: ${motivo.toLowerCase()}`;
   }
-  const estado = nuevo.estadoResultante === "OBSERVADO" ? "queda Observado" : "Pagado";
+  const estado =
+    nuevo.estadoResultante === "OBSERVADO"
+      ? `queda Observado${nuevo.motivoObservacion ? ` (${String(nuevo.motivoObservacion).toLowerCase()})` : ""}`
+      : "Pagado";
   return `${base} · ${conceptos} · S/ ${String(nuevo.monto ?? "")} · ${estado}`;
 }
 
@@ -728,14 +906,9 @@ export async function estadoDeCuenta(estudianteId: string, anioId?: string) {
       id: e.id,
       fecha: e.fecha,
       accion: e.accion,
-      tipo:
-        e.accion === "ANULAR_PAGO"
-          ? "Anulación"
-          : e.accion === "CONFIRMAR_PAGO_OBSERVADO"
-            ? "Confirmación"
-            : "Registro",
+      tipo: TIPO_EVENTO[e.accion] ?? "Registro",
       detalle: detalleEvento(e.accion, (e.valorNuevo ?? {}) as Record<string, unknown>),
-      usuario: e.usuarioId ? (nombres[e.usuarioId]?.nombreCorto ?? "—") : "—",
+      usuario: e.usuarioId ? (nombres[e.usuarioId]?.nombreCorto ?? "—") : "Sistema",
     })),
   };
 }
