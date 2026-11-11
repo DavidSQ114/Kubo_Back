@@ -13,6 +13,7 @@ import {
   BotonRecibo,
   LogPagos,
   ModalAnularPago,
+  ModalDevolucion,
   ModalPagoAnual,
   ModalRegistrarPago,
   TablaCronogramaPagos,
@@ -52,6 +53,7 @@ function PaginaPagos() {
   const [recarga, setRecarga] = useState(0);
   const [registrando, setRegistrando] = useState<string[] | null>(null);
   const [anulando, setAnulando] = useState<OperacionPago | null>(null);
+  const [devolviendo, setDevolviendo] = useState<OperacionPago | null>(null);
   const [pagoAnual, setPagoAnual] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [exito, setExito] = useState<AvisoExito | null>(null);
@@ -348,11 +350,12 @@ function PaginaPagos() {
               onAnular={setAnulando}
               onConfirmar={confirmar}
               onDescartar={descartar}
+              onDevolver={setDevolviendo}
               onError={setErrorAccion}
             />
             <p className="text-[12px] text-texto-3">
               Estados de la operación: Observado, Confirmado y Anulado. Al anular una operación, las cuotas que cubría
-              vuelven a «Pendiente».
+              vuelven a «Pendiente». Origen: Tesorería (registro manual) o Pasarela (pago en línea del apoderado).
             </p>
           </Tarjeta>
 
@@ -397,6 +400,23 @@ function PaginaPagos() {
             });
             setAviso(null);
             setAnulando(null);
+            setRecarga((n) => n + 1);
+          }}
+        />
+      )}
+      {devolviendo && actual && (
+        <ModalDevolucion
+          operacion={devolviendo}
+          estudiante={`${actual.estudiante.nombreCompleto}${actual.matricula?.seccion ? ` · ${actual.matricula.seccion}` : ""}`}
+          onCerrar={() => setDevolviendo(null)}
+          onDevuelto={() => {
+            setExito({
+              titulo: "Devolución registrada",
+              detalle: `El pago en línea ${devolviendo.numeroOperacion} quedó «Anulado» con el motivo «Devuelto». Las cuotas no cambian.`,
+              recibo: null,
+            });
+            setAviso(null);
+            setDevolviendo(null);
             setRecarga((n) => n + 1);
           }}
         />

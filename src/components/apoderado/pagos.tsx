@@ -22,6 +22,8 @@ export interface CuotaPortal {
   fechaPago: string | null;
   comprobanteDisponible: boolean;
   enRevision: boolean;
+  /** US70: Pendiente o Vencido y sin un pago en revisión. */
+  pagable: boolean;
 }
 
 export interface PagosDelHijo {
@@ -37,6 +39,8 @@ export interface PagosDelHijo {
   };
   anios: { anioId: string; anio: number }[];
   hoy: string;
+  /** US70: hay una pasarela configurada (si no, «Pagar» no aparece). */
+  pagoEnLinea: boolean;
   resumen: {
     pagado: string;
     cuotasPagadas: number;
@@ -418,7 +422,7 @@ export function TablaCronograma({ datos }: { datos: PagosDelHijo }) {
   );
 }
 
-export function ComoPagar({ codigo }: { codigo: string }) {
+export function ComoPagar({ codigo, enLinea = false }: { codigo: string; enLinea?: boolean }) {
   return (
     <section className="flex flex-col gap-4 rounded-lg border border-borde bg-white p-6" aria-label="¿Cómo pagar?">
       <div className="flex items-center gap-3">
@@ -427,6 +431,14 @@ export function ComoPagar({ codigo }: { codigo: string }) {
         </span>
         <h2 className="text-[18px] font-semibold text-texto">¿Cómo pagar?</h2>
       </div>
+      {enLinea && (
+        <div className="rounded-lg border-l-4 border-kubo-azul bg-kubo-azul/8 px-4 py-3">
+          <p className="text-[14px] font-semibold text-texto">Pago en línea</p>
+          <p className="text-[13px] leading-[1.5] text-texto-2">
+            Usa «Pagar» para pagar con tarjeta en Mercado Pago. El pago se registra apenas Mercado Pago lo confirma.
+          </p>
+        </div>
+      )}
       <p className="text-[14px] leading-[1.5] text-texto-2">
         Paga en tesorería del colegio o en agentes y banca por internet con el código del estudiante:
       </p>
