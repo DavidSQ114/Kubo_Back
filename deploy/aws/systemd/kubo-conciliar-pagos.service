@@ -1,0 +1,20 @@
+# US71 · Conciliación de pagos en línea: npm run conciliar-pagos desde la versión desplegada, como kubo y con las
+# variables de /etc/kubo/kubo.env. Lo dispara kubo-conciliar-pagos.timer; a mano:
+#   sudo systemctl start kubo-conciliar-pagos.service  y  journalctl -u kubo-conciliar-pagos.service
+# Sin PASARELA en kubo.env termina enseguida sin hacer nada.
+[Unit]
+Description=Kubo · conciliar pagos en línea pendientes
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/kubo/current/package.json
+
+[Service]
+Type=oneshot
+User=kubo
+Group=kubo
+WorkingDirectory=/opt/kubo/current
+EnvironmentFile=/etc/kubo/kubo.env
+ExecStart=/usr/bin/npm run --silent conciliar-pagos
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true

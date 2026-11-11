@@ -135,7 +135,7 @@ printf 'KUBO_DOMINIO=%s\nKUBO_DOMINIO_RESPALDO=%s\n' "$DOMINIO" "$DOMINIO_RESPAL
 chmod 644 "$CONFIG/caddy.env"
 install -d -m 755 /etc/systemd/system/caddy.service.d
 printf '[Service]\nEnvironmentFile=%s/caddy.env\n' "$CONFIG" >/etc/systemd/system/caddy.service.d/kubo.conf
-for unidad in kubo.service kubo-desplegar.service kubo-desplegar.timer; do
+for unidad in kubo.service kubo-desplegar.service kubo-desplegar.timer kubo-conciliar-pagos.service \n  kubo-conciliar-pagos.timer; do
   install -o root -g root -m 644 "$DIR_SCRIPT/systemd/$unidad" "/etc/systemd/system/$unidad"
 done
 # desplegar.sh corre como kubo y solo puede reiniciar kubo.service
@@ -159,6 +159,8 @@ ROTACION
 systemctl daemon-reload
 systemctl enable kubo.service >/dev/null
 systemctl enable --now kubo-desplegar.timer >/dev/null
+# conciliación de pagos en línea (US71); sin PASARELA en kubo.env no hace nada
+systemctl enable --now kubo-conciliar-pagos.timer >/dev/null
 systemctl enable caddy >/dev/null
 systemctl restart caddy
 

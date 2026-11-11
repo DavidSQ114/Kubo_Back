@@ -1,0 +1,13 @@
+# US71 · Ejecuta kubo-conciliar-pagos.service cada 15 minutos (y al arrancar, si se perdió una ejecución).
+# Lo instala y activa deploy/aws/instalar.sh; en un servidor ya instalado, ver docs/DESPLIEGUE-AWS.md.
+[Unit]
+Description=Kubo · conciliar pagos en línea cada 15 minutos
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=60
+Unit=kubo-conciliar-pagos.service
+
+[Install]
+WantedBy=timers.target
