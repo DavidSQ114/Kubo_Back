@@ -2,14 +2,16 @@
 // auditada (US04) y el correlativo del comprobante (US25). Montos en céntimos enteros; fechas «AAAA-MM-DD».
 import { erroresMatricula as E } from "./errores";
 
+/** Medios que tesorería registra a mano (US22). PASARELA solo lo asigna el pago en línea (US70). */
 export const MEDIOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "DEPOSITO", "TARJETA"] as const;
-export type MedioPago = (typeof MEDIOS_PAGO)[number];
+export type MedioPago = (typeof MEDIOS_PAGO)[number] | "PASARELA";
 
 export const NOMBRE_MEDIO_PAGO: Record<MedioPago, string> = {
   EFECTIVO: "Efectivo",
   TRANSFERENCIA: "Transferencia",
   DEPOSITO: "Depósito",
   TARJETA: "Tarjeta",
+  PASARELA: "Pago en línea",
 };
 
 export const ESTADOS_PAGO = ["OBSERVADO", "CONFIRMADO", "ANULADO"] as const;
@@ -23,13 +25,16 @@ export const NOMBRE_ESTADO_PAGO: Record<EstadoPago, string> = {
 
 /** Motivos de MotivoAnulacion para un pago (US04). */
 export const MOTIVOS_ANULACION_PAGO = ["ERROR_DIGITACION", "PAGO_DUPLICADO", "SOLICITUD_APODERADO", "OTRO"] as const;
-export type MotivoAnulacionPago = (typeof MOTIVOS_ANULACION_PAGO)[number];
+/** Motivos que elige el Administrador en M-02. DEVUELTO solo lo asigna «Registrar devolución» (US71). */
+export type MotivoAnulacionElegible = (typeof MOTIVOS_ANULACION_PAGO)[number];
+export type MotivoAnulacionPago = MotivoAnulacionElegible | "DEVUELTO";
 
 export const NOMBRE_MOTIVO_ANULACION_PAGO: Record<MotivoAnulacionPago, string> = {
   ERROR_DIGITACION: "Error de digitación",
   PAGO_DUPLICADO: "Pago duplicado",
   SOLICITUD_APODERADO: "Solicitud del apoderado",
   OTRO: "Otro",
+  DEVUELTO: "Devuelto",
 };
 
 /** Largo máximo del número de operación bancaria. */
@@ -101,7 +106,10 @@ export function verificarPagoAnulable(estado: EstadoPago) {
 }
 
 /** US04: con «Otro» el detalle pasa a ser obligatorio (M-02). */
-export function verificarMotivoAnulacionPago(motivo: MotivoAnulacionPago | null | undefined, detalle?: string | null) {
+export function verificarMotivoAnulacionPago(
+  motivo: MotivoAnulacionElegible | null | undefined,
+  detalle?: string | null,
+) {
   if (!motivo) throw E.motivoAnulacionPagoRequerido();
   if (motivo === "OTRO" && !detalle?.trim()) throw E.detalleAnulacionRequerido();
   return motivo;

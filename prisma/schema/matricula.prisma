@@ -1,4 +1,5 @@
-// Módulo matrícula: matrículas, historial de secciones, cobros, operaciones de pago, pagos y comprobantes.
+// Módulo matrícula: matrículas, historial de secciones, cobros, operaciones de pago, pagos, comprobantes e intentos
+// de pago en línea (US70).
 // Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
 
 model Matricula {
@@ -32,6 +33,7 @@ model Matricula {
   notas                  Nota[]
   resultadosConsolidados ResultadoConsolidado[]
   entregasTrabajo        EntregaTrabajo[]
+  intentosPago           IntentoPago[]
 
   @@index([seccionId, estado])
   @@map("matricula")
@@ -78,11 +80,18 @@ model OperacionPago {
   id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   numeroOperacion      String           @map("numero_operacion")
   medioPago            MedioPago        @map("medio_pago")
+  /// TESORERIA: registro manual (US22). PASARELA: pago en línea confirmado por el webhook o la conciliación (US70).
+  origen               OrigenPago       @default(TESORERIA)
+  /// ID de la order en la pasarela; único para que un aviso repetido no registre dos veces el pago (US70).
+  referenciaExterna    String?          @unique(map: "uq_operacion_pago_referencia_externa") @map("referencia_externa")
   fechaPago            DateTime         @db.Timestamptz(3) @map("fecha_pago")
   montoTotal           Decimal          @db.Decimal(10, 2) @map("monto_total")
   estado               EstadoPago
-  registradoPorId      String           @db.Uuid @map("registrado_por_id")
-  registradoPor        Usuario          @relation("OperacionPagoRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  /// Por qué quedó Observado un pago en línea (por ejemplo, «Cuota pagada por otro medio»).
+  motivoObservacion    String?          @map("motivo_observacion")
+  /// Vacío solo si el origen es PASARELA: la registra el Sistema (ck_operacion_pago_registrador).
+  registradoPorId      String?          @db.Uuid @map("registrado_por_id")
+  registradoPor        Usuario?         @relation("OperacionPagoRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
   confirmadoPorId      String?          @db.Uuid @map("confirmado_por_id")
   confirmadoPor        Usuario?         @relation("OperacionPagoConfirmadoPor", fields: [confirmadoPorId], references: [id], onDelete: SetNull)
   anuladoPorId         String?          @db.Uuid @map("anulado_por_id")
@@ -94,9 +103,43 @@ model OperacionPago {
   updatedAt            DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   pagos                Pago[]
   comprobante          Comprobante?
+  intentoPago          IntentoPago?
 
   @@index([numeroOperacion])
+  @@index([origen, estado])
   @@map("operacion_pago")
+}
+
+/// Intento de pago en línea desde el portal del apoderado (US70). No reserva las cuotas: se validan al confirmar.
+model IntentoPago {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId       String            @db.Uuid @map("matricula_id")
+  matricula         Matricula         @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
+  creadoPorId       String            @db.Uuid @map("creado_por_id")
+  creadoPor         Usuario           @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
+  /// Cuotas (concepto_cobro) que el apoderado eligió pagar.
+  conceptoIds       String[]          @db.Uuid @map("concepto_ids")
+  monto             Decimal           @db.Decimal(10, 2)
+  moneda            String            @default("PEN")
+  estado            EstadoIntentoPago @default(PENDIENTE)
+  /// external_reference enviado a la pasarela.
+  referenciaExterna String            @unique(map: "uq_intento_pago_referencia_externa") @map("referencia_externa")
+  pasarela          String
+  /// ID de la order creada en la pasarela.
+  ordenExternaId    String?           @unique(map: "uq_intento_pago_orden_externa") @map("orden_externa_id")
+  urlCheckout       String?           @map("url_checkout")
+  /// status/status_detail de la pasarela en la última consulta (sin datos de tarjeta).
+  estadoExterno     String?           @map("estado_externo")
+  detalle           String?
+  expiraEn          DateTime          @db.Timestamptz(3) @map("expira_en")
+  conciliadoEn      DateTime?         @db.Timestamptz(3) @map("conciliado_en")
+  operacionPagoId   String?           @unique @db.Uuid @map("operacion_pago_id")
+  operacionPago     OperacionPago?    @relation(fields: [operacionPagoId], references: [id], onDelete: SetNull)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([estado, createdAt])
+  @@map("intento_pago")
 }
 
 model Pago {

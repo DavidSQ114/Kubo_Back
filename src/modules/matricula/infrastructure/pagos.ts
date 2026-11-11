@@ -6,6 +6,7 @@ import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import { fechaEnLima } from "@/modules/academico";
 import type { EstadoPago, MedioPago, MotivoAnulacionPago } from "../domain/pagos";
+import type { OrigenPago } from "../domain/pasarela";
 
 type Db = Tx | typeof prisma;
 
@@ -93,6 +94,9 @@ const selectOperacion = {
   id: true,
   numeroOperacion: true,
   medioPago: true,
+  origen: true,
+  referenciaExterna: true,
+  motivoObservacion: true,
   fechaPago: true,
   montoTotal: true,
   estado: true,
@@ -136,11 +140,16 @@ export interface OperacionFila {
   id: string;
   numeroOperacion: string;
   medioPago: MedioPago;
+  origen: OrigenPago;
+  /** ID de la order en la pasarela (solo pagos en línea). */
+  referenciaExterna: string | null;
+  motivoObservacion: string | null;
   /** «AAAA-MM-DD» en Lima. */
   fechaPago: string;
   monto: string;
   estado: EstadoPago;
-  registradoPorId: string;
+  /** null: la registró el Sistema (pago en línea, US70). */
+  registradoPorId: string | null;
   confirmadoPorId: string | null;
   anuladoPorId: string | null;
   anuladoEn: Date | null;
@@ -167,6 +176,9 @@ const operacion = (o: OperacionPrisma): OperacionFila => ({
   id: o.id,
   numeroOperacion: o.numeroOperacion,
   medioPago: o.medioPago,
+  origen: o.origen,
+  referenciaExterna: o.referenciaExterna,
+  motivoObservacion: o.motivoObservacion,
   fechaPago: fechaEnLima(o.fechaPago),
   monto: o.montoTotal.toFixed(2),
   estado: o.estado,
@@ -204,6 +216,17 @@ export const operaciones = {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`kubo:operacion:${numero}`}))::text`;
   },
 
+  /** Candado por la order de la pasarela: dos avisos simultáneos del mismo pago se atienden uno tras otro (US70). */
+  async bloquearReferencia(tx: Tx, referencia: string) {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`kubo:pasarela:${referencia}`}))::text`;
+  },
+
+  /** Operación ya registrada para esa order de la pasarela (idempotencia del webhook). */
+  async idPorReferencia(tx: Tx, referencia: string) {
+    const o = await tx.operacionPago.findUnique({ where: { referenciaExterna: referencia }, select: { id: true } });
+    return o?.id ?? null;
+  },
+
   /** ¿Hay otra operación no anulada con ese número? */
   async numeroUsado(tx: Tx, numero: string, excluirId?: string) {
     const n = await tx.operacionPago.count({
@@ -229,9 +252,12 @@ export const operaciones = {
       fechaPago: string;
       montoCentimos: number;
       estado: EstadoPago;
-      registradoPorId: string;
+      registradoPorId: string | null;
       confirmadoPorId: string | null;
       cuotas: { id: string; montoCentimos: number }[];
+      origen?: OrigenPago;
+      referenciaExterna?: string | null;
+      motivoObservacion?: string | null;
     },
   ) {
     const o = await tx.operacionPago.create({
@@ -241,6 +267,9 @@ export const operaciones = {
         fechaPago: instanteDePago(data.fechaPago),
         montoTotal: decimalDeCentimos(data.montoCentimos),
         estado: data.estado,
+        origen: data.origen ?? "TESORERIA",
+        referenciaExterna: data.referenciaExterna ?? null,
+        motivoObservacion: data.motivoObservacion ?? null,
         registradoPorId: data.registradoPorId,
         confirmadoPorId: data.confirmadoPorId,
         pagos: {

@@ -1,5 +1,6 @@
 // Piezas de AD-11 Pensiones y pagos: modal M-01 Registrar pago manual (US22, US23), modal M-02 Anular pago (US04),
-// cronograma con el pago de cada cuota, operaciones de pago y log de auditoría de pagos.
+// cronograma con el pago de cada cuota, operaciones de pago con su origen (Tesorería o Pasarela) y «Registrar
+// devolución» de un pago en línea Observado (US70, US71), y log de auditoría de pagos.
 "use client";
 
 import { useState } from "react";
@@ -14,7 +15,8 @@ import { alertaError } from "./PortalAdmin";
 // ---------- Tipos de la API (docs/api/matricula.md, «Pagos») ----------
 
 export type EstadoPago = "OBSERVADO" | "CONFIRMADO" | "ANULADO";
-export type MedioPago = "EFECTIVO" | "TRANSFERENCIA" | "DEPOSITO" | "TARJETA";
+export type MedioPago = "EFECTIVO" | "TRANSFERENCIA" | "DEPOSITO" | "TARJETA" | "PASARELA";
+export type OrigenPago = "TESORERIA" | "PASARELA";
 
 export interface CuotaCuenta {
   id: string;
@@ -39,6 +41,13 @@ export interface OperacionPago {
   operacionId: string;
   numeroOperacion: string;
   medioPago: MedioPago;
+  nombreMedioPago: string;
+  origen: OrigenPago;
+  nombreOrigen: string;
+  /** ID de la order en la pasarela (solo pagos en línea). */
+  referenciaExterna: string | null;
+  /** Por qué quedó Observado un pago en línea («Cuota pagada por otro medio»). */
+  motivoObservacion: string | null;
   fechaPago: string;
   registradoEn: string;
   monto: string;
@@ -94,6 +103,7 @@ export interface ResultadoPago {
 export const MENSAJE_MONTO_NO_COINCIDE = "El monto ingresado no coincide con el total de las cuotas seleccionadas";
 export const MENSAJE_SIN_NUMERO = "El número de operación es obligatorio";
 
+/** Medios del registro manual (M-01); «Pago en línea» solo lo asigna la pasarela. */
 export const MEDIOS_PAGO: { valor: MedioPago; texto: string }[] = [
   { valor: "TRANSFERENCIA", texto: "Transferencia" },
   { valor: "DEPOSITO", texto: "Depósito" },
@@ -644,6 +654,87 @@ export function ModalAnularPago({
   );
 }
 
+// ---------- US71 · Registrar devolución de un pago en línea Observado ----------
+
+export function ModalDevolucion({
+  operacion,
+  estudiante,
+  onCerrar,
+  onDevuelto,
+}: {
+  operacion: OperacionPago;
+  estudiante: string;
+  onCerrar: () => void;
+  onDevuelto: () => void;
+}) {
+  const [detalle, setDetalle] = useState("");
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [general, setGeneral] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function registrar() {
+    setEnviando(true);
+    setGeneral(null);
+    try {
+      await api(`/matricula/pagos/${operacion.operacionId}/devolver`, {
+        method: "POST",
+        body: { detalle: detalle.trim() || null },
+      });
+      onDevuelto();
+    } catch (err) {
+      const r = separarErrores(err);
+      setErrores(r.campos);
+      setGeneral(r.general);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="act-refresh"
+      tonoIcono="azul"
+      titulo="Registrar devolución"
+      subtitulo={`Pago en línea ${operacion.numeroOperacion} · ${soles(operacion.monto)}`}
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton onClick={registrar} cargando={enviando}>
+            Registrar devolución
+          </Boton>
+        </>
+      }
+    >
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-borde bg-fondo p-3 text-[13px]">
+        <div className="flex flex-col">
+          <span className="font-semibold text-texto">{estudiante}</span>
+          <span className="text-texto-3">
+            {`${operacion.cuotas.map((c) => c.concepto).join(", ")} · ${operacion.motivoObservacion ?? "Observado"}`}
+          </span>
+        </div>
+        <BadgeOperacion estado={operacion.estado} />
+      </div>
+      <Campo
+        etiqueta="Observación (opcional)"
+        maxLength={300}
+        placeholder="Por ejemplo, N.° de la devolución en Mercado Pago"
+        value={detalle}
+        error={errores.detalle}
+        onChange={(e) => setDetalle(e.target.value)}
+      />
+      <Alerta tipo="info" titulo="Antes de registrar">
+        Devuelve primero el dinero desde el panel de Mercado Pago. Aquí solo se deja constancia: la operación pasa a
+        «Anulado» con el motivo «Devuelto», tu usuario y la fecha, y sus cuotas no cambian.
+      </Alerta>
+      {general && <Alerta tipo="error" titulo={general} />}
+    </Modal>
+  );
+}
+
 // ---------- Tablas de AD-11 ----------
 
 export function TablaCronogramaPagos({
@@ -712,6 +803,7 @@ export function TablaOperaciones({
   onAnular,
   onConfirmar,
   onDescartar,
+  onDevolver,
   onError,
 }: {
   operaciones: OperacionPago[];
@@ -719,80 +811,131 @@ export function TablaOperaciones({
   onAnular: (o: OperacionPago) => void;
   onConfirmar: (o: OperacionPago) => void;
   onDescartar: (o: OperacionPago) => void;
+  onDevolver: (o: OperacionPago) => void;
   onError: (mensaje: string | null) => void;
 }) {
+  const [origen, setOrigen] = useState<OrigenPago | "TODOS">("TODOS");
   if (!operaciones.length) {
     return <p className="text-[14px] text-texto-2">Todavía no hay operaciones de pago para esta matrícula.</p>;
   }
+  const filas = origen === "TODOS" ? operaciones : operaciones.filter((o) => o.origen === origen);
   return (
-    <div className="overflow-x-auto rounded-lg border border-borde">
-      <table className="w-full min-w-[820px] text-left text-[13px]">
-        <thead className="bg-fondo text-texto-2">
-          <tr>
-            {["N.° de operación", "Fecha", "Cuotas que cubre", "Monto", "Comprobante", "Estado", ""].map((t) => (
-              <th key={t} className="px-3 py-2 font-semibold">
-                {t}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {operaciones.map((o) => (
-            <tr key={o.operacionId} className="border-t border-borde align-top">
-              <td className="px-3 py-2 font-semibold text-texto">{o.numeroOperacion}</td>
-              <td className="px-3 py-2 text-texto-2">{fechaDia(o.fechaPago)}</td>
-              <td className="px-3 py-2 text-texto-2">
-                {o.cuotas.map((c) => c.concepto).join(", ")}
-                {o.anulacion && (
-                  <span className="mt-1 block text-[12px] text-texto-3">
-                    {`Anulado el ${fechaHora(new Date(o.anulacion.anuladoEn))} por ${o.anulacion.anuladoPor ?? "—"} · ${o.anulacion.nombreMotivo}${o.anulacion.detalle ? `: ${o.anulacion.detalle}` : ""}`}
-                  </span>
-                )}
-                {o.estado === "OBSERVADO" && (
-                  <span className="mt-1 block text-[12px] text-ambar-oscuro">
-                    {`Número ya usado${o.mismoNumero.length ? ` en ${o.mismoNumero.map((x) => x.comprobante ?? "otra operación").join(", ")}` : ""}`}
-                  </span>
-                )}
-              </td>
-              <td className="px-3 py-2 text-texto">{soles(o.monto)}</td>
-              <td className="px-3 py-2 text-texto-2">{o.comprobante?.numero ?? "—"}</td>
-              <td className="px-3 py-2">
-                <BadgeOperacion estado={o.estado} />
-              </td>
-              <td className="px-3 py-2">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {o.comprobante && (
-                    <BotonRecibo operacionId={o.operacionId} comprobante={o.comprobante.numero} onError={onError} />
-                  )}
-                  {o.estado === "CONFIRMADO" && (
-                    <button
-                      type="button"
-                      onClick={() => onAnular(o)}
-                      aria-label={`Anular la operación ${o.numeroOperacion}`}
-                      className="rounded p-1 hover:bg-fondo"
-                    >
-                      <Icono nombre="act-ban" size={18} />
-                    </button>
-                  )}
-                  {o.estado === "OBSERVADO" && (
-                    <>
-                      <Boton variante="secundario" onClick={() => onDescartar(o)} disabled={ocupado === o.operacionId}>
-                        Descartar
-                      </Boton>
-                      <Boton onClick={() => onConfirmar(o)} cargando={ocupado === o.operacionId}>
-                        Confirmar
-                      </Boton>
-                    </>
-                  )}
-                </div>
-              </td>
+    <div className="flex flex-col gap-3">
+      <label className="flex items-center gap-2 self-end text-[13px] text-texto-2">
+        Origen
+        <select
+          value={origen}
+          onChange={(e) => setOrigen(e.target.value as typeof origen)}
+          className="rounded-lg border border-borde bg-white px-3 py-2 text-[14px] text-texto"
+        >
+          <option value="TODOS">Todos</option>
+          <option value="TESORERIA">Tesorería</option>
+          <option value="PASARELA">Pasarela</option>
+        </select>
+      </label>
+      <div className="overflow-x-auto rounded-lg border border-borde">
+        <table className="w-full min-w-[900px] text-left text-[13px]">
+          <thead className="bg-fondo text-texto-2">
+            <tr>
+              {["N.° de operación", "Fecha", "Origen", "Cuotas que cubre", "Monto", "Comprobante", "Estado", ""].map(
+                (t) => (
+                  <th key={t} className="px-3 py-2 font-semibold">
+                    {t}
+                  </th>
+                ),
+              )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filas.map((o) => (
+              <tr key={o.operacionId} className="border-t border-borde align-top">
+                <td className="px-3 py-2 font-semibold break-all text-texto">{o.numeroOperacion}</td>
+                <td className="px-3 py-2 text-texto-2">{fechaDia(o.fechaPago)}</td>
+                <td className="px-3 py-2">
+                  <Badge tono={o.origen === "PASARELA" ? "celeste" : "gris"}>{o.nombreOrigen}</Badge>
+                </td>
+                <td className="px-3 py-2 text-texto-2">
+                  {o.cuotas.map((c) => c.concepto).join(", ")}
+                  {o.anulacion && (
+                    <span className="mt-1 block text-[12px] text-texto-3">
+                      {`Anulado el ${fechaHora(new Date(o.anulacion.anuladoEn))} por ${o.anulacion.anuladoPor ?? "—"} · ${o.anulacion.nombreMotivo}${o.anulacion.detalle ? `: ${o.anulacion.detalle}` : ""}`}
+                    </span>
+                  )}
+                  {o.estado === "OBSERVADO" && o.origen === "PASARELA" && (
+                    <span className="mt-1 block text-[12px] text-ambar-oscuro">
+                      {`${o.motivoObservacion ?? "Pago en línea en revisión"} · confirma si la cuota quedó libre o registra la devolución`}
+                    </span>
+                  )}
+                  {o.estado === "OBSERVADO" && o.origen === "TESORERIA" && (
+                    <span className="mt-1 block text-[12px] text-ambar-oscuro">
+                      {`Número ya usado${o.mismoNumero.length ? ` en ${o.mismoNumero.map((x) => x.comprobante ?? "otra operación").join(", ")}` : ""}`}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-texto">{soles(o.monto)}</td>
+                <td className="px-3 py-2 text-texto-2">{o.comprobante?.numero ?? "—"}</td>
+                <td className="px-3 py-2">
+                  <BadgeOperacion estado={o.estado} />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {o.comprobante && (
+                      <BotonRecibo operacionId={o.operacionId} comprobante={o.comprobante.numero} onError={onError} />
+                    )}
+                    {o.estado === "CONFIRMADO" && (
+                      <button
+                        type="button"
+                        onClick={() => onAnular(o)}
+                        aria-label={`Anular la operación ${o.numeroOperacion}`}
+                        className="rounded p-1 hover:bg-fondo"
+                      >
+                        <Icono nombre="act-ban" size={18} />
+                      </button>
+                    )}
+                    {o.estado === "OBSERVADO" && o.origen === "PASARELA" && (
+                      <Boton variante="secundario" onClick={() => onDevolver(o)} disabled={ocupado === o.operacionId}>
+                        Registrar devolución
+                      </Boton>
+                    )}
+                    {o.estado === "OBSERVADO" && (
+                      <>
+                        {o.origen === "TESORERIA" && (
+                          <Boton
+                            variante="secundario"
+                            onClick={() => onDescartar(o)}
+                            disabled={ocupado === o.operacionId}
+                          >
+                            Descartar
+                          </Boton>
+                        )}
+                        <Boton onClick={() => onConfirmar(o)} cargando={ocupado === o.operacionId}>
+                          Confirmar
+                        </Boton>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-3 py-6 text-center text-texto-3">
+                  No hay operaciones con ese origen.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
+
+const TONO_EVENTO: Record<string, "rojo" | "azul" | "ambar"> = {
+  Anulación: "rojo",
+  Confirmación: "azul",
+  Devolución: "ambar",
+};
 
 export function LogPagos({ log }: { log: EstadoCuenta["log"] }) {
   if (!log.length) return <p className="text-[14px] text-texto-2">Sin registros de pagos todavía.</p>;
@@ -813,9 +956,7 @@ export function LogPagos({ log }: { log: EstadoCuenta["log"] }) {
             <tr key={e.id} className="border-t border-borde align-top">
               <td className="px-3 py-2 whitespace-nowrap text-texto-2">{fechaHora(new Date(e.fecha))}</td>
               <td className="px-3 py-2">
-                <Badge tono={e.tipo === "Anulación" ? "rojo" : e.tipo === "Confirmación" ? "azul" : "verde"}>
-                  {e.tipo}
-                </Badge>
+                <Badge tono={TONO_EVENTO[e.tipo] ?? "verde"}>{e.tipo}</Badge>
               </td>
               <td className="px-3 py-2 text-texto-2">{e.detalle}</td>
               <td className="px-3 py-2 text-texto-2">{e.usuario}</td>

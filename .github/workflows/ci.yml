@@ -1,4 +1,6 @@
 # Verificación automática (estándar de programación, sección 1.3): formato, lint, tipos, pruebas y build.
+# Las pruebas de integración (tests/**/*.integracion.test.ts) corren contra un PostgreSQL 16 desechable del propio job,
+# migrado y con el seed; nunca contra Neon ni AWS. Solo datos ficticios.
 name: CI
 
 on:
@@ -12,6 +14,24 @@ permissions:
 jobs:
   verificar:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kubo
+          POSTGRES_PASSWORD: kubo
+          POSTGRES_DB: kubo_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kubo -d kubo_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # base desechable del job (credenciales de ejemplo, no son secretos)
+      DATABASE_URL: postgresql://kubo:kubo@localhost:5432/kubo_ci?schema=public&options=-c%20TimeZone%3DUTC
+      KUBO_PRUEBA_INTEGRACION: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -19,6 +39,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Migrar la base de pruebas y cargar el seed
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed:remoto
       - run: npm run check
       # scripts del despliegue en AWS (deploy/aws); shellcheck ya viene en ubuntu-latest
       - run: shellcheck deploy/aws/*.sh

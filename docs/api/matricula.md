@@ -1,7 +1,7 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24) y portal del apoderado (US42, US43, US44)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), portal del apoderado (US42, US43, US44) y pago en línea (US70, US71)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)). Ejemplos en [matricula.http](matricula.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)), y el aviso de la pasarela, que es público y va firmado ([pago en línea](#pago-en-línea-us70-y-devolución-us71)). Ejemplos en [matricula.http](matricula.http).
 
 Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/montos` (ver [academico.md](academico.md#montos-del-año-us21)).
 
@@ -30,6 +30,11 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `PUT /matricula/apoderado/hijo-elegido` | `{ estudianteId }` | `{ estudianteId }` y la cookie `kubo_estudiante` (US42, **Apoderado**) |
 | `GET /matricula/apoderado/hijos/{id}/pagos` | `?anioId=` | `PagosDelHijo` (US43, **Apoderado**) |
 | `GET /matricula/apoderado/hijos/{id}/cuotas/{cuotaId}/comprobante` | — | `application/pdf` (US44, **Apoderado**) |
+| `POST /matricula/apoderado/pagos/intentos` | `{ estudianteId, conceptoIds }` | `201 { intentoId, monto, urlCheckout }` (US70, **Apoderado**) |
+| `GET /matricula/apoderado/pagos/intentos/{id}` | — | `IntentoPago` (US70, **Apoderado** que lo creó) |
+| `POST /matricula/apoderado/pagos/intentos/{id}/simular` | `{ resultado }` | `IntentoPago` (solo `PASARELA=falsa`) |
+| `POST /matricula/pagos/webhooks/pasarela` | `?data.id=&type=order`, cabeceras `x-signature` y `x-request-id` | `{ recibido: true }` (US70, **público**, firmado) |
+| `POST /matricula/pagos/{id}/devolver` | `{ detalle? }` | `{ operacion }` (US71: Observado de la pasarela → Anulado, «Devuelto») |
 
 ### Situación del estudiante (AD-10)
 
@@ -271,6 +276,56 @@ Rutas de solo lectura para el rol `APODERADO` (pantallas AC-05, AP-01 y AP-02). 
 - Cuota de otro estudiante con el `{id}` de un hijo propio: `404 CUOTA_NO_ENCONTRADA`. Estudiante ajeno: `403 ESTUDIANTE_NO_VINCULADO`.
 - Auditoría `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y el número del comprobante: solo ids, sin nombres ni DNI.
 
+## Pago en línea (US70) y devolución (US71)
+
+Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Decisión, endpoints de Mercado Pago y estados: [AD-15](../arquitectura/AD-15-pasarela-pagos.md). Variables: `PASARELA` (`mercadopago` | `falsa`), `MP_ACCESS_TOKEN` y `MP_WEBHOOK_SECRET`, validadas con Zod. Si faltan, `pagoEnLinea` es `false`, el botón «Pagar» no aparece y las rutas de esta sección responden `409 PAGO_EN_LINEA_NO_DISPONIBLE`.
+
+### Iniciar un pago en línea · solo `APODERADO` vinculado al estudiante
+
+`POST /matricula/apoderado/pagos/intentos` con `{ "estudianteId": "uuid", "conceptoIds": ["uuid", …] }` (de 1 a 11 cuotas).
+- El servidor recalcula el vínculo (403 `ESTUDIANTE_NO_VINCULADO`), exige cuotas **Pendiente** del mismo estudiante y de la misma matrícula, y **calcula el monto**. El cliente no envía montos.
+- Crea un `IntentoPago` Pendiente con el monto, las cuotas, un `external_reference` (`KUBO-…`) y una expiración de 30 minutos. Luego crea la order en la pasarela (`X-Idempotency-Key` = id del intento).
+- **No reserva las cuotas:** se validan de nuevo al confirmar el pago.
+- `201 { intentoId, monto, urlCheckout }`. El frontend redirige a `urlCheckout`.
+- Si la pasarela no responde: `502 PASARELA_NO_RESPONDE` y el intento queda Rechazado.
+
+### Estado del intento (pantalla de retorno) · solo el `APODERADO` que lo creó
+
+`GET /matricula/apoderado/pagos/intentos/{id}` → `{ intentoId, estudianteId, estado, nombreEstado, monto, cuotas: [{ cuotaId, concepto, monto }], expiraEn, comprobante, pasarela }`.
+- `estado`: `PENDIENTE` («En proceso»), `APROBADO`, `RECHAZADO`, `EXPIRADO` u `OBSERVADO` («En revisión»).
+- Si está Pendiente, antes de responder consulta la order en la pasarela (servidor a servidor). **La URL de retorno nunca confirma un pago:** sus parámetros no se usan.
+- Un intento de otra persona responde `404 INTENTO_NO_ENCONTRADO`.
+
+`POST /matricula/apoderado/pagos/intentos/{id}/simular` con `{ "resultado": "APROBADO" | "RECHAZADO" | "EN_PROCESO" | "EXPIRADO" }` existe **solo con `PASARELA=falsa`** (desarrollo y pruebas). Simula el checkout y procesa la order como lo haría el aviso. Con otra pasarela responde `409 SIMULACION_NO_DISPONIBLE`.
+
+### Aviso de la pasarela (webhook) · público, sin sesión
+
+`POST /matricula/pagos/webhooks/pasarela?data.id=<order>&type=order`. Mercado Pago lo envía con el evento «Order (Mercado Pago)».
+1. Valida `x-signature` (`ts=…,v1=…`) con `x-request-id`, el `data.id` de la query y `MP_WEBHOOK_SECRET`. Si no coincide: `401 FIRMA_INVALIDA`.
+2. Responde `200 { recibido: true }` de inmediato. Un aviso de otro tipo también responde 200 y se ignora.
+3. Después consulta `GET /v1/orders/{data.id}`. Solo se considera pagada si `status = processed`, `status_detail = accredited`, `total_paid_amount = total_amount` = monto del intento y `external_reference` = el del intento.
+4. Registra la operación con el mismo caso de uso de US22: cuotas bloqueadas, monto exacto, recibo (US25), correo y `REGISTRAR_PAGO` con actor Sistema (`usuario_id` nulo) y `origen: "PASARELA"`. La operación queda con `medioPago: "PASARELA"`, `origen: "PASARELA"`, `numeroOperacion` y `referenciaExterna` = id de la order, y `registradoPor: "Sistema (pago en línea)"`.
+5. **Idempotente:** `referencia_externa` es única y un candado por order serializa los avisos simultáneos. Un aviso repetido no registra otra vez.
+6. Si una cuota ya está pagada (o anulada) cuando llega la aprobación, la operación queda **Observado** con `motivoObservacion: "Cuota pagada por otro medio"` (o «Cuota anulada») y no toca las cuotas.
+7. Si la order está acreditada pero con otro monto o referencia, no se registra: el intento queda Observado y se deja un aviso en el log.
+
+### Registrar devolución (US71, AD-11) · solo `ADMINISTRADOR`
+
+`POST /matricula/pagos/{id}/devolver` con `{ "detalle"?: "…" }` (300 caracteres como máximo) → `{ operacion }`.
+- Solo para un pago en línea **Observado**: si no, `409 DEVOLUCION_NO_PERMITIDA`. La operación pasa a **Anulado** con el motivo `DEVUELTO` («Devuelto»), el administrador y la fecha. Sus cuotas no cambian.
+- El dinero se devuelve en el panel de Mercado Pago; Kubo solo lo registra.
+- Un pago en línea Observado no se descarta (`POST …/descartar` → `409 USAR_DEVOLUCION`), pero sí se puede **confirmar** (US23) si la cuota quedó libre.
+
+### Cambios en las respuestas existentes
+
+- `OperacionPago` (estado de cuenta y detalle) agrega `origen` (`TESORERIA` | `PASARELA`), `nombreOrigen`, `nombreMedioPago`, `referenciaExterna` y `motivoObservacion`. `medioPago` admite `PASARELA` («Pago en línea»), pero `POST /matricula/pagos` sigue aceptando solo los cuatro medios manuales. `anulacion.motivo` admite `DEVUELTO`.
+- El log de AD-11 agrega el tipo «Devolución». El usuario de los registros de la pasarela es «Sistema».
+- `PagosDelHijo` (US43) agrega `pagoEnLinea: boolean` y, en cada cuota, `pagable: boolean` (Pendiente o Vencido sin pago en revisión).
+
+### Conciliación (US71)
+
+`npm run conciliar-pagos` revisa los intentos Pendiente creados hace más de 10 minutos. Consulta su order (`GET /v1/orders/{id}`) y aplica el resultado: registra, observa, rechaza o expira. Un intento sin order y ya vencido pasa a Expirado. En la EC2 lo ejecuta `kubo-conciliar-pagos.timer` cada 15 minutos (ver [DESPLIEGUE-AWS.md](../DESPLIEGUE-AWS.md#pago-en-línea-mercado-pago-modo-de-prueba)). Sin `PASARELA` no hace nada.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -299,6 +354,12 @@ Rutas de solo lectura para el rol `APODERADO` (pantallas AC-05, AP-01 y AP-02). 
 | `SIN_CUOTAS` · `CUOTA_REPETIDA` · `CUOTAS_DE_VARIOS_ESTUDIANTES` · `FECHA_PAGO_FUTURA` · `MOTIVO_ANULACION_REQUERIDO` · `DETALLE_ANULACION_REQUERIDO` | 422 | Reglas del pago y de su anulación |
 | `MATRICULA_INCOMPLETA` | 422 | «Complete la sección y el apoderado responsable para confirmar la matrícula» |
 | `SIN_MONTOS` · `ANIO_NO_MATRICULABLE` · `SECCION_OTRO_ANIO` · `RESPONSABLE_NO_VINCULADO` | 422 | Reglas de la matrícula |
+| `FIRMA_INVALIDA` | 401 | Aviso de la pasarela sin una firma `x-signature` válida |
+| `INTENTO_NO_ENCONTRADO` | 404 | El intento no existe o es de otra persona |
+| `PAGO_EN_LINEA_NO_DISPONIBLE` · `SIMULACION_NO_DISPONIBLE` | 409 | Pasarela sin configurar, o simulación con una pasarela que no es la falsa |
+| `DEVOLUCION_NO_PERMITIDA` · `USAR_DEVOLUCION` | 409 | Devolución de algo que no es un pago en línea Observado; descarte de un pago en línea |
+| `CUOTAS_DE_VARIAS_MATRICULAS` | 422 | «Elige cuotas de un mismo año académico.» |
+| `PASARELA_NO_RESPONDE` | 502 | La pasarela no creó la order |
 
 ## Auditoría (RF03)
 
@@ -308,6 +369,8 @@ Los pagos (US04) se registran con `entidad_afectada = "operacion_pago"`:
 - `REGISTRAR_PAGO`: `administradorId`, `fechaHora`, `monto`, `conceptos`, `numeroOperacion`, `medioPago`, `fechaPago`, `estadoResultante` («PAGADO» u «OBSERVADO») y `comprobante`.
 - `CONFIRMAR_PAGO_OBSERVADO`: estado anterior y nuevo, monto, conceptos, número, comprobante y `confirmadoPorId`.
 - `ANULAR_PAGO`: estado anterior, motivo, monto, conceptos, número, comprobante, cuotas revertidas y, al descartar, `decision: "DESCARTAR_OBSERVADO"`. La columna `motivo` guarda «MOTIVO: observación».
+- Desde US70, `REGISTRAR_PAGO` también guarda `actor` (`USUARIO` | `SISTEMA`), `origen` (`TESORERIA` | `PASARELA`) y `motivoObservacion`. En un pago en línea agrega `referenciaExterna` (order) e `intentoId`, y `usuario_id` queda nulo (actor Sistema).
+- `REGISTRAR_DEVOLUCION` (US71): estado anterior (`OBSERVADO` y su motivo), estado nuevo `ANULADO`, motivo `DEVUELTO`, origen, monto, conceptos, número y `referenciaExterna`. La columna `motivo` guarda «Devuelto: observación».
 
 El portal del apoderado registra `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y `comprobante`.
 
@@ -316,3 +379,7 @@ La bitácora es inmutable (trigger `tg_auditoria_inmutable`) y `platform/auditor
 ## Migración `20261106120000_anular_matricula_en_proceso`
 
 La restricción `ck_matricula_confirmada_completa` exigía sección y responsable en todo estado distinto de `EN_PROCESO`. Por eso anular un borrador de US17 (sin sección) fallaba con 500. La migración también exime a `ANULADO`. Es compatible con la versión anterior: solo relaja la regla y ninguna fila existente deja de cumplirla.
+
+## Migración `20261111120000_pasarela_pagos`
+
+US70 y US71. Agrega el valor `PASARELA` a `MedioPago` y `DEVUELTO` a `MotivoAnulacion`, y los enum `OrigenPago` y `EstadoIntentoPago`. En `operacion_pago` agrega `origen` (por defecto `TESORERIA`), `referencia_externa` (única, `uq_operacion_pago_referencia_externa`) y `motivo_observacion`, y permite `registrado_por_id` nulo solo con origen `PASARELA` (`ck_operacion_pago_registrador`). Una operación de la pasarela exige `referencia_externa` (`ck_operacion_pago_referencia_pasarela`). Crea la tabla `intento_pago`, con `ck_intento_pago_monto` y `ck_intento_pago_cuotas`. Es compatible con la versión anterior: las operaciones existentes quedan con origen `TESORERIA` y conservan su registrador.
