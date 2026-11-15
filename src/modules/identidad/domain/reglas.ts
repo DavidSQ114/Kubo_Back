@@ -64,6 +64,15 @@ export function minutosRestantes(bloqueadoHasta: Date, ahora: Date): number {
 
 export const normalizarEmail = (email: string) => email.trim().toLowerCase();
 
+/**
+ * «maria.quispe@gmail.com» → «m***@gmail.com». Para avisar del cambio de correo a la dirección anterior sin
+ * revelarle la nueva completa: la anterior pudo ser un error de digitación y pertenecer a otra persona (US69).
+ */
+export function enmascararEmail(email: string): string {
+  const [usuario, dominio = ""] = email.split("@");
+  return `${usuario.charAt(0)}***@${dominio}`;
+}
+
 // ---------- Duraciones ----------
 export const HORAS_SESION_SIN_RECORDAR = 12;
 export const DIAS_SESION_RECORDADA = 7;

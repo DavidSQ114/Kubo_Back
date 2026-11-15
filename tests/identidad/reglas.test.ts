@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { randomInt } from "node:crypto";
 import {
+  enmascararEmail,
   esRol,
   expiracionSesion,
   generarPasswordTemporal,
@@ -65,6 +66,10 @@ describe("otras reglas", () => {
   });
   it("normaliza correos", () => {
     expect(normalizarEmail("  Rosa.Huaman@Kubo.EDU.pe ")).toBe("rosa.huaman@kubo.edu.pe");
+  });
+  it("enmascara un correo para avisar del cambio a la dirección anterior (US69)", () => {
+    expect(enmascararEmail("maria.quispe@gmail.com")).toBe("m***@gmail.com");
+    expect(enmascararEmail("sin-arroba")).toBe("s***@");
   });
   it("valida roles", () => {
     expect(esRol("DOCENTE")).toBe(true);
