@@ -70,6 +70,6 @@ El frontend solo oculta. Cada consulta lleva el id del hijo en la URL y el servi
 
 ## Pendiente
 
-- Notas, asistencia, horario y trabajos del apoderado (sus módulos aún no existen); la restricción de libreta por deuda (US26, AP-06) depende de ellos.
+- Notas, asistencia y trabajos del apoderado (sus módulos aún no existen); la restricción de libreta por deuda (US26, AP-06) depende de ellos. El horario (AP-05, US48) ya está: ver [frontend-portales-horario.md](frontend-portales-horario.md).
 - Notificaciones del apoderado (M-13) y el menú de usuario (M-22).
-- Vista móvil del portal (página «2 · Prototipo móvil - Propuesta»).
+- Vista móvil completa del portal (página «2 · Prototipo móvil - Propuesta»). Desde el bloque 4 la barra lateral se pliega bajo 1024 px y se abre con el botón de menú, pero las tablas de pagos no se rediseñaron para el celular.

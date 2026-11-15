@@ -15,6 +15,8 @@
 @otroDocente = 00000000-0000-0000-0000-000000000000
 @aula1 = 00000000-0000-0000-0000-000000000000
 @aula2 = 00000000-0000-0000-0000-000000000000
+# Hijo vinculado al apoderado en sesión (bloques 20 y 21)
+@estudiante = 00000000-0000-0000-0000-000000000000
 
 ### 1. Cuadrícula de la sección A → 200: 5 días, bloques del año, sin horario (horario: null)
 # @name cuadricula
@@ -85,15 +87,26 @@ POST {{base}}/horarios/secciones/{{seccionA}}/borrador
 ### 15. Ver la versión 1 mientras se edita la 2 → 200 (PUBLICADO; tras publicar la 2, ARCHIVADO)
 GET {{base}}/horarios/secciones/{{seccionA}}?version=1
 
-### 16. Horario publicado de la sección (sin el borrador) → 200 · Administrador o Docente
+### 16. Horario publicado de la sección (sin el borrador) → 200 · Solo Administrador (Docente, Apoderado o Alumno → 403)
 GET {{base}}/horarios/secciones/{{seccionA}}/publicado
 
 ### 17. Clases del docente en los horarios publicados del año → 200
 GET {{base}}/horarios/docentes/{{docente}}/publicado
 
-### 18. «Mi horario» con sesión de docente → 200 (con sesión de administrador → 403 ACCESO_DENEGADO)
+### 18. «Mi horario» con sesión de docente (US34) → 200 con clases y resumen; sin clases publicadas, clases: []
+# Con sesión de otro perfil → 403 ACCESO_DENEGADO «No tiene permisos para acceder a este recurso.»; sin sesión → 401
 GET {{base}}/horarios/mi-horario
 
 ### 19. Cuadrícula de una sección de un año cerrado → 200 con editable: false y motivoSoloLectura
 # Cambia el identificador por el de una sección de un año «Cerrado». Cualquier PUT sobre ella → 422.
 GET {{base}}/horarios/secciones/{{seccionA}}
+
+### 20. Horario del hijo con sesión de apoderado (US48) → 200; sin publicar, horario: null y clases: []
+# @estudiante es el id de un hijo vinculado (GET /matricula/apoderado/hijos).
+GET {{base}}/horarios/apoderado/hijos/{{estudiante}}/horario
+
+### 21. Horario de un estudiante que no es su hijo → 403 ESTUDIANTE_NO_VINCULADO
+GET {{base}}/horarios/apoderado/hijos/11111111-1111-4111-8111-111111111111/horario
+
+### 22. «Mi horario» con sesión de alumno (US50) → 200; sin matrícula vigente → 403 SIN_MATRICULA_VIGENTE
+GET {{base}}/horarios/alumno/horario

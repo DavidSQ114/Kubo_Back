@@ -311,3 +311,10 @@ POST {{base}}/matricula/pagos/{{operacionPasarela}}/descartar
 Content-Type: application/json
 
 {}
+
+### 56. Panel del alumno con sesión de alumno (US49) → 200; sin matrícula vigente → 403 SIN_MATRICULA_VIGENTE
+GET {{base}}/matricula/alumno/panel
+
+### 57. «Mis cursos» del alumno: cursos del plan de su sección con su docente (US49) → 200
+# Con sesión de otro perfil → 403 ACCESO_DENEGADO «No tiene permisos para acceder a este recurso.»
+GET {{base}}/matricula/alumno/cursos

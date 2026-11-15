@@ -221,3 +221,11 @@ DELETE {{base}}/comunidad/personas/{{persona}}
 
 ### 39. Persona que no existe → 404 NO_ENCONTRADO
 GET {{base}}/comunidad/personas/11111111-1111-4111-8111-111111111111
+
+### 40. Crear acceso al portal de un estudiante (US49) → 201 con passwordTemporal (solo esta vez)
+# @estudiante es DetallePersona.estudianteId. Segunda vez → 409 ACCESO_EXISTENTE; sin matrícula vigente → 422
+# SIN_MATRICULA_VIGENTE; correo de otra cuenta → 409 EMAIL_EN_USO. Solo Administrador (otro perfil → 403).
+POST {{base}}/comunidad/estudiantes/{{estudiante}}/acceso
+Content-Type: application/json
+
+{ "email": "diego.quispe@ejemplo.test" }

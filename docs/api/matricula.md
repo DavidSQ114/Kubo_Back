@@ -276,6 +276,24 @@ Rutas de solo lectura para el rol `APODERADO` (pantallas AC-05, AP-01 y AP-02). 
 - Cuota de otro estudiante con el `{id}` de un hijo propio: `404 CUOTA_NO_ENCONTRADA`. Estudiante ajeno: `403 ESTUDIANTE_NO_VINCULADO`.
 - Auditoría `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y el número del comprobante: solo ids, sin nombres ni DNI.
 
+## Portal del alumno (US49)
+
+Rutas de solo lectura para el rol `ALUMNO` (pantallas AL-01 y AL-05; ver [frontend-portales-horario.md](../frontend-portales-horario.md)). La cuenta del alumno la crea el Administrador desde AD-06 ([comunidad.md](comunidad.md#acceso-del-alumno-al-portal-us49-pantalla-ad-06)). Su horario está en [horarios.md](horarios.md).
+
+**El alumno sale de la sesión.** Ninguna ruta recibe un id de estudiante ni de sección: el servidor resuelve persona → estudiante activo → **matrícula vigente**, así que un alumno no puede consultar la sección de otro.
+
+**Matrícula vigente:** `MATRICULADO` en un año «En curso», «En cierre» o «En matrícula» (con dos, manda la del año en curso). Un alumno retirado, con la matrícula anulada o `EN_PROCESO`, o solo con años cerrados, no la tiene: todas las rutas del portal responden `403 SIN_MATRICULA_VIGENTE` «No tienes una matrícula vigente. Comunícate con la secretaría del colegio.» y la pantalla lo muestra en lugar del panel.
+
+| Método y ruta | Rol | Respuesta `data` |
+|---|---|---|
+| `GET /matricula/alumno/panel` | Alumno | `{ estudiante: { estudianteId, nombres, nombreCompleto, iniciales }, anio, grado, seccion, seccionCorta }` («1° de secundaria», «A», «1° A») |
+| `GET /matricula/alumno/cursos` | Alumno | `{ anio, seccionCorta, cursos: [{ cursoId, codigo, nombre, horasSemanales, docente }] }` |
+
+- «Mis cursos» son los cursos activos del plan de estudios del grado de su sección, en orden alfabético. `docente` es `{ nombreCompleto, nombreCorto }` de quien tiene asignado el curso en esa sección (US14), o `null` si aún no tiene.
+- Con otro perfil: `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.»; sin sesión: `401 NO_AUTENTICADO`.
+
+**Sección del hijo para su horario (US48).** `seccionDelHijo(sesion, estudianteId)` se exporta para el módulo `horarios`: aplica la autorización por vínculo del portal del apoderado y devuelve la sección de la matrícula vigente del hijo (`null` si está retirado).
+
 ## Pago en línea (US70) y devolución (US71)
 
 Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Decisión, endpoints de Mercado Pago y estados: [AD-15](../arquitectura/AD-15-pasarela-pagos.md). Variables: `PASARELA` (`mercadopago` | `falsa`), `MP_ACCESS_TOKEN` y `MP_WEBHOOK_SECRET`, validadas con Zod. Si faltan, `pagoEnLinea` es `false`, el botón «Pagar» no aparece y las rutas de esta sección responden `409 PAGO_EN_LINEA_NO_DISPONIBLE`.
@@ -331,6 +349,7 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 | Código | HTTP | Cuándo |
 |---|---|---|
 | `DATOS_INVALIDOS` | 400 | Falta un campo o tiene formato incorrecto (`details` = mensaje por campo) |
+| `SIN_MATRICULA_VIGENTE` | 403 | Portal del alumno: «No tienes una matrícula vigente. Comunícate con la secretaría del colegio.» (US49) |
 | `MATRICULA_NO_ENCONTRADA` · `ESTUDIANTE_NO_ENCONTRADO` · `SECCION_NO_ENCONTRADA` | 404 | No existe |
 | `YA_MATRICULADO` | 409 | «Este estudiante ya está matriculado en el periodo actual» |
 | `SECCION_SIN_VACANTES` | 409 | «Sección sin vacantes disponibles» |
