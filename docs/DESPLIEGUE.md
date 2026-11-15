@@ -46,7 +46,7 @@ $env:DATABASE_URL = $null  # vuelve a usar la base local del .env
 
 - **Migración nueva:** se crea y se prueba en local (`npx prisma migrate dev --name <descripcion>`), se sube en el pull request y, **antes** de unirlo a `main`, se aplica en Neon con `npm run db:deploy`. Así el código nuevo nunca corre contra una base sin migrar.
 - **`db:seed:remoto`** ejecuta `prisma/seed.sql` con `prisma db execute`, sin Docker. Es idempotente: repetirlo no duplica nada.
-- **Horarios (sprint 3):** la migración `horarios_cuadricula_versiones` crea la extensión `btree_gist` (Neon y RDS la permiten al dueño de la base). Después de aplicarla hay que **volver a ejecutar** `npm run db:seed:remoto`: carga el parámetro `BLOQUES_HORARIO` (jornada por defecto) y el catálogo de bloques de los años ya registrados. Sin ese parámetro, la pantalla de horarios responde `JORNADA_NO_CONFIGURADA`.
+- **Horarios (sprint 3):** la migración `horarios_cuadricula_versiones` crea la extensión `btree_gist` y la migración `jornada_por_defecto` carga el parámetro `BLOQUES_HORARIO` (jornada por defecto) si falta. Basta `npm run db:deploy`: **no** hay que volver a ejecutar el seed. En Neon el usuario de la conexión es dueño de la base y puede crear la extensión; para RDS, ver [DESPLIEGUE-AWS.md](DESPLIEGUE-AWS.md#extensión-btree_gist-y-usuario-de-la-base).
 - **Nunca** ejecutar `npm run db:reset` ni `npm run db:migrate` con la URL de Neon en `DATABASE_URL`: el primero borra la base.
 - El administrador inicial es el del seed (`LEEME-BASE-DE-DATOS.md`); cambiar su contraseña en el primer ingreso.
 
