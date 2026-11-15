@@ -87,6 +87,7 @@ export {
   misCursos,
   asignarCurso,
   quitarAsignacion,
+  registrosDeDocente,
   type AsignacionVista,
 } from "./application/asignaciones";
 export {

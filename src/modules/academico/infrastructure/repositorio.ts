@@ -595,6 +595,13 @@ export const asignaciones = {
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM asignacion_docente WHERE id = ${id}::uuid FOR UPDATE`;
   },
+
+  /** Asignaciones del docente, activas o no, y secciones donde es tutor, de cualquier año (US69). */
+  async totalDelDocente(docenteId: string, db: Db = prisma) {
+    const cursos = await db.asignacionDocente.count({ where: { docenteId } });
+    const tutorias = await db.seccion.count({ where: { tutorId: docenteId } });
+    return cursos + tutorias;
+  },
 };
 
 // ---------- Reglas de consolidación (US12) ----------
