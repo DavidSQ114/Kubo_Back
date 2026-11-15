@@ -1,5 +1,5 @@
 // comunidad: interfaz pública (usuarios y administradores RF46, docentes US13, búsqueda de personas por DNI D-07,
-// apoderados US15, estudiantes US17 y sus vínculos).
+// apoderados US15, estudiantes US17 y sus vínculos, y edición y baja de personas US69).
 export { listarUsuarios, resumenUsuarios, registrarAdministrador, type UsuarioListado } from "./application/usuarios";
 export { perfilesProviderComunidad } from "./infrastructure/perfilesProvider";
 export * as esquemasComunidad from "./schemas";
@@ -38,4 +38,19 @@ export {
   type NombreUsuario,
   type ResponsableDePago,
 } from "./application/estudiantesMatricula";
-export { configurarMatriculaBorradorProvider, type MatriculaBorrador, type MatriculaBorradorProvider } from "./puertos";
+export {
+  detallePersona,
+  editarPersona,
+  historialPersona,
+  eliminarPersona,
+  type DetallePersona,
+  type DatosEdicion,
+  type EventoHistorial,
+} from "./application/edicionPersonas";
+export {
+  configurarMatriculaBorradorProvider,
+  configurarRegistrosMatriculaProvider,
+  type MatriculaBorrador,
+  type MatriculaBorradorProvider,
+  type RegistrosMatriculaProvider,
+} from "./puertos";

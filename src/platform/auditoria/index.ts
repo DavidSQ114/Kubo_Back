@@ -36,13 +36,14 @@ export interface EventoRegistrado {
   entidadId: string;
   usuarioId: string | null;
   fecha: Date;
+  valorAnterior: unknown;
   valorNuevo: unknown;
   motivo: string | null;
 }
 
 /**
- * Eventos de la bitácora de una entidad (por ejemplo, el log de pagos de AD-11, US04), del más reciente al más
- * antiguo. Solo lectura: la bitácora es inmutable.
+ * Eventos de la bitácora de una entidad (por ejemplo, el log de pagos de AD-11, US04, o el historial de cambios de
+ * una persona, US69), del más reciente al más antiguo. Solo lectura: la bitácora es inmutable.
  */
 export async function eventosDeAuditoria(filtro: {
   entidad: string;
@@ -65,6 +66,7 @@ export async function eventosDeAuditoria(filtro: {
       entidadId: true,
       usuarioId: true,
       createdAt: true,
+      valorAnterior: true,
       valorNuevo: true,
       motivo: true,
     },

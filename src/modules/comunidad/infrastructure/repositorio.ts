@@ -3,7 +3,7 @@
 // (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada, y la búsqueda por DNI
 // (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio. Los nombres de los responsables de pagos
 // (US04) se leen de usuario → persona.
-// Las ESCRITURAS sobre usuario solo las hace identidad.
+// Las ESCRITURAS sobre usuario solo las hace identidad (también al editar o eliminar a una persona, US69).
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -463,5 +463,85 @@ export const estudiantesMatricula = {
   async idsPorBusqueda(q: string, db: Db = prisma) {
     const filas = await db.estudiante.findMany({ where: { persona: busquedaPersona(q) }, select: { id: true } });
     return filas.map((f) => f.id);
+  },
+};
+
+// ---------- Edición y baja de personas (US69) ----------
+
+const selectPersonaEdicion = {
+  id: true,
+  dni: true,
+  nombres: true,
+  apellidos: true,
+  email: true,
+  telefono: true,
+  direccion: true,
+  fechaNacimiento: true,
+  sexo: true,
+  administrador: { select: { activo: true, cargo: true } },
+  docente: { select: { id: true, activo: true, especialidad: true } },
+  apoderado: { select: { activo: true, ocupacion: true, _count: { select: { vinculosApoderado: true } } } },
+  estudiante: {
+    select: { id: true, activo: true, colegioProcedencia: true, _count: { select: { vinculosApoderado: true } } },
+  },
+} satisfies Prisma.PersonaSelect;
+
+export type PersonaEdicion = Prisma.PersonaGetPayload<{ select: typeof selectPersonaEdicion }>;
+
+export interface DatosPersonaEditada {
+  dni?: string;
+  nombres?: string;
+  apellidos?: string;
+  email?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  fechaNacimiento?: Date | null;
+  sexo?: "FEMENINO" | "MASCULINO" | null;
+}
+
+export const edicionPersonas = {
+  /** Bloquea la fila de la persona: dos ediciones simultáneas no registran un «valor anterior» equivocado. */
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM persona WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+
+  porId: (id: string, db: Db = prisma) => db.persona.findUnique({ where: { id }, select: selectPersonaEdicion }),
+
+  idPorDni: (dni: string, db: Db = prisma) => db.persona.findUnique({ where: { dni }, select: { id: true } }),
+
+  /** Otra persona que ya tiene ese correo (persona.email no es único: se comprueba al editar). */
+  otraConEmail: (email: string, exceptoId: string, db: Db = prisma) =>
+    db.persona.findFirst({
+      where: { email: { equals: email, mode: "insensitive" }, NOT: { id: exceptoId } },
+      select: { id: true },
+    }),
+
+  actualizar: (id: string, data: DatosPersonaEditada, db: Db = prisma) =>
+    db.persona.update({ where: { id }, data, select: { id: true } }),
+
+  actualizarApoderado: (personaId: string, ocupacion: string, db: Db = prisma) =>
+    db.apoderado.update({ where: { personaId }, data: { ocupacion }, select: { id: true } }),
+
+  actualizarDocente: (personaId: string, especialidad: string, db: Db = prisma) =>
+    db.docente.update({ where: { personaId }, data: { especialidad }, select: { id: true } }),
+
+  actualizarEstudiante: (personaId: string, colegioProcedencia: string | null, db: Db = prisma) =>
+    db.estudiante.update({ where: { personaId }, data: { colegioProcedencia }, select: { id: true } }),
+
+  async desactivarPerfil(personaId: string, rol: Rol, db: Db = prisma) {
+    const cambio = { where: { personaId }, data: { activo: false }, select: { id: true } } as const;
+    if (rol === "ADMINISTRADOR") await db.administrador.update(cambio);
+    else if (rol === "DOCENTE") await db.docente.update(cambio);
+    else if (rol === "APODERADO") await db.apoderado.update(cambio);
+    else await db.estudiante.update(cambio);
+  },
+
+  /** Borra la persona y sus perfiles. Quien llama ya comprobó que no tiene registros en otros módulos. */
+  async eliminar(id: string, db: Db = prisma) {
+    await db.administrador.deleteMany({ where: { personaId: id } });
+    await db.docente.deleteMany({ where: { personaId: id } });
+    await db.apoderado.deleteMany({ where: { personaId: id } });
+    await db.estudiante.deleteMany({ where: { personaId: id } });
+    await db.persona.delete({ where: { id }, select: { id: true } });
   },
 };
