@@ -1,4 +1,5 @@
-// Piezas de AD-06 para una persona (US69): detalle con historial de cambios, edición en dos pasos y baja.
+// Piezas de AD-06 para una persona (US69): detalle con historial de cambios, edición en dos pasos y baja. Desde el
+// detalle de un estudiante sin cuenta se crea su acceso al portal del alumno (US49).
 // Pantalla no diseñada en el Figma: usa el estilo de los modales M-04.
 "use client";
 
@@ -58,8 +59,20 @@ type DetallePersona = Record<CampoPersona, string | null> & {
   dni: string;
   perfiles: Rol[];
   perfilesRegistrados: Rol[];
+  estudianteId: string | null;
   cuenta: { usuarioId: string; estado: EstadoCuenta; usada: boolean } | null;
 };
+
+/** Respuesta de «Crear acceso al portal» (US49): la contraseña temporal llega una sola vez. */
+interface AccesoCreado {
+  nombreCompleto: string;
+  email: string;
+  correoEnviado: boolean;
+  passwordTemporal: string | null;
+}
+
+/** Estudiante activo que todavía no tiene cuenta: se le puede crear el acceso al portal (US49). */
+const puedeCrearAcceso = (d: DetallePersona) => Boolean(d.estudianteId) && d.perfiles.includes("ALUMNO") && !d.cuenta;
 
 interface Cambio {
   campo: CampoPersona;
@@ -93,13 +106,14 @@ interface ResultadoBaja {
 
 type Formulario = Record<CampoPersona, string>;
 export type ModoPersona = "detalle" | "editar";
-type Modo = ModoPersona | "revisar" | "eliminar";
+type Modo = ModoPersona | "revisar" | "eliminar" | "acceso";
 
 const TITULO: Record<Modo, string> = {
   detalle: "Detalle de la persona",
   editar: "Editar persona",
   revisar: "Confirmar cambios",
   eliminar: "Eliminar persona",
+  acceso: "Crear acceso al portal",
 };
 
 const SUBTITULO: Record<Modo, string> = {
@@ -107,6 +121,7 @@ const SUBTITULO: Record<Modo, string> = {
   editar: "Corrige solo lo necesario: se guardan únicamente los campos que cambies.",
   revisar: "Revisa lo que va a cambiar. Cada cambio queda en la auditoría.",
   eliminar: "Se elimina solo si no tiene registros asociados.",
+  acceso: "El estudiante ingresará con su correo y una contraseña temporal que deberá cambiar.",
 };
 
 const camposDe = (d: DetallePersona) =>
@@ -239,7 +254,15 @@ function Historial({ eventos }: { eventos: EventoHistorial[] }) {
   );
 }
 
-function Detalle({ detalle, historial }: { detalle: DetallePersona; historial: EventoHistorial[] }) {
+function Detalle({
+  detalle,
+  historial,
+  onCrearAcceso,
+}: {
+  detalle: DetallePersona;
+  historial: EventoHistorial[];
+  onCrearAcceso: () => void;
+}) {
   return (
     <>
       <div className="flex w-full flex-wrap items-center gap-2 rounded-lg bg-fondo p-3.5">
@@ -249,6 +272,16 @@ function Detalle({ detalle, historial }: { detalle: DetallePersona; historial: E
         ))}
         <BadgeEstado estado={detalle.cuenta?.estado ?? "SIN_CUENTA"} />
       </div>
+      {puedeCrearAcceso(detalle) && (
+        <div className="flex w-full flex-wrap items-center gap-3 rounded-lg border border-borde p-3.5">
+          <p className="min-w-0 flex-1 text-[14px] leading-[1.4] text-texto-2">
+            Este estudiante aún no tiene una cuenta para ingresar al portal del alumno.
+          </p>
+          <Boton variante="secundario" icono="icon-key" onClick={onCrearAcceso}>
+            Crear acceso al portal
+          </Boton>
+        </div>
+      )}
       <dl className="grid w-full grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {camposDe(detalle).map((campo) => (
           <div key={campo} className="flex min-w-0 flex-col leading-[1.4]">
@@ -291,6 +324,9 @@ export function ModalPersona({
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [emailAcceso, setEmailAcceso] = useState("");
+  const [acceso, setAcceso] = useState<AccesoCreado | null>(null);
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     let vigente = true;
@@ -302,6 +338,7 @@ export function ModalPersona({
         if (!vigente) return;
         setCarga({ detalle, historial: historial.items });
         setFormulario(aFormulario(detalle));
+        setEmailAcceso(detalle.email ?? "");
       })
       .catch((e) => {
         if (vigente) setCarga({ error: alertaError(e) });
@@ -366,6 +403,25 @@ export function ModalPersona({
     }
   }
 
+  async function crearAcceso() {
+    if (!detalle?.estudianteId) return;
+    setEnviando(true);
+    setError(null);
+    setErrores({});
+    try {
+      const ruta = `/comunidad/estudiantes/${detalle.estudianteId}/acceso`;
+      setAcceso(await api<AccesoCreado>(ruta, { method: "POST", body: { email: emailAcceso.trim() } }));
+    } catch (e) {
+      if (e instanceof ApiError && e.codigo === "DATOS_INVALIDOS") setErrores(e.detalles as Record<string, string>);
+      else setError(alertaError(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  // Con el acceso ya creado, cerrar de cualquier forma vuelve al listado actualizado.
+  const cerrar = acceso ? () => onListo(`Se creó el acceso al portal de ${acceso.nombreCompleto}.`) : onCerrar;
+
   const pie =
     !detalle || !formulario ? (
       <Boton variante="secundario" onClick={onCerrar}>
@@ -393,6 +449,19 @@ export function ModalPersona({
           Revisar cambios
         </Boton>
       </>
+    ) : modo === "acceso" ? (
+      acceso ? (
+        <Boton onClick={cerrar}>Listo</Boton>
+      ) : (
+        <>
+          <Boton variante="secundario" onClick={() => volverDe("acceso")} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton onClick={crearAcceso} cargando={enviando} disabled={!emailAcceso.trim()}>
+            Crear acceso
+          </Boton>
+        </>
+      )
     ) : modo === "revisar" ? (
       <>
         <Boton variante="secundario" onClick={() => volverDe("revisar")} disabled={enviando}>
@@ -416,8 +485,10 @@ export function ModalPersona({
   return (
     <Modal
       abierto
-      onCerrar={onCerrar}
-      icono={modo === "eliminar" ? "act-trash" : modo === "detalle" ? "act-eye" : "act-edit"}
+      onCerrar={cerrar}
+      icono={
+        modo === "eliminar" ? "act-trash" : modo === "detalle" ? "act-eye" : modo === "acceso" ? "icon-key" : "act-edit"
+      }
       tonoIcono={modo === "eliminar" ? "rojo" : "azul"}
       titulo={TITULO[modo]}
       subtitulo={SUBTITULO[modo]}
@@ -434,7 +505,58 @@ export function ModalPersona({
         </div>
       )}
 
-      {detalle && historial && modo === "detalle" && <Detalle detalle={detalle} historial={historial} />}
+      {detalle && historial && modo === "detalle" && (
+        <Detalle detalle={detalle} historial={historial} onCrearAcceso={() => setModo("acceso")} />
+      )}
+
+      {detalle && modo === "acceso" && !acceso && (
+        <>
+          <Alerta tipo="info" titulo={`Acceso de ${detalle.nombreCompleto} al portal del alumno`}>
+            Se creará su cuenta con una contraseña temporal. En su primer ingreso deberá cambiarla. Solo se crea a
+            estudiantes con matrícula vigente.
+          </Alerta>
+          <Campo
+            etiqueta="Correo del estudiante"
+            type="email"
+            obligatorio
+            maxLength={254}
+            value={emailAcceso}
+            onChange={(e) => setEmailAcceso(e.target.value)}
+            error={errores.email}
+          />
+        </>
+      )}
+
+      {acceso && (
+        <>
+          <Alerta tipo="exito" titulo={`Se creó el acceso de ${acceso.nombreCompleto}`}>
+            {acceso.correoEnviado
+              ? `Enviamos sus credenciales a ${acceso.email}.`
+              : `No se pudo enviar el correo a ${acceso.email}: entrégale la contraseña temporal.`}
+          </Alerta>
+          {acceso.passwordTemporal && (
+            <div className="flex w-full flex-col gap-1.5">
+              <p className="text-[14px] font-medium leading-[1.4] text-texto-2">
+                Contraseña temporal (solo se muestra esta vez)
+              </p>
+              <div className="flex items-center gap-2 rounded-lg border border-borde bg-fondo px-4 py-3">
+                <code className="flex-1 text-[18px] font-semibold tracking-[1px] text-texto">
+                  {acceso.passwordTemporal}
+                </code>
+                <Boton
+                  variante="secundario"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(acceso.passwordTemporal ?? "");
+                    setCopiado(true);
+                  }}
+                >
+                  {copiado ? "Copiada" : "Copiar"}
+                </Boton>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {detalle && formulario && modo === "editar" && (
         <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">

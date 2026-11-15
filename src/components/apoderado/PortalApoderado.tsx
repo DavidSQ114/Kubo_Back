@@ -1,5 +1,6 @@
-// Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos» y los módulos que llegarán después, barra
-// superior con el estudiante consultado y «Cambiar de hijo» (AP-01, AP-02) y la selección de hijo (AC-05).
+// Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos», «Horario» (US48) y los módulos que llegarán
+// después, barra superior con el estudiante consultado y «Cambiar de hijo» (AP-01, AP-02) y la selección de hijo
+// (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
 // También es la guardia de las páginas /apoderado: exige sesión con perfil APODERADO (RF04). Lo que ve cada hijo lo
 // autoriza el servidor en cada consulta; aquí solo se recuerda cuál se eligió.
 "use client";
@@ -72,6 +73,7 @@ type Estado =
 export function PortalApoderado({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" });
+  const [menuAbierto, setMenuAbierto] = useState(false);
 
   const [intento, setIntento] = useState(0);
 
@@ -146,15 +148,24 @@ export function PortalApoderado({ children }: { children: ReactNode }) {
   return (
     <ApoderadoContext.Provider value={{ sesion, hijo, hijos }}>
       <div className="flex min-h-screen bg-fondo">
-        <BarraLateral sesion={sesion} />
+        {menuAbierto && (
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMenuAbierto(false)}
+            className="fixed inset-0 z-40 bg-[rgba(31,35,40,0.45)] lg:hidden"
+          />
+        )}
+        <BarraLateral sesion={sesion} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
         <div className="flex min-w-0 flex-1 flex-col">
           <BarraSuperior
             hijo={hijo}
             puedeCambiar={hijos.length > 1}
             onCambiar={() => setEstado({ ...estado, eligiendo: true })}
+            onMenu={() => setMenuAbierto(true)}
           />
           {/* key: al cambiar de hijo, la página se monta de nuevo y vuelve a pedir sus datos */}
-          <main key={hijo.estudianteId} className="flex flex-col gap-6 px-10 pt-8 pb-14">
+          <main key={hijo.estudianteId} className="flex flex-col gap-6 px-4 pt-6 pb-14 lg:px-10 lg:pt-8">
             {children}
           </main>
         </div>
@@ -174,12 +185,12 @@ interface ItemNav {
 const NAVEGACION: ItemNav[] = [
   { texto: "Inicio", icono: "nav-home", href: "/apoderado" },
   { texto: "Pagos", icono: "nav-wallet", href: "/apoderado/pagos" },
+  { texto: "Horario", icono: "nav-grid", href: "/apoderado/horario" },
   { texto: "Notas", icono: "nav-award" },
   { texto: "Asistencia", icono: "nav-usercheck" },
-  { texto: "Horario", icono: "nav-grid" },
 ];
 
-function BarraLateral({ sesion }: { sesion: Sesion }) {
+function BarraLateral({ sesion, abierta, onCerrar }: { sesion: Sesion; abierta: boolean; onCerrar: () => void }) {
   const router = useRouter();
   const ruta = usePathname();
   const [saliendo, setSaliendo] = useState(false);
@@ -201,8 +212,10 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[256px] shrink-0 flex-col border-r border-borde bg-white px-3 py-6">
-      <Link href="/apoderado" aria-label="Inicio" className="flex items-center gap-[9px] px-3 pb-8">
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex w-[256px] shrink-0 flex-col border-r border-borde bg-white px-3 py-6 transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 ${abierta ? "translate-x-0" : "-translate-x-full"}`}
+    >
+      <Link href="/apoderado" aria-label="Inicio" onClick={onCerrar} className="flex items-center gap-[9px] px-3 pb-8">
         <Icono nombre="logo-isotipo" size={30} />
         <span className="text-[23px] font-bold leading-none text-kubo-azul">Kubo</span>
       </Link>
@@ -231,6 +244,7 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
             <Link
               key={item.texto}
               href={item.href}
+              onClick={onCerrar}
               aria-current={activo ? "page" : undefined}
               className={`${clases} ${activo ? "bg-kubo-azul/10 font-semibold text-kubo-azul" : "font-medium text-texto-2 hover:bg-fondo"}`}
             >
@@ -298,18 +312,28 @@ function BarraSuperior({
   hijo,
   puedeCambiar,
   onCambiar,
+  onMenu,
 }: {
   hijo: Hijo;
   puedeCambiar: boolean;
   onCambiar: () => void;
+  onMenu: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-borde bg-white px-10 py-3">
-      <div className="flex items-center gap-3 rounded-lg border border-borde px-2 py-1.5">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-borde bg-white px-4 py-3 lg:gap-4 lg:px-10">
+      <button
+        type="button"
+        onClick={onMenu}
+        aria-label="Abrir menú"
+        className="shrink-0 rounded-md border border-borde p-2 hover:bg-fondo lg:hidden"
+      >
+        <Icono nombre="nav-menu" size={20} />
+      </button>
+      <div className="flex min-w-0 items-center gap-3 rounded-lg border border-borde px-2 py-1.5">
         <AvatarHijo hijo={hijo} />
-        <div className="flex flex-col pr-2 leading-[1.3]">
+        <div className="flex min-w-0 flex-col pr-2 leading-[1.3]">
           <span className="text-[12px] text-texto-3">Consultando a</span>
-          <span className="text-[14px] font-semibold text-texto">
+          <span className="truncate text-[14px] font-semibold text-texto">
             {hijo.nombreCompleto}
             {hijo.seccionCorta ? ` · ${hijo.seccionCorta}` : ""}
           </span>
@@ -318,18 +342,21 @@ function BarraSuperior({
           <button
             type="button"
             onClick={onCambiar}
-            className="flex items-center gap-2 border-l border-borde px-3 py-1.5 text-[14px] font-semibold text-kubo-azul hover:underline"
+            aria-label="Cambiar de hijo"
+            className="flex shrink-0 items-center gap-2 border-l border-borde px-3 py-1.5 text-[14px] font-semibold text-kubo-azul hover:underline"
           >
             <Icono nombre="icon-traslado" size={18} />
-            Cambiar de hijo
+            <span className="hidden sm:inline">Cambiar de hijo</span>
           </button>
         )}
       </div>
       {hijo.estadoMatricula === "RETIRADO" && <Badge tono="ambar">Retirado</Badge>}
       <div className="flex-1" />
-      <Badge tono="verde" punto>
-        Año {hijo.anio}
-      </Badge>
+      <span className="hidden sm:block">
+        <Badge tono="verde" punto>
+          Año {hijo.anio}
+        </Badge>
+      </span>
     </header>
   );
 }
