@@ -227,3 +227,12 @@ export const EditarPersonaSchema = z.object({
 export const BajaPersonaSchema = z.object({
   perfil: z.enum(ROLES, { message: "Perfil no válido" }).optional(),
 });
+
+/**
+ * «Crear acceso al portal» de un estudiante (US49): el correo con el que ingresará. La contraseña temporal la genera
+ * el sistema.
+ */
+export const CrearAccesoAlumnoSchema = z.object({
+  email: z.string({ message: "Ingresa el correo" }).trim().toLowerCase().max(254).email("Ingresa un correo válido"),
+  enviarCorreo: z.boolean().optional(),
+});

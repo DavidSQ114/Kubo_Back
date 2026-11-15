@@ -1,5 +1,5 @@
-// GET /api/v1/horarios/mi-horario?anioId= · Clases del docente en sesión en los horarios publicados del año
-// (US31, RF24; base de DO-02 «Mi horario») · Solo Docente
+// GET /api/v1/horarios/mi-horario?anioId= · «Mi horario» del docente en sesión: sus clases en los horarios
+// publicados del año, con curso, sección y aula (US34, RF24, DO-02) · Solo Docente
 import "@/server/wiring";
 import { ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";

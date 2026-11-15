@@ -1,6 +1,7 @@
 // comunidad/application: registro y búsqueda de estudiantes (US17, RF13, AD-09).
-// El estudiante todavía no tiene cuenta de usuario (llega con US49). «Guardar como borrador» crea además su
-// matrícula «En proceso» por el puerto MatriculaBorradorProvider (la implementa matricula).
+// El estudiante se registra sin cuenta de usuario: su acceso al portal se crea después, desde su detalle (US49,
+// accesoAlumno.ts). «Guardar como borrador» crea además su matrícula «En proceso» por el puerto
+// MatriculaBorradorProvider (la implementa matricula).
 import { prisma } from "@/platform/db/prisma";
 import { esDuplicado } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";

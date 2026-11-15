@@ -1,6 +1,7 @@
 // matricula: interfaz pública. Matrícula en sección (US18), cronograma de pagos (US21), anulación (M-19), traslado
 // (US19), retiro (US57), ficha en PDF (US20), pagos y recibos (US22, US23, US04, US25), portal del apoderado (US42,
-// US43, US44), pago en línea y conciliación (US70, US71), sección en una fecha y los puertos
+// US43, US44), portal del alumno (US49: matrícula vigente, panel y «Mis cursos»), sección del hijo para su horario
+// (US48), pago en línea y conciliación (US70, US71), sección en una fecha y los puertos
 // que usan académico (vacantes, US08) y comunidad (matrícula «En proceso» del registro de estudiantes, US17).
 export { matriculasProviderMatricula } from "./infrastructure/matriculasProvider";
 export { matriculaBorradorProviderMatricula } from "./infrastructure/matriculaBorradorProvider";
@@ -38,7 +39,21 @@ export {
   type DatosPagoAnual,
 } from "./application/pagos";
 export { panelMorosidad, type FiltroMorosidad } from "./application/morosidad";
-export { hijosDelApoderado, elegirHijo, pagosDelHijo, comprobanteDeCuota } from "./application/portalApoderado";
+export {
+  hijosDelApoderado,
+  elegirHijo,
+  pagosDelHijo,
+  comprobanteDeCuota,
+  seccionDelHijo,
+} from "./application/portalApoderado";
+export {
+  matriculaVigenteDelAlumno,
+  panelDelAlumno,
+  cursosDelAlumno,
+  type MatriculaDelAlumno,
+  type PanelDelAlumno,
+  type CursoDelAlumno,
+} from "./application/portalAlumno";
 export {
   pagoEnLineaDisponible,
   crearIntentoPago,

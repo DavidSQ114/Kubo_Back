@@ -330,6 +330,24 @@ export const estudiantes = {
   activoPorId: (id: string, db: Db = prisma) =>
     db.estudiante.findFirst({ where: { id, activo: true, persona: { activo: true } }, select: selectEstudiante }),
 
+  /** El estudiante con su persona, activo o no (acceso al portal del alumno, US49). */
+  conPersona: (id: string, db: Db = prisma) =>
+    db.estudiante.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        activo: true,
+        persona: { select: { id: true, nombres: true, apellidos: true, email: true, activo: true } },
+      },
+    }),
+
+  /** Perfil de estudiante activo de la persona en sesión (portal del alumno, US49). */
+  activoDePersona: (personaId: string, db: Db = prisma) =>
+    db.estudiante.findFirst({
+      where: { personaId, activo: true, persona: { activo: true } },
+      select: { id: true, persona: { select: { nombres: true, apellidos: true } } },
+    }),
+
   activosPorIds: (ids: string[], db: Db = prisma) =>
     db.estudiante.findMany({
       where: { id: { in: ids }, activo: true, persona: { activo: true } },

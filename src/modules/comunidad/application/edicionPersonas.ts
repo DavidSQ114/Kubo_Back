@@ -51,6 +51,8 @@ export interface DetallePersona extends DatosEditables {
   perfiles: Rol[];
   /** Perfiles registrados, activos o no: definen qué datos de perfil se pueden editar. */
   perfilesRegistrados: Rol[];
+  /** Id del perfil de estudiante, si lo tiene: con él se crea su acceso al portal (US49). */
+  estudianteId: string | null;
   cuenta: { usuarioId: string; estado: EstadoUsuario; usada: boolean } | null;
 }
 
@@ -96,6 +98,7 @@ export async function detallePersona(personaId: string): Promise<DetallePersona>
     ...datosEditables(persona, cuenta),
     perfiles: rolesActivos(persona),
     perfilesRegistrados: perfilesRegistrados(persona),
+    estudianteId: persona.estudiante?.id ?? null,
     cuenta: cuenta ? { usuarioId: cuenta.usuarioId, estado: cuenta.estado, usada: cuenta.usada } : null,
   };
 }

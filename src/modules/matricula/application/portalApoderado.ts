@@ -10,6 +10,7 @@ import { estudiantesVinculadosAPersona, type EstudianteVinculado } from "@/modul
 import type { Autenticado } from "@/modules/identidad";
 import { erroresMatricula as E } from "../domain/errores";
 import { NOMBRE_ESTADO_MATRICULA } from "../domain/matriculas";
+import { matriculaVigente } from "../domain/portalAlumno";
 import {
   estadoCuotaPortal,
   matriculasDelPortal,
@@ -28,7 +29,7 @@ const iniciales = (nombres: string, apellidos: string) =>
   `${nombres.trim().charAt(0)}${apellidos.trim().charAt(0)}`.toUpperCase();
 
 /** Matrículas del estudiante que el apoderado puede ver, con su año (la del año en curso primero). */
-async function matriculasVisibles(estudianteId: string) {
+export async function matriculasVisibles(estudianteId: string) {
   const todas = await matriculasDeEstudiante(estudianteId);
   const conAnio = await Promise.all(
     todas.map(async (m) => {
@@ -64,7 +65,7 @@ export async function hijoAutorizado(auth: Autenticado, estudianteId: string): P
   return hijos.find((h) => h.estudianteId === estudianteId)!;
 }
 
-async function seccionDe(m: MatriculaVisible) {
+export async function seccionDe(m: Pick<MatriculaVisible, "anioAcademicoId" | "seccionId">) {
   const seccion = m.seccionId ? (await listarSecciones(m.anioAcademicoId)).find((s) => s.id === m.seccionId) : null;
   return seccion
     ? { grado: seccion.grado.nombre, seccion: seccion.nombre, corta: `${seccion.grado.numero}° ${seccion.nombre}` }
@@ -75,6 +76,16 @@ async function seccionDe(m: MatriculaVisible) {
 async function estudianteDeCookie(auth: Autenticado, token: string | null) {
   const claims = token ? await verificarEstudianteElegido(token) : null;
   return claims && claims.sub === auth.usuarioId ? claims.est : null;
+}
+
+/**
+ * Sección en la que el hijo está matriculado, para su horario (US48). Verifica el vínculo como el resto del portal
+ * (403 ESTUDIANTE_NO_VINCULADO). `seccionId` es null si el hijo no tiene una matrícula vigente (por ejemplo, retirado).
+ */
+export async function seccionDelHijo(auth: Autenticado, estudianteId: string) {
+  const hijo = await hijoAutorizado(auth, estudianteId);
+  const vigente = matriculaVigente(hijo.matriculas);
+  return { estudianteId, nombres: hijo.nombres, apellidos: hijo.apellidos, seccionId: vigente?.seccionId ?? null };
 }
 
 // ---------- US42 · Selección de hijo (AC-05) ----------

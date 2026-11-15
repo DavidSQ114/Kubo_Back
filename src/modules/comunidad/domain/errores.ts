@@ -1,5 +1,5 @@
-// comunidad/domain: errores del módulo (US13 docentes, D-07 persona ya registrada, US15 apoderados, US17 estudiantes
-// y US69 edición y baja de personas).
+// comunidad/domain: errores del módulo (US13 docentes, D-07 persona ya registrada, US15 apoderados, US17 estudiantes,
+// US69 edición y baja de personas y US49 acceso del alumno al portal).
 import { ErrorApp } from "@/platform/http/errores";
 
 export const erroresComunidad = {
@@ -29,6 +29,16 @@ export const erroresComunidad = {
     new ErrorApp("ESTUDIANTE_REPETIDO", "El mismo estudiante aparece más de una vez. Quítalo de la lista.", 422),
   vinculoExistente: () => new ErrorApp("VINCULO_EXISTENTE", "Este apoderado ya está vinculado al estudiante.", 409),
   gradoInvalido: () => new ErrorApp("GRADO_INVALIDO", "El grado de ingreso no existe o no está activo.", 422),
+
+  // ---------- Acceso del alumno al portal (US49) ----------
+  accesoExistente: () =>
+    new ErrorApp("ACCESO_EXISTENTE", "El estudiante ya tiene una cuenta para ingresar al portal.", 409),
+  sinMatriculaVigente: () =>
+    new ErrorApp(
+      "SIN_MATRICULA_VIGENTE",
+      "El estudiante no tiene una matrícula vigente. Confirma su matrícula antes de crear su acceso al portal.",
+      422,
+    ),
 
   // ---------- Edición y baja de personas (US69) ----------
   emailEnUso: () => new ErrorApp("EMAIL_EN_USO", "Ese correo ya está registrado en otra cuenta.", 409),
