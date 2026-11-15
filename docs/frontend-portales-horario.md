@@ -28,7 +28,7 @@ src/lib/api.ts                                inicioPorRol: Docente → /docente
 `EstructuraPortal` (en `components/portal`) sigue los frames DO-01 y AL-01: barra lateral azul (`bg-kubo-azul`) como la del administrador, con el logo, el menú, el nombre y el perfil del usuario, «Ingresar como …» si tiene otros perfiles, «Cambiar contraseña» y «Cerrar sesión». La barra superior lleva el saludo («Hola, Diego · 1° de secundaria A»), la insignia del año («Año 2026 · Bimestre III en curso», de `GET /academico/anios/actual`) y la campana de notificaciones, todavía sin función.
 
 - **Guardia por perfil (RF04):** `useSesionDeRol(rol)` pide la sesión. Sin sesión va a `/login`; con la contraseña temporal, a `/cambiar-password`; con otro perfil activo, a `/acceso-denegado` (AC-07), que muestra «No tiene permisos para acceder a este recurso.». Es solo navegación: los datos los protege el servidor en cada endpoint.
-- **Módulos que aún no existen:** se muestran en el menú en gris con la etiqueta «Próximamente» y sin enlace, igual que en el portal del apoderado.
+- **Módulos que aún no existen:** se muestran en el menú atenuados, con la etiqueta «Próximamente» y sin enlace, igual que en el portal del apoderado. Un nombre largo («Registro de notas») ocupa dos líneas para que la etiqueta entre en los 264 px de la barra.
 - **Celular (menos de 1024 px):** la barra lateral se oculta y se abre con el botón de menú de la barra superior, como un panel sobre el contenido; se cierra al elegir una opción o al tocar fuera. El contenido usa 16 px de margen lateral en lugar de 40.
 
 ## Horario semanal (`HorarioSemanal`)
@@ -71,7 +71,7 @@ En el detalle de una persona (modal de AD-06), si es un estudiante activo que a�
 
 1. El modal pide el «Correo del estudiante» (viene con el correo registrado, si lo tiene) y explica que la cuenta nace con una contraseña temporal que deberá cambiar.
 2. «Crear acceso» llama a `POST /comunidad/estudiantes/{id}/acceso`. Los errores se muestran con el mensaje del servidor: «El estudiante no tiene una matrícula vigente…», «Ese correo ya está registrado en otra cuenta.» o el del campo si el correo no es válido.
-3. Si todo va bien: alerta verde «Se creó el acceso de …» con «Enviamos sus credenciales a …» (o que el correo no se pudo enviar) y la **contraseña temporal, que se muestra solo esta vez**, con el botón «Copiar». Al cerrar, el listado se actualiza y el estudiante pasa de «Sin cuenta» a «Pendiente de activación».
+3. Si todo va bien: alerta verde «Se creó el acceso de …» con «Enviamos sus credenciales a …» (o que el correo no se pudo enviar) y la **contraseña temporal, que se muestra solo esta vez**, con el botón «Copiar». Al cerrar, el listado se actualiza y el estudiante pasa de «Sin cuenta» a «Pendiente» y aparece el aviso «Se creó el acceso al portal de …».
 
 ## Diferencias con el Figma
 

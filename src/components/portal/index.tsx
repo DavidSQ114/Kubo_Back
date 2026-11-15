@@ -177,8 +177,8 @@ function BarraLateral({
                 className={`${clases} cursor-not-allowed font-medium text-white/50`}
               >
                 <Icono nombre={item.icono} size={20} className="opacity-50" />
-                <span className="flex-1 whitespace-nowrap">{item.texto}</span>
-                <span className="rounded-full bg-white/12 px-2 py-0.5 text-[11px] font-semibold text-white/75">
+                <span className="min-w-0 flex-1 leading-[1.3]">{item.texto}</span>
+                <span className="shrink-0 rounded-full bg-white/12 px-2 py-0.5 text-[11px] font-semibold text-white/75">
                   Próximamente
                 </span>
               </span>
