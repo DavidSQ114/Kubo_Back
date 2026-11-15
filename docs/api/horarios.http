@@ -1,0 +1,99 @@
+# Pruebas manuales de la API de horarios: cuadrícula (US27), asignación de clases (US28), cruces de docente y de
+# aula (US29, US30) y publicación por versiones (US31).
+# Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
+# Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
+# (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
+# Pensado para una base con un año abierto, dos secciones del mismo grado (A y B), dos aulas activas y, en ambas
+# secciones, un curso del plan de estudios con el mismo docente asignado (AD-07). Solo datos ficticios.
+# Completa las variables con los identificadores de tu base y ejecuta los bloques en orden.
+
+@base = http://localhost:3000/api/v1
+@seccionA = 00000000-0000-0000-0000-000000000000
+@seccionB = 00000000-0000-0000-0000-000000000000
+@curso = 00000000-0000-0000-0000-000000000000
+@docente = 00000000-0000-0000-0000-000000000000
+@otroDocente = 00000000-0000-0000-0000-000000000000
+@aula1 = 00000000-0000-0000-0000-000000000000
+@aula2 = 00000000-0000-0000-0000-000000000000
+
+### 1. Cuadrícula de la sección A → 200: 5 días, bloques del año, sin horario (horario: null)
+# @name cuadricula
+GET {{base}}/horarios/secciones/{{seccionA}}
+
+###
+@bloque1 = {{cuadricula.response.body.$.data.bloques[0].id}}
+@bloque2 = {{cuadricula.response.body.$.data.bloques[1].id}}
+@recreo = {{cuadricula.response.body.$.data.bloques[3].id}}
+
+### 2. Asignar sin aula → 400 CLASE_INCOMPLETA «Debe completar curso, docente y aula antes de guardar»
+PUT {{base}}/horarios/secciones/{{seccionA}}/clases/LUNES/{{bloque1}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{docente}}", "aulaId": null }
+
+### 3. Asignar con un docente que no tiene el curso → 422 DOCENTE_SIN_CURSO
+PUT {{base}}/horarios/secciones/{{seccionA}}/clases/LUNES/{{bloque1}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{otroDocente}}", "aulaId": "{{aula1}}" }
+
+### 4. Asignar en el recreo → 422 BLOQUE_DE_RECREO
+PUT {{base}}/horarios/secciones/{{seccionA}}/clases/LUNES/{{recreo}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{docente}}", "aulaId": "{{aula1}}" }
+
+### 5. Asignar la clase del lunes a primera hora en la sección A → 200, horario BORRADOR versión 1
+PUT {{base}}/horarios/secciones/{{seccionA}}/clases/LUNES/{{bloque1}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{docente}}", "aulaId": "{{aula1}}" }
+
+### 6. Mismo docente, mismo día y bloque en la sección B → 409 CRUCE_DOCENTE (indica sección, día y bloque)
+PUT {{base}}/horarios/secciones/{{seccionB}}/clases/LUNES/{{bloque1}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{docente}}", "aulaId": "{{aula2}}" }
+
+### 7. Ocupación de ese bloque vista desde la sección B → 200: el docente y el aula 1, ocupados por la sección A
+GET {{base}}/horarios/secciones/{{seccionB}}/ocupacion?dia=LUNES&bloqueId={{bloque1}}
+
+### 8. Mismo docente en la sección B en otro bloque y con la misma aula → 200 (sin solapamiento)
+PUT {{base}}/horarios/secciones/{{seccionB}}/clases/LUNES/{{bloque2}}
+Content-Type: application/json
+
+{ "cursoId": "{{curso}}", "docenteId": "{{docente}}", "aulaId": "{{aula1}}" }
+
+### 9. Vaciar ese bloque de la sección B → 200
+DELETE {{base}}/horarios/secciones/{{seccionB}}/clases/LUNES/{{bloque2}}
+
+### 10. Vaciar un bloque sin clase → 404 NO_ENCONTRADO «La clase no existe.»
+DELETE {{base}}/horarios/secciones/{{seccionB}}/clases/VIERNES/{{bloque2}}
+
+### 11. Publicar con bloques pendientes → 422 HORARIO_INCOMPLETO (details.cursos y details.bloquesLibres)
+POST {{base}}/horarios/secciones/{{seccionA}}/publicar
+
+### 12. Publicar con el horario completo (cada curso con tantos bloques como horas) → 200 PUBLICADO + aviso
+POST {{base}}/horarios/secciones/{{seccionA}}/publicar
+
+### 13. Publicar otra vez sin cambios → 409 SIN_CAMBIOS_POR_PUBLICAR
+POST {{base}}/horarios/secciones/{{seccionA}}/publicar
+
+### 14. Editar el horario publicado → 201: borrador versión 2 con las mismas clases
+POST {{base}}/horarios/secciones/{{seccionA}}/borrador
+
+### 15. Ver la versión 1 mientras se edita la 2 → 200 (PUBLICADO; tras publicar la 2, ARCHIVADO)
+GET {{base}}/horarios/secciones/{{seccionA}}?version=1
+
+### 16. Horario publicado de la sección (sin el borrador) → 200 · Administrador o Docente
+GET {{base}}/horarios/secciones/{{seccionA}}/publicado
+
+### 17. Clases del docente en los horarios publicados del año → 200
+GET {{base}}/horarios/docentes/{{docente}}/publicado
+
+### 18. «Mi horario» con sesión de docente → 200 (con sesión de administrador → 403 ACCESO_DENEGADO)
+GET {{base}}/horarios/mi-horario
+
+### 19. Cuadrícula de una sección de un año cerrado → 200 con editable: false y motivoSoloLectura
+# Cambia el identificador por el de una sección de un año «Cerrado». Cualquier PUT sobre ella → 422.
+GET {{base}}/horarios/secciones/{{seccionA}}

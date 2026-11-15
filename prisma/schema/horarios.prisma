@@ -1,19 +1,24 @@
 // Módulo horarios: bloques, horarios versionados, detalle, sesiones de clase y asistencia.
 // Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
+// Sprint 3 (US27–US31): el catálogo de bloques es del año (orden, horas y tipo, sin día) y el día pasa a cada
+// clase (detalle_horario). en_vigor: la clase ocupa a su docente y a su aula mientras su horario es BORRADOR o
+// PUBLICADO; los cruces entre secciones los impiden uq_detalle_cruce_docente y uq_detalle_cruce_aula (migración).
 
 model BloqueHorario {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  dia             DiaSemana
+  anioAcademicoId String           @db.Uuid @map("anio_academico_id")
+  anioAcademico   AnioAcademico    @relation(fields: [anioAcademicoId], references: [id], onDelete: Cascade)
+  orden           Int
   horaInicio      DateTime         @db.Time(0) @map("hora_inicio")
   horaFin         DateTime         @db.Time(0) @map("hora_fin")
+  tipo            TipoBloque       @default(CLASE)
   etiqueta        String
-  obligatorio     Boolean          @default(true)
-  activo          Boolean          @default(true)
   createdAt       DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt       DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   detallesHorario DetalleHorario[]
 
-  @@unique([dia, horaInicio])
+  @@unique([anioAcademicoId, orden])
+  @@unique([anioAcademicoId, horaInicio])
   @@map("bloque_horario")
 }
 
@@ -38,6 +43,7 @@ model DetalleHorario {
   id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   horarioId           String            @db.Uuid @map("horario_id")
   horario             Horario           @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+  dia                 DiaSemana
   bloqueId            String            @db.Uuid @map("bloque_id")
   bloque              BloqueHorario     @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
   aulaId              String            @db.Uuid @map("aula_id")
@@ -48,12 +54,13 @@ model DetalleHorario {
   docente             Docente           @relation(fields: [docenteId], references: [id], onDelete: Restrict)
   seccionId           String            @db.Uuid @map("seccion_id")
   seccion             Seccion           @relation(fields: [seccionId], references: [id], onDelete: Restrict)
-  enVigor             Boolean           @default(false) @map("en_vigor")
+  enVigor             Boolean           @default(true) @map("en_vigor")
   createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   sesionesClase       SesionClase[]
 
-  @@unique([horarioId, bloqueId])
+  @@unique([horarioId, dia, bloqueId])
+  @@index([docenteId])
   @@map("detalle_horario")
 }
 

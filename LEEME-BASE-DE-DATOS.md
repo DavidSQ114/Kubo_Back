@@ -11,9 +11,9 @@ Tablas y columnas en `snake_case` en la base de datos; en el código TypeScript 
 | `.env.example` | Cadena de conexión `DATABASE_URL` (copiar como `.env`) |
 | `prisma.config.ts` | Configuración de Prisma (schema dividido, carpeta de migraciones, conexión) |
 | `prisma/schema/*.prisma` | El modelo: un archivo por módulo + `enums.prisma` + `schema.prisma` (generador y datasource) |
-| `prisma/sql/restricciones.sql` | Lo que Prisma no expresa: 11 índices únicos parciales, 26 CHECK y 5 triggers |
-| `prisma/seed.sql` | Datos iniciales: 5 grados, 11 áreas, 28 competencias (CNEB), 10 cursos, 10 parámetros y el administrador inicial |
-| `prisma/sql/pruebas.sql` | 17 pruebas de las reglas (se ejecutan dentro de una transacción y no dejan datos) |
+| `prisma/sql/restricciones.sql` | Lo que Prisma no expresa: 11 índices únicos parciales, 26 CHECK y 5 triggers (copia de la migración `restricciones`; las migraciones posteriores, como la de horarios, traen las suyas) |
+| `prisma/seed.sql` | Datos iniciales: 5 grados, 11 áreas, 28 competencias (CNEB), 10 cursos, 11 parámetros (entre ellos la jornada por defecto `BLOQUES_HORARIO`) y el administrador inicial |
+| `prisma/sql/pruebas.sql` | 21 pruebas de las reglas (se ejecutan dentro de una transacción y no dejan datos) |
 | `src/platform/db/prisma.ts` | Cliente Prisma único para toda la app (capa `platform/db` de la guía de arquitectura) |
 | `package.scripts.json` | Scripts `db:*` para copiar dentro del `package.json` del proyecto |
 
@@ -43,7 +43,7 @@ npx prisma migrate dev
 # 5. Datos iniciales
 npm run db:seed
 
-# 6. (Opcional) Comprobar las reglas: deben salir 17 líneas "OK"
+# 6. (Opcional) Comprobar las reglas: deben salir 21 líneas "OK"
 docker compose exec db psql -U kubo -d kubo_dev -q -t -A -f /kubo-prisma/sql/pruebas.sql
 ```
 
@@ -53,7 +53,7 @@ Los montos de matrícula y pensión del seed son de ejemplo: ajustarlos antes de
 ## Reglas que viven en la base de datos
 
 - **Matrícula:** una sola activa por estudiante y año; en `EN_PROCESO` puede no tener sección ni responsable, pero no puede pasar a `MATRICULADO` sin ambos; el responsable debe ser apoderado del mismo estudiante; retiro y anulación exigen fecha y motivo.
-- **Horarios:** un solo horario `PUBLICADO` por sección; sin cruces de aula, docente ni sección en los horarios en vigor (`en_vigor`, que un trigger mantiene al publicar o archivar); el detalle debe coincidir con su asignación. Para publicar una versión nueva: archivar la anterior y publicar la nueva **en la misma transacción**.
+- **Horarios:** el catálogo de bloques es del año (`orden`, horas y tipo `CLASE` o `RECREO`) y el día va en cada clase (`detalle_horario`). Un solo horario `PUBLICADO` y un solo `BORRADOR` por sección. Sin cruces de docente ni de aula entre secciones en el mismo día y bloque, **también en borrador**: lo impiden las restricciones de exclusión `uq_detalle_cruce_docente` y `uq_detalle_cruce_aula` sobre las clases en vigor (`en_vigor`: clases de horarios en borrador o publicados; un trigger lo apaga al archivar). La clase debe coincidir con su asignación y usar un bloque de clase del año de su sección. Para publicar una versión nueva: archivar la anterior y publicar la nueva **en la misma transacción**. Requiere la extensión `btree_gist` (la crea la migración).
 - **Cobros:** una cuota de matrícula y una pensión por mes (1–12); montos positivos.
 - **Notas:** una solicitud de rectificación abierta por nota; una regla de consolidación vigente por año.
 - **Archivos:** máximo 5 MB.

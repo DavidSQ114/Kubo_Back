@@ -279,6 +279,9 @@ export const aulas = {
   porId: (id: string, db: Db = prisma): Promise<AulaFila | null> =>
     db.aula.findUnique({ where: { id }, select: selectAula }),
 
+  porIds: (ids: string[], db: Db = prisma): Promise<AulaFila[]> =>
+    db.aula.findMany({ where: { id: { in: ids } }, select: selectAula }),
+
   crear: (data: { nombre: string; ubicacion: string | null; aforo: number }, db: Db = prisma) =>
     db.aula.create({ data, select: selectAula }),
 
@@ -486,6 +489,14 @@ export const planes = {
       select: { id: true, gradoId: true, anioAcademicoId: true },
     }),
 
+  /** Cursos activos del plan de estudios de un grado y año, con sus horas semanales (horarios, US27–US31). */
+  delGrado: (anioAcademicoId: string, gradoId: string, db: Db = prisma) =>
+    db.planEstudio.findMany({
+      where: { anioAcademicoId, gradoId, activo: true, curso: { estado: "ACTIVO" } },
+      orderBy: { curso: { nombre: "asc" } },
+      select: { id: true, horasSemanales: true, curso: { select: { id: true, codigo: true, nombre: true } } },
+    }),
+
   /** Planes del curso de cualquier año (para eliminarlo). */
   idsDelCurso: async (cursoId: string, db: Db = prisma) =>
     (await db.planEstudio.findMany({ where: { cursoId }, select: { id: true } })).map((p) => p.id),
@@ -569,6 +580,19 @@ export const asignaciones = {
 
   porId: (id: string, db: Db = prisma) =>
     db.asignacionDocente.findUnique({ where: { id }, select: selectAsignacion }) as Promise<AsignacionFila | null>,
+
+  /** Asignaciones por id, activas o no (las clases de un horario conservan la suya aunque se desactive). */
+  porIds: (ids: string[], db: Db = prisma) =>
+    db.asignacionDocente.findMany({ where: { id: { in: ids } }, select: selectAsignacion }) as Promise<
+      AsignacionFila[]
+    >,
+
+  /** Asignaciones activas de una sección: el docente de cada curso (horarios, US28). */
+  activasDeSeccion: (seccionId: string, db: Db = prisma) =>
+    db.asignacionDocente.findMany({
+      where: { seccionId, activo: true },
+      select: { id: true, docenteId: true, planEstudioId: true },
+    }),
 
   /** La asignación activa del curso del plan en la sección, si hay (uq_asignacion_activa). */
   activaDe: (planEstudioId: string, seccionId: string, db: Db = prisma) =>

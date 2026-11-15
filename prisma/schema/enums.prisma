@@ -1,4 +1,4 @@
-// Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago).
+// Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago, TipoBloque).
 
 enum Rol {
   ADMINISTRADOR
@@ -149,6 +149,13 @@ enum DiaSemana {
   VIERNES
 }
 
+// Sprint 3 (US27): un bloque del catálogo es de clase o de recreo (el recreo no admite clases)
+enum TipoBloque {
+  CLASE
+  RECREO
+}
+
+// COMPLETO no se usa: un horario es BORRADOR, PUBLICADO o ARCHIVADO (US31)
 enum EstadoPublicacion {
   BORRADOR
   COMPLETO
