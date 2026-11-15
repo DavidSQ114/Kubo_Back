@@ -35,6 +35,8 @@ const CLAVE = "Prueba-Kubo-2090";
 // la bitácora es inmutable y conserva las filas de corridas anteriores: cada corrida usa su propio requestId
 const meta = { requestId: `prueba-portales-${Date.now()}`, ip: null, userAgent: null };
 const SIN_PERMISOS = "No tiene permisos para acceder a este recurso.";
+// la preparación crea cuentas (bcrypt), matrículas y un horario publicado: en el CI corre junto a las demás pruebas
+const ESPERA_PREPARACION = 120_000;
 
 type Manejador = (req: NextRequest, contexto: { params: Promise<Record<string, string>> }) => Promise<Response>;
 
@@ -232,7 +234,7 @@ describe.skipIf(!ACTIVA)("el horario en los portales: acceso por perfil y por v�
       token[clave] = await ingresar(email);
     }
     correo.mockClear();
-  });
+  }, ESPERA_PREPARACION);
 
   afterAll(async () => {
     if (!anioId) return;
@@ -252,7 +254,7 @@ describe.skipIf(!ACTIVA)("el horario en los portales: acceso por perfil y por v�
     await prisma.parametroInstitucion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.anioAcademico.delete({ where: { id: anioId } });
     await prisma.$disconnect();
-  });
+  }, ESPERA_PREPARACION);
 
   // ---------- US49 · Acceso al portal del alumno ----------
 
