@@ -50,19 +50,40 @@ SELECT debe_fallar('aforo de sección mayor que el aula', $q$UPDATE seccion SET 
 INSERT INTO registro_auditoria (entidad_afectada, entidad_id, accion) VALUES ('matricula','x','CREAR');
 SELECT debe_fallar('modificar auditoría', $q$UPDATE registro_auditoria SET accion='OTRA'$q$, 'REGISTRO_AUDITORIA_INMUTABLE');
 SELECT debe_fallar('borrar auditoría', $q$DELETE FROM registro_auditoria$q$, 'REGISTRO_AUDITORIA_INMUTABLE');
--- 5. horarios: cruce de docente entre secciones al publicar
-INSERT INTO plan_estudio (anio_academico_id, grado_id, curso_id, horas_semanales) SELECT anio, (SELECT id FROM grado WHERE numero=1), (SELECT id FROM curso WHERE codigo='MAT'), 5 FROM ids;
-INSERT INTO asignacion_docente (plan_estudio_id, seccion_id, docente_id) SELECT (SELECT id FROM plan_estudio), s, doc1 FROM ids, unnest(ARRAY[secA, secB]) s;
-INSERT INTO bloque_horario (dia, hora_inicio, hora_fin, etiqueta) VALUES ('LUNES','08:00','08:45','1.ª hora');
+-- 5. horarios: cruces de docente y de aula entre secciones, también en borrador (US29, US30)
+INSERT INTO plan_estudio (anio_academico_id, grado_id, curso_id, horas_semanales) SELECT anio, (SELECT id FROM grado WHERE numero=1), c.id, 5 FROM ids, curso c WHERE c.codigo IN ('MAT','COM');
+INSERT INTO asignacion_docente (plan_estudio_id, seccion_id, docente_id) SELECT (SELECT pe.id FROM plan_estudio pe JOIN curso c ON c.id=pe.curso_id WHERE c.codigo='MAT'), s, doc1 FROM ids, unnest(ARRAY[secA, secB]) s;
+INSERT INTO asignacion_docente (plan_estudio_id, seccion_id, docente_id) SELECT (SELECT pe.id FROM plan_estudio pe JOIN curso c ON c.id=pe.curso_id WHERE c.codigo='COM'), secB, (SELECT d.id FROM docente d JOIN persona p ON p.id=d.persona_id WHERE p.dni='55555555') FROM ids;
+INSERT INTO bloque_horario (anio_academico_id, orden, hora_inicio, hora_fin, tipo, etiqueta) SELECT anio, 1, '07:45', '08:30', 'CLASE', '1.ª hora' FROM ids;
+INSERT INTO bloque_horario (anio_academico_id, orden, hora_inicio, hora_fin, tipo, etiqueta) SELECT anio, 2, '10:00', '10:20', 'RECREO', 'Recreo' FROM ids;
 INSERT INTO horario (seccion_id, version) SELECT s, 1 FROM ids, unnest(ARRAY[secA, secB]) s;
-INSERT INTO detalle_horario (horario_id, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
-  SELECT h.id, (SELECT id FROM bloque_horario), (SELECT id FROM aula WHERE nombre = CASE WHEN h.seccion_id=(SELECT secA FROM ids) THEN 'A-101' ELSE 'A-102' END), ad.id, ad.docente_id, ad.seccion_id
-  FROM horario h JOIN asignacion_docente ad ON ad.seccion_id=h.seccion_id;
-SELECT 'OK  dos borradores con el mismo docente en el mismo bloque (se permite en borrador)';
+INSERT INTO detalle_horario (horario_id, dia, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
+  SELECT h.id, 'LUNES', (SELECT id FROM bloque_horario WHERE orden=1), (SELECT id FROM aula WHERE nombre='A-101'), ad.id, ad.docente_id, ad.seccion_id
+  FROM horario h JOIN asignacion_docente ad ON ad.seccion_id=h.seccion_id JOIN plan_estudio pe ON pe.id=ad.plan_estudio_id JOIN curso c ON c.id=pe.curso_id
+  WHERE h.seccion_id=(SELECT secA FROM ids) AND c.codigo='MAT';
+SELECT CASE WHEN (SELECT bool_and(en_vigor) FROM detalle_horario) THEN 'OK  la clase de un borrador ocupa docente y aula (en_vigor)' ELSE 'FALLO en_vigor' END;
+SELECT debe_fallar('cruce de docente con el borrador de otra sección', $q$INSERT INTO detalle_horario (horario_id, dia, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
+  SELECT h.id, 'LUNES', (SELECT id FROM bloque_horario WHERE orden=1), (SELECT id FROM aula WHERE nombre='A-102'), ad.id, ad.docente_id, ad.seccion_id
+  FROM horario h JOIN asignacion_docente ad ON ad.seccion_id=h.seccion_id JOIN plan_estudio pe ON pe.id=ad.plan_estudio_id JOIN curso c ON c.id=pe.curso_id
+  WHERE h.seccion_id=(SELECT secB FROM ids) AND c.codigo='MAT'$q$, 'uq_detalle_cruce_docente');
+SELECT debe_fallar('cruce de aula con el borrador de otra sección', $q$INSERT INTO detalle_horario (horario_id, dia, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
+  SELECT h.id, 'LUNES', (SELECT id FROM bloque_horario WHERE orden=1), (SELECT id FROM aula WHERE nombre='A-101'), ad.id, ad.docente_id, ad.seccion_id
+  FROM horario h JOIN asignacion_docente ad ON ad.seccion_id=h.seccion_id JOIN plan_estudio pe ON pe.id=ad.plan_estudio_id JOIN curso c ON c.id=pe.curso_id
+  WHERE h.seccion_id=(SELECT secB FROM ids) AND c.codigo='COM'$q$, 'uq_detalle_cruce_aula');
+SELECT debe_fallar('clase en un recreo', $q$INSERT INTO detalle_horario (horario_id, dia, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
+  SELECT h.id, 'LUNES', (SELECT id FROM bloque_horario WHERE orden=2), (SELECT id FROM aula WHERE nombre='A-102'), ad.id, ad.docente_id, ad.seccion_id
+  FROM horario h JOIN asignacion_docente ad ON ad.seccion_id=h.seccion_id JOIN plan_estudio pe ON pe.id=ad.plan_estudio_id JOIN curso c ON c.id=pe.curso_id
+  WHERE h.seccion_id=(SELECT secB FROM ids) AND c.codigo='COM'$q$, 'DETALLE_INCOHERENTE');
 UPDATE horario SET estado_publicacion='PUBLICADO' WHERE seccion_id=(SELECT secA FROM ids);
-SELECT CASE WHEN (SELECT bool_and(en_vigor) FROM detalle_horario d JOIN horario h ON h.id=d.horario_id WHERE h.estado_publicacion='PUBLICADO') THEN 'OK  publicar activa en_vigor' ELSE 'FALLO en_vigor' END;
-SELECT debe_fallar('publicar con cruce de docente', $q$UPDATE horario SET estado_publicacion='PUBLICADO' WHERE seccion_id=(SELECT secB FROM ids)$q$, 'uq_detalle_bloque_docente');
 SELECT debe_fallar('segundo horario publicado en la sección', $q$INSERT INTO horario (seccion_id, version, estado_publicacion) SELECT secA, 2, 'PUBLICADO' FROM ids$q$, 'uq_horario_publicado_por_seccion');
+SELECT debe_fallar('segundo borrador en la sección', $q$INSERT INTO horario (seccion_id, version) SELECT secB, 2 FROM ids$q$, 'uq_horario_borrador_por_seccion');
+-- el borrador que nace del publicado repite sus clases en la misma sección: no es un cruce
+INSERT INTO horario (seccion_id, version) SELECT secA, 2 FROM ids;
+INSERT INTO detalle_horario (horario_id, dia, bloque_id, aula_id, asignacion_docente_id, docente_id, seccion_id)
+  SELECT (SELECT id FROM horario WHERE seccion_id=d.seccion_id AND version=2), d.dia, d.bloque_id, d.aula_id, d.asignacion_docente_id, d.docente_id, d.seccion_id FROM detalle_horario d;
+SELECT 'OK  el borrador repite las clases del publicado de su sección';
+UPDATE horario SET estado_publicacion='ARCHIVADO' WHERE seccion_id=(SELECT secA FROM ids) AND version=1;
+SELECT CASE WHEN NOT (SELECT bool_or(d.en_vigor) FROM detalle_horario d JOIN horario h ON h.id=d.horario_id WHERE h.estado_publicacion='ARCHIVADO') THEN 'OK  archivar libera docente y aula' ELSE 'FALLO en_vigor al archivar' END;
 SELECT debe_fallar('detalle con docente distinto a la asignación', $q$UPDATE detalle_horario SET docente_id=(SELECT d.id FROM docente d JOIN persona p ON p.id=d.persona_id WHERE p.dni='55555555')$q$, 'DETALLE_INCOHERENTE');
 -- 6. notificaciones sin duplicados
 INSERT INTO notificacion (usuario_id, tipo, titulo, mensaje, clave_deduplicacion) SELECT adm,'ASISTENCIA','3 faltas','x','FALTAS_MES:m1:2026-05' FROM ids ON CONFLICT (clave_deduplicacion) DO NOTHING;

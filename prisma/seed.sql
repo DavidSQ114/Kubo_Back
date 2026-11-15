@@ -97,9 +97,32 @@ SELECT v.clave, v.valor::jsonb, v.descripcion, u.id FROM (VALUES
   ('UMBRAL_INASISTENCIA', '0.20', 'Porcentaje anual de faltas que activa la alerta de riesgo (RF54)'),
   ('UMBRAL_INASISTENCIA_AVISO', '0.15', 'Porcentaje anual de faltas que activa el aviso previo (RF54)'),
   ('UMBRAL_FALTAS_MES', '3', 'Faltas injustificadas en un mes que activan la alerta mensual (RF54)'),
-  ('PLAZO_CORRECCION_ASISTENCIA_H', '24', 'Horas que tiene el docente para corregir la asistencia')
+  ('PLAZO_CORRECCION_ASISTENCIA_H', '24', 'Horas que tiene el docente para corregir la asistencia'),
+  -- Jornada de secundaria de lunes a viernes (US27): con ella se crea el catálogo de bloques de cada año
+  ('BLOQUES_HORARIO', '[
+    {"orden": 1, "horaInicio": "07:45", "horaFin": "08:30", "tipo": "CLASE", "etiqueta": "1.ª hora"},
+    {"orden": 2, "horaInicio": "08:30", "horaFin": "09:15", "tipo": "CLASE", "etiqueta": "2.ª hora"},
+    {"orden": 3, "horaInicio": "09:15", "horaFin": "10:00", "tipo": "CLASE", "etiqueta": "3.ª hora"},
+    {"orden": 4, "horaInicio": "10:00", "horaFin": "10:20", "tipo": "RECREO", "etiqueta": "Recreo"},
+    {"orden": 5, "horaInicio": "10:20", "horaFin": "11:05", "tipo": "CLASE", "etiqueta": "4.ª hora"},
+    {"orden": 6, "horaInicio": "11:05", "horaFin": "11:50", "tipo": "CLASE", "etiqueta": "5.ª hora"},
+    {"orden": 7, "horaInicio": "11:50", "horaFin": "12:35", "tipo": "CLASE", "etiqueta": "6.ª hora"},
+    {"orden": 8, "horaInicio": "12:35", "horaFin": "13:20", "tipo": "CLASE", "etiqueta": "7.ª hora"}
+  ]', 'Bloques horarios por defecto de la jornada escolar (orden, horas y tipo CLASE o RECREO)')
 ) AS v(clave, valor, descripcion)
 CROSS JOIN (SELECT id FROM usuario WHERE email = 'admin@kubo.edu.pe') u
 ON CONFLICT (clave) WHERE anio_academico_id IS NULL DO NOTHING;
+
+-- Catálogo de bloques horarios de los años que aún no lo tienen (US27). Los años que se registren después lo
+-- reciben al abrir por primera vez su cuadrícula de horarios, a partir del mismo parámetro BLOQUES_HORARIO.
+INSERT INTO bloque_horario (anio_academico_id, orden, hora_inicio, hora_fin, tipo, etiqueta)
+SELECT a.id, (b->>'orden')::int, (b->>'horaInicio')::time, (b->>'horaFin')::time, (b->>'tipo')::"TipoBloque",
+       b->>'etiqueta'
+FROM anio_academico a
+CROSS JOIN parametro_institucion p
+CROSS JOIN LATERAL jsonb_array_elements(p.valor) AS b
+WHERE p.clave = 'BLOQUES_HORARIO' AND p.anio_academico_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM bloque_horario x WHERE x.anio_academico_id = a.id)
+ON CONFLICT DO NOTHING;
 
 COMMIT;

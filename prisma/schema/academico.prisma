@@ -15,6 +15,7 @@ model AnioAcademico {
   reglasConsolidacion   ReglaConsolidacion[]
   parametrosInstitucion ParametroInstitucion[]
   matriculas            Matricula[]
+  bloquesHorario        BloqueHorario[]
 
   @@map("anio_academico")
 }
