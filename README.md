@@ -91,7 +91,7 @@ kubo/
 │  ├─ migrations/                Historial de cambios de la base (init + restricciones). SE SUBE
 │  ├─ sql/
 │  │  ├─ restricciones.sql       Índices parciales, CHECK y triggers (copia de referencia)
-│  │  └─ pruebas.sql             17 pruebas de las reglas de la base
+│  │  └─ pruebas.sql             21 pruebas de las reglas de la base
 │  └─ seed.sql                   Datos iniciales (grados, áreas, competencias, cursos, parámetros, admin)
 │
 ├─ src/
@@ -243,7 +243,7 @@ POST /api/v1/matricula/matriculas/{id}/confirmar
 | `comunidad` | Personas (un registro por DNI) y sus roles; vínculo apoderado–estudiante | Persona, Estudiante, Apoderado, Administrador, Docente, VinculoApoderado |
 | `academico` | Año, bimestres, grados, secciones, aulas, currículo, plan de estudios, asignación docente, reglas y parámetros | AnioAcademico, Seccion, Curso, Competencia, PlanEstudio, AsignacionDocente… |
 | `matricula` | Matrícula en dos pasos, traslados, retiros, cronograma de cobros, pagos y comprobantes, pago en línea con Mercado Pago y su conciliación | Matricula, ConceptoCobro, OperacionPago, Pago, Comprobante, IntentoPago… |
-| `horarios` | Horarios versionados sin cruces, sesiones de clase y asistencia de alumnos y docentes | Horario, DetalleHorario, SesionClase, AsistenciaEstudiante… |
+| `horarios` | Bloques horarios del año, horarios por sección versionados (borrador, publicado, archivado) sin cruces de docente ni de aula, sesiones de clase y asistencia de alumnos y docentes | Horario, DetalleHorario, SesionClase, AsistenciaEstudiante… |
 | `evaluacion` | Notas por competencia, cierre, consolidación, publicación y rectificaciones | CierreCalificacion, Nota, ResultadoConsolidado… |
 | `aula-virtual` | Unidades, materiales, enlaces de clase, trabajos y entregas | UnidadDidactica, MaterialEstudio, Trabajo, EntregaTrabajo… |
 | `portal` | Paneles de inicio por rol (solo lectura, combina datos de los demás módulos) | — |
