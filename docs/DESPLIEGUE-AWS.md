@@ -188,6 +188,27 @@ sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && 
 
 Abre `https://<dominio>`, ingresa con `admin@kubo.edu.pe` y la contraseña inicial del seed, y **cámbiala de inmediato**: el sistema lo exige en el primer ingreso.
 
+El seed solo se ejecuta esta vez. Los despliegues siguientes corren únicamente `prisma migrate deploy`: un dato que una versión nueva necesite en producción (por ejemplo, el parámetro `BLOQUES_HORARIO` de los horarios) llega en una migración, no en el seed.
+
+### Extensión `btree_gist` y usuario de la base
+
+La migración `horarios_cuadricula_versiones` ejecuta `CREATE EXTENSION IF NOT EXISTS btree_gist` (la usan las restricciones que impiden los cruces de docente y de aula). En PostgreSQL 13 o superior es una extensión **de confianza**: no exige superusuario, solo el privilegio `CREATE` sobre la base, que tiene su dueño. RDS PostgreSQL 16 la incluye.
+
+- **Con esta guía no hay que hacer nada:** `DATABASE_URL` usa el usuario maestro `kubo_admin`, que es dueño de la base `kubo` y miembro de `rds_superuser`. El despliegue crea la extensión solo.
+- **Si se cambia a un usuario de aplicación con menos permisos** (que no sea dueño de la base ni tenga `CREATE` sobre ella), la migración falla con `permission denied to create extension "btree_gist"` y la pista `Must have CREATE privilege on current database to create this extension`. Hay dos formas de resolverlo, conectado como `kubo_admin` a la base `kubo`:
+
+  ```bash
+  # opción A: crear la extensión una vez con el usuario maestro (la migración la encuentra y sigue)
+  psql "host=<endpoint-rds> dbname=kubo user=kubo_admin sslmode=require" -c 'CREATE EXTENSION IF NOT EXISTS btree_gist;'
+  # opción B: dar al usuario de la aplicación el privilegio de crear extensiones de confianza en la base
+  psql "host=<endpoint-rds> dbname=kubo user=kubo_admin sslmode=require" -c 'GRANT CREATE ON DATABASE kubo TO <usuario_app>;'
+  ```
+
+  Después, `sudo systemctl start kubo-desplegar` (con `FORZAR=1` si el commit quedó registrado como fallido).
+- Comprobación: `psql … -c "select extname from pg_extension where extname = 'btree_gist';"` debe devolver una fila.
+
+Verificado en PostgreSQL 16 local (Docker) con un rol sin superusuario: como dueño de la base aplica todas las migraciones; sin `CREATE` sobre la base, falla con el mensaje de arriba, y con el `GRANT` lo consigue. En RDS no se ejecutó la prueba: el comportamiento es el documentado por AWS y PostgreSQL para extensiones de confianza.
+
 ## Dominio propio (DuckDNS)
 
 Opcional. Por defecto Kubo responde en `https://<ip-con-guiones>.sslip.io`. Con un subdominio gratuito de DuckDNS, por ejemplo `kubo-codecoffee.duckdns.org`, ese pasa a ser el **dominio principal**. El de sslip.io queda como **respaldo**: redirige con un 308 al principal y conserva la ruta, así que los enlaces viejos (incluidos los de los correos ya enviados) siguen funcionando.
@@ -318,6 +339,8 @@ Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve 
 | El log dice «Falta completar /etc/kubo/kubo.env» | La línea `DATABASE_URL` sigue con `<usuario>`, `<clave>` o `<endpoint-rds>` | Paso 6 y `systemctl start --no-block kubo-desplegar.service` |
 | `P1001: Can't reach database server` en las migraciones | RDS detenida, endpoint mal escrito o `kubo-db` no admite al grupo `kubo-web` | Iniciar RDS; revisar el endpoint y la regla 5432 del grupo `kubo-db` |
 | `self-signed certificate in certificate chain` | Falta `sslrootcert=/etc/kubo/rds-global-bundle.pem` en `DATABASE_URL` (el driver `pg` verifica el certificado con `sslmode=require`) | Revisar la URL y que exista el archivo (`instalar.sh` lo descarga). Como último recurso, cambiar `sslmode=require` por `uselibpqcompat=true&sslmode=require`: cifra sin verificar el certificado |
+| `permission denied to create extension "btree_gist"` en las migraciones | `DATABASE_URL` usa un usuario que no es dueño de la base ni tiene `CREATE` sobre ella | Paso 8, «Extensión `btree_gist` y usuario de la base» |
+| La pantalla de horarios responde `JORNADA_NO_CONFIGURADA` | Falta el parámetro `BLOQUES_HORARIO` o su valor no es válido | Revisar que la migración `jornada_por_defecto` esté aplicada (`npx prisma migrate status`) y el valor en `parametro_institucion` |
 | `password authentication failed` | Usuario o contraseña de `DATABASE_URL` | Corregir; si la clave tiene `@ : / ? # & %`, codificarlos (`@` → `%40`) |
 | El build se corta (`Killed` o `JavaScript heap out of memory`) | Memoria: el build es el pico | Revisar que el swap esté activo (`swapon --show`); volver a desplegar |
 | El log muestra el error de un commit y luego nada más | Un commit fallido no se reintenta solo | Corregir y unir otro commit a `main`, o forzar: `sudo -u kubo FORZAR=1 /opt/kubo/bin/desplegar.sh` |

@@ -7,7 +7,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 
 ## Modelo
 
-- **Bloques horarios del año** (`bloque_horario`): catálogo con `orden`, `horaInicio`, `horaFin` (texto `HH:MM`), `tipo` (`CLASE` o `RECREO`) y `etiqueta`. El catálogo de un año se crea solo, la primera vez que se abre una cuadrícula de ese año, con la jornada del parámetro `BLOQUES_HORARIO` (seed: secundaria de lunes a viernes, 7 bloques de 45 minutos de 07:45 a 13:20 y un recreo de 10:00 a 10:20). Para una jornada distinta en un año, basta registrar el parámetro con ese `anio_academico_id` antes de abrir sus horarios. Editar el catálogo desde la aplicación no es parte de este sprint.
+- **Bloques horarios del año** (`bloque_horario`): catálogo con `orden`, `horaInicio`, `horaFin` (texto `HH:MM`), `tipo` (`CLASE` o `RECREO`) y `etiqueta`. El catálogo de un año se crea solo, la primera vez que se abre una cuadrícula de ese año, con la jornada del parámetro `BLOQUES_HORARIO` (lo cargan la migración `jornada_por_defecto` y el seed: secundaria de lunes a viernes, 7 bloques de 45 minutos de 07:45 a 13:20 y un recreo de 10:00 a 10:20). Para una jornada distinta en un año, basta registrar el parámetro con ese `anio_academico_id` antes de abrir sus horarios. Editar el catálogo desde la aplicación no es parte de este sprint.
 - **Horario** (`horario`): una versión del horario de una sección, con `version` (1, 2, 3…) y estado `BORRADOR`, `PUBLICADO` o `ARCHIVADO`. Por sección hay a lo más un borrador y una versión publicada (índices `uq_horario_borrador_por_seccion` y `uq_horario_publicado_por_seccion`).
 - **Clase** (`detalle_horario`): día, bloque, aula y la asignación docente (curso + docente + sección) que la respalda. Una clase por día y bloque en cada versión.
 
@@ -95,7 +95,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 | `HORARIO_CON_EXCESO` | 422 | Un curso tiene más bloques que horas semanales (`details.cursos`) |
 | `CLASES_SIN_DOCENTE_VIGENTE` | 422 | Hay clases cuyo docente ya no tiene asignado el curso (`details.clases`) |
 | `PLAN_SIN_CURSOS` | 422 | El grado de la sección no tiene cursos en su plan de estudios |
-| `JORNADA_NO_CONFIGURADA` | 422 | Falta el parámetro `BLOQUES_HORARIO` o no es válido (ejecutar el seed) |
+| `JORNADA_NO_CONFIGURADA` | 422 | Falta el parámetro `BLOQUES_HORARIO` o no es válido (lo carga la migración `jornada_por_defecto`; en local, también el seed) |
 | `ACCESO_DENEGADO` | 403 | Rol sin permiso, o `mi-horario` con un usuario sin perfil de docente |
 
 ## Auditoría (RF03)

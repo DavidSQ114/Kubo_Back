@@ -12,7 +12,7 @@ Tablas y columnas en `snake_case` en la base de datos; en el código TypeScript 
 | `prisma.config.ts` | Configuración de Prisma (schema dividido, carpeta de migraciones, conexión) |
 | `prisma/schema/*.prisma` | El modelo: un archivo por módulo + `enums.prisma` + `schema.prisma` (generador y datasource) |
 | `prisma/sql/restricciones.sql` | Lo que Prisma no expresa: 11 índices únicos parciales, 26 CHECK y 5 triggers (copia de la migración `restricciones`; las migraciones posteriores, como la de horarios, traen las suyas) |
-| `prisma/seed.sql` | Datos iniciales: 5 grados, 11 áreas, 28 competencias (CNEB), 10 cursos, 11 parámetros (entre ellos la jornada por defecto `BLOQUES_HORARIO`) y el administrador inicial |
+| `prisma/seed.sql` | Datos iniciales: 5 grados, 11 áreas, 28 competencias (CNEB), 10 cursos, 11 parámetros (entre ellos la jornada por defecto `BLOQUES_HORARIO`, que en los despliegues carga la migración `jornada_por_defecto`) y el administrador inicial |
 | `prisma/sql/pruebas.sql` | 21 pruebas de las reglas (se ejecutan dentro de una transacción y no dejan datos) |
 | `src/platform/db/prisma.ts` | Cliente Prisma único para toda la app (capa `platform/db` de la guía de arquitectura) |
 | `package.scripts.json` | Scripts `db:*` para copiar dentro del `package.json` del proyecto |

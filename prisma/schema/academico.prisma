@@ -219,8 +219,9 @@ model ParametroInstitucion {
   clave            String
   valor            Json
   descripcion      String?
-  actualizadoPorId String         @db.Uuid @map("actualizado_por_id")
-  actualizadoPor   Usuario        @relation(fields: [actualizadoPorId], references: [id], onDelete: Restrict)
+  // null: valor que cargó el Sistema en una migración, sin usuario (por ejemplo, BLOQUES_HORARIO)
+  actualizadoPorId String?        @db.Uuid @map("actualizado_por_id")
+  actualizadoPor   Usuario?       @relation(fields: [actualizadoPorId], references: [id], onDelete: Restrict)
   createdAt        DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt        DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
