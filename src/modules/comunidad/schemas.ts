@@ -172,3 +172,58 @@ export const FiltroBusquedaSchema = z.object({
   pagina: z.coerce.number().int().min(1).default(1),
   tamano: z.coerce.number().int().min(1).max(50).default(10),
 });
+
+// ---------- Edición y baja de personas (US69) ----------
+
+export const IdPersonaSchema = uuid("Identificador no válido");
+
+const textoPerfil = (campo: string, vacio: string) =>
+  z.string({ message: vacio }).trim().min(2, vacio).max(100, `${campo} demasiado larga`);
+
+/**
+ * Solo se envían los campos que cambian. Los opcionales aceptan null para dejarlos vacíos. El DNI, los nombres y
+ * los apellidos exigen además `motivo` (lo valida el dominio: 422 MOTIVO_REQUERIDO).
+ */
+export const EditarPersonaSchema = z.object({
+  email: z
+    .string({ message: "Ingresa el correo" })
+    .trim()
+    .toLowerCase()
+    .max(254, "Correo demasiado largo")
+    .email(MENSAJE_EMAIL)
+    .nullable()
+    .optional(),
+  telefono: z
+    .string()
+    .transform((t) => t.replace(/[\s-]/g, ""))
+    .pipe(z.string().regex(/^\d{9}$/, "El número de teléfono debe tener 9 dígitos"))
+    .nullable()
+    .optional(),
+  direccion: z
+    .string()
+    .trim()
+    .min(5, "Ingresa la dirección")
+    .max(200, "Dirección demasiado larga")
+    .nullable()
+    .optional(),
+  fechaNacimiento: fechaNacimiento().nullable().optional(),
+  ocupacion: textoPerfil("Ocupación", "Ingresa la ocupación").optional(),
+  especialidad: textoPerfil("Especialidad", "Ingresa la especialidad").optional(),
+  sexo: z.enum(["FEMENINO", "MASCULINO"], { message: "Elige el sexo" }).nullable().optional(),
+  colegioProcedencia: textoOpcional(150, "Colegio de procedencia demasiado largo"),
+  dni: dni().optional(),
+  nombres: nombre("los nombres").optional(),
+  apellidos: nombre("los apellidos").optional(),
+  motivo: z
+    .string()
+    .trim()
+    .min(5, "Describe el motivo del cambio")
+    .max(200, "Motivo demasiado largo")
+    .nullable()
+    .optional(),
+});
+
+/** `perfil` retira solo ese perfil; sin él, la baja alcanza a toda la persona. */
+export const BajaPersonaSchema = z.object({
+  perfil: z.enum(ROLES, { message: "Perfil no válido" }).optional(),
+});

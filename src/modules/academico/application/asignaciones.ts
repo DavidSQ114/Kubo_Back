@@ -1,7 +1,7 @@
 // academico/application: asignación de cursos a docentes (US14, RF11, pantalla AD-07) y «Mis cursos» del docente.
 // El docente se valida con DocentesProvider (comunidad); las notas y los horarios se cuentan por sus puertos.
 import { prisma } from "@/platform/db/prisma";
-import { esDuplicado } from "@/platform/db/tipos";
+import { esDuplicado, type Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { errores } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
@@ -154,3 +154,9 @@ export async function quitarAsignacion(admin: Autenticado, id: string, meta: Met
   }
   return { asignacionId: id, resultado: modo === "ELIMINAR" ? "ELIMINADA" : "DESACTIVADA" };
 }
+
+/**
+ * Cursos asignados al docente (activos o no) y secciones a su cargo como tutor, de cualquier año. Comunidad lo
+ * consulta antes de eliminar a una persona: con alguno, solo se desactiva su perfil (US69).
+ */
+export const registrosDeDocente = (docenteId: string, tx?: Tx) => asignaciones.totalDelDocente(docenteId, tx);

@@ -64,6 +64,9 @@ export const usuarios = {
     },
     db: Db = prisma,
   ) => db.usuario.create({ data, select: camposUsuario }) as Promise<UsuarioFila>,
+
+  /** Solo para cuentas que nunca se usaron (US69): sus sesiones y tokens se borran en cascada. */
+  eliminar: (id: string, db: Db = prisma) => db.usuario.delete({ where: { id }, select: { id: true } }),
 };
 
 export interface SesionConUsuario {

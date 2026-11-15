@@ -4,6 +4,7 @@
 // que usan académico (vacantes, US08) y comunidad (matrícula «En proceso» del registro de estudiantes, US17).
 export { matriculasProviderMatricula } from "./infrastructure/matriculasProvider";
 export { matriculaBorradorProviderMatricula } from "./infrastructure/matriculaBorradorProvider";
+export { registrosMatriculaProviderMatricula } from "./infrastructure/registrosMatriculaProvider";
 export {
   situacionEstudiante,
   confirmarMatricula,

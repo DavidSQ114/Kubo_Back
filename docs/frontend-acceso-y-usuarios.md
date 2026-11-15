@@ -20,6 +20,7 @@ Las capturas de referencia del Figma están en `docs/figma/`.
 | M-04 · Suspender acceso | modal en AD-06 | Motivo, detalle, notificar por correo |
 | Reactivar acceso *(por diseñar)* | modal en AD-06 | Motivo opcional |
 | Registrar administrador *(por diseñar)* | modal en AD-06 | Crea persona, perfil y cuenta; muestra la contraseña temporal una vez |
+| Detalle, edición y baja de una persona *(por diseñar, US69)* | modal en AD-06 | Datos e historial de cambios; edición en dos pasos; eliminar o desactivar |
 | — | `/inicio` | Inicio temporal para Docente, Apoderado y Alumno |
 
 ## Archivos
@@ -65,7 +66,7 @@ scripts/descargar-assets-figma.mjs   Descarga esos SVG desde el Figma
 | Insignia «Año 2026 · Bimestre III en curso» | No se muestra | Depende del módulo académico; no se muestran datos inventados |
 | Notas de los KPI («26 con carga asignada», «Último: 30/07/2026») | «Con perfil activo» | Esos datos dependen de módulos que aún no existen |
 | «Registrar apoderado» y «Registrar docente» | Visibles pero deshabilitados; se agregó «Registrar administrador» | Los registros de docente y apoderado son de la fase del módulo comunidad |
-| Acciones «Ver» y «Editar» de la tabla | Deshabilitadas | Pantallas de detalle y edición pendientes |
+| Acciones «Ver» y «Editar» de la tabla | Abren el modal de la persona (US69) | El Figma no tiene pantalla de detalle ni de edición: se usa el estilo de M-04 (ver la sección de US69) |
 | Opciones del motivo de suspensión | Lista propuesta (el Figma solo muestra una) | Validar la lista con el equipo de Figma |
 | Texto de la alerta «Suspensión de accesos» | Usa el mensaje real del backend | Que lo que ve el usuario coincida con lo que dice la alerta |
 | Menú lateral: módulos no construidos | Se ven atenuados y no navegan | Se habilitan a medida que se construyan |
@@ -161,3 +162,33 @@ src/components/admin/apoderados.tsx                              Buscador por DN
 | AD-09: «Guardar y matricular» y pasos 2 y 3 activos | «Guardar» y los pasos 2 y 3 en gris | La matrícula en sección y el cronograma son del bloque 3 |
 | AD-09: menú lateral con «Matrícula» activo | «Usuarios» activo y «Volver a Usuarios» | El módulo Matrícula aún no tiene pantalla; el frame también vuelve a Usuarios |
 | AD-09: «Dirección» sin indicar si es opcional | «Dirección (opcional)» | El Backlog no la pide para el estudiante |
+
+---
+
+# AD-06 · Detalle, edición y baja de personas (US69)
+
+Corrige datos mal escritos de una persona (por ejemplo, el correo de un apoderado) sin tocar la base a mano, y deja en la auditoría quién cambió qué. API: [comunidad.md](api/comunidad.md#edición-y-baja-de-personas-us69-rf03-pantalla-ad-06). Casos: [casos-sprint3-personas.md](pruebas/casos-sprint3-personas.md).
+
+## Archivos
+
+| Archivo | Contenido |
+|---|---|
+| `src/components/admin/personas.tsx` | `ModalPersona`: un modal con cuatro modos (detalle, editar, revisar y eliminar) que carga el detalle y el historial una sola vez |
+| `src/app/(portal)/admin/usuarios/page.tsx` | Acciones «Ver detalle» (ojo) y «Editar» (lápiz) de cada fila de AD-06 |
+
+## Qué muestra
+
+- **Detalle** (ojo): nombre, perfiles activos, estado de la cuenta, los datos registrados y el «Historial de cambios» leído de la auditoría (fecha y hora de Lima, quién lo hizo, valor anterior tachado → valor nuevo y motivo). Botones «Eliminar», «Cerrar» y «Editar».
+- **Editar** (lápiz, o «Editar» desde el detalle): correo, teléfono, dirección y fecha de nacimiento; los datos del perfil solo si la persona lo tiene (ocupación del apoderado, especialidad del docente, sexo y colegio de procedencia del estudiante); y en un bloque aparte «Identidad»: DNI, nombres y apellidos. «Revisar cambios» se habilita cuando algo cambia.
+- **Confirmar cambios**: muestra **solo los campos que cambian**, con el valor anterior y el nuevo. Si cambia el correo de una persona con cuenta, avisa que se cerrarán sus sesiones y que se notificará a ambos correos. Si cambia el DNI, los nombres o los apellidos, pide el motivo (obligatorio). Solo se envían al backend los campos cambiados.
+- **Eliminar**: explica que la persona se elimina solo si no tiene cuenta usada, vínculos, matrículas, pagos ni asignaciones; si los tiene, se desactiva su perfil. Con más de un perfil activo se elige «Todos sus perfiles» o uno solo. El mensaje final dice qué pasó y por qué.
+- **Estados**: cargando (spinner), error de carga (alerta con el mensaje del backend), historial vacío («Aún no se registran cambios…») y con datos. Los errores de validación del backend vuelven al formulario y se muestran bajo cada campo.
+- Si el administrador cambia **su propio correo**, su sesión también se cierra: la pantalla lo avisa antes y lo lleva al login.
+
+## Diferencias con el Figma (y por qué)
+
+| En el Figma | En el código | Motivo |
+|---|---|---|
+| No hay pantalla de detalle ni de edición de una persona | Modal con el estilo de M-04 (`Modal`, `Campo`, `Alerta`, `Boton`) | La historia US69 nace de la observación del jefe de práctica; falta diseñarla en el Figma |
+| El lápiz de AD-06 no aparece en las filas suspendidas | Se mantiene así; una persona suspendida se edita desde «Ver detalle» → «Editar» | No cambiar la tabla diseñada; la edición sigue disponible |
+| — | «Eliminar» solo está en el detalle, no en la fila | Es una acción poco frecuente e irreversible: se evita el clic accidental |

@@ -1,4 +1,4 @@
-# API · Comunidad: usuarios, administradores, docentes, apoderados, estudiantes y personas por DNI (Fase 1, US13, US15, US17, D-07)
+# API · Comunidad: usuarios, administradores, docentes, apoderados, estudiantes, personas por DNI y edición de personas (Fase 1, US13, US15, US17, D-07, US69)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09).
@@ -75,6 +75,26 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 - Apoderado ya vinculado a ese estudiante: `409 VINCULO_EXISTENTE` «Este apoderado ya está vinculado al estudiante.». Estudiante o apoderado inexistente o inactivo: `404 ESTUDIANTE_NO_ENCONTRADO` / `404 APODERADO_NO_ENCONTRADO`.
 - Se bloquea la fila del estudiante durante la operación para que dos vínculos simultáneos no queden ambos como principales.
 
+### Edición y baja de personas (US69, RF03, pantalla AD-06)
+
+| Método y ruta | Cuerpo / consulta | Respuesta `data` |
+|---|---|---|
+| `GET /comunidad/personas/{id}` | — | `DetallePersona` |
+| `PATCH /comunidad/personas/{id}` | Solo los campos que cambian: `{ email?, telefono?, direccion?, fechaNacimiento?, ocupacion?, especialidad?, sexo?, colegioProcedencia?, dni?, nombres?, apellidos?, motivo? }` | `{ personaId, nombreCompleto, cambios, sesionesCerradas, avisos }` |
+| `GET /comunidad/personas/{id}/historial` | — | `{ items: EventoHistorial[] }`: los 50 cambios más recientes |
+| `DELETE /comunidad/personas/{id}` | `?perfil=` (opcional) | `{ resultado, nombreCompleto, perfiles, motivos }` |
+
+- `DetallePersona`: `{ personaId, nombreCompleto, dni, nombres, apellidos, email, telefono, direccion, fechaNacimiento, sexo, ocupacion, especialidad, colegioProcedencia, perfiles, perfilesRegistrados, cuenta }`. `email` es el correo de la cuenta o, sin cuenta, el de la persona. `perfiles` son los activos y `perfilesRegistrados`, todos los que tiene. `cuenta`: `{ usuarioId, estado, usada }` o `null`.
+- **PATCH.** Lo que no se envía no cambia; `null` deja vacío un dato opcional. Solo se guardan los campos con un valor distinto del registrado: sin cambios responde `200` con `cambios: []` y no escribe en la auditoría.
+  - `ocupacion` exige perfil de apoderado; `especialidad`, de docente; `sexo` y `colegioProcedencia`, de estudiante (`422 PERFIL_NO_APLICA`).
+  - `email`: no puede ser el de otra persona ni el de otra cuenta (`409 EMAIL_EN_USO`). Si la persona tiene cuenta, el correo de acceso cambia **en la misma transacción**, aumenta `version_sesion`, se revocan sus sesiones y se anulan los enlaces de recuperación pendientes (`sesionesCerradas: true`). Después de confirmar se avisa al correo nuevo y al anterior (a este, con el correo nuevo enmascarado). Si un envío falla, el cambio **no** se revierte: `avisos: { nuevo, anterior }` indica cuál salió. Sin cuenta, `avisos` es `null`.
+  - `dni`, `nombres`, `apellidos`: exigen `motivo` (5 a 200 caracteres; `422 MOTIVO_REQUERIDO`). El DNI nuevo tiene el mismo formato de 8 dígitos y no puede existir (`409 DNI_YA_REGISTRADO`).
+  - El correo de una persona con cuenta no puede quedar vacío (`422 CORREO_REQUERIDO`), ni los datos que exige el registro de su perfil: teléfono, dirección y fecha de nacimiento del apoderado, y fecha de nacimiento del estudiante (`422 DATO_OBLIGATORIO`).
+  - `cambios` devuelve los nombres de los campos guardados.
+- `EventoHistorial`: `{ id, accion, fecha, responsable, motivo, cambios, perfil }`. En `EDITAR_PERSONA`, `cambios` es `{ campo, anterior, nuevo }[]` (el DNI llega enmascarado: `******78`). En `DESACTIVAR_PERFIL`, `perfil` es el rol desactivado.
+- **DELETE.** Sin cuenta usada (nunca ingresó), vínculos, matrículas, pagos ni asignaciones de cursos o tutorías, la persona se **elimina** con sus perfiles y su cuenta sin usar: `resultado: "ELIMINADA"`. Con alguno de esos registros se conserva y se **desactivan** sus perfiles activos, cerrando sus sesiones: `resultado: "PERFIL_DESACTIVADO"`, con `perfiles` (los desactivados) y `motivos` (frases como «tiene 2 matrículas»). `?perfil=DOCENTE` retira solo ese perfil; si la persona conserva otro perfil activo, no se elimina aunque no tenga registros. Nadie se da de baja a sí mismo (`422 OPERACION_NO_PERMITIDA`).
+- Se bloquea la fila de la persona durante la edición y la baja, para que dos operaciones simultáneas no registren un valor anterior equivocado.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -92,8 +112,17 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 | `APODERADO_NO_ENCONTRADO` · `ESTUDIANTE_NO_ENCONTRADO` | 404 | No existe o ya no está activo |
 | `SIN_APODERADO` · `PRINCIPAL_INVALIDO` · `APODERADO_REPETIDO` · `ESTUDIANTE_REPETIDO` · `GRADO_INVALIDO` | 422 | Reglas de los vínculos y del grado de ingreso |
 | `SIN_ANIO_EN_MATRICULA` | 422 | «Guardar como borrador» sin año en matrícula ni en curso |
+| `NO_ENCONTRADO` | 404 | «La persona no existe.» (US69) |
+| `DNI_YA_REGISTRADO` | 409 | «Ya existe otra persona registrada con ese DNI.» (US69) |
+| `PERFILES_YA_INACTIVOS` | 409 | La persona tiene registros asociados y sus perfiles ya están desactivados: no se puede eliminar |
+| `MOTIVO_REQUERIDO` | 422 | Cambiar el DNI, los nombres o los apellidos sin `motivo` |
+| `PERFIL_NO_APLICA` · `PERFIL_NO_ACTIVO` | 422 | Dato de un perfil que la persona no tiene · `?perfil=` que la persona no tiene activo |
+| `CORREO_REQUERIDO` · `DATO_OBLIGATORIO` | 422 | Dejar vacío el correo de una persona con cuenta, o un dato que su perfil exige |
+| `OPERACION_NO_PERMITIDA` | 422 | «No puedes eliminar tu propio registro.» |
 | `ERROR_INTERNO` | 500 | Error no controlado; `details.requestId` sirve para buscarlo en el log |
 
 ## Auditoría (RF03)
 
 Se registran en `registro_auditoria`: `REGISTRAR_ADMINISTRADOR`, `REACTIVAR_PERFIL_ADMINISTRADOR`, `REGISTRAR_DOCENTE`, `REACTIVAR_PERFIL_DOCENTE`, `REGISTRAR_APODERADO` (con `personaExistia` y `perfilReactivado`), `VINCULAR_APODERADO` (uno por vínculo; si cambia el principal, el valor anterior guarda el vínculo que dejó de serlo) y `REGISTRAR_ESTUDIANTE` (con `matriculaEnProcesoId` si se guardó como borrador), con el administrador responsable, valor anterior y nuevo, IP y requestId. El DNI no se escribe en la auditoría ni en los logs (el logger además oculta `dni`, `telefono`, `direccion` y `fechaNacimiento`).
+
+La edición y la baja de personas (US69) se registran sobre la entidad `persona`: `EDITAR_PERSONA` (una fila por edición, con `valor_anterior` y `valor_nuevo` de cada campo cambiado y el `motivo` si cambió el DNI, los nombres o los apellidos), `DESACTIVAR_PERFIL` (una fila por perfil, con los registros que impidieron eliminar) y `ELIMINAR_PERSONA` (con nombres, perfiles y si se eliminó su cuenta). En estas filas el DNI solo deja ver sus 2 últimos dígitos (`******78`); los demás datos se guardan completos, como exige la historia. El historial de la persona se lee de estas filas. La bitácora es inmutable (`tg_auditoria_inmutable`): no hay ruta ni consulta que la modifique.

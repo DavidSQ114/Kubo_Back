@@ -38,4 +38,6 @@ export const erroresIdentidad = {
   yaSuspendido: () => new ErrorApp("USUARIO_YA_SUSPENDIDO", "El usuario ya tiene el acceso suspendido.", 409),
   noSuspendido: () => new ErrorApp("USUARIO_NO_SUSPENDIDO", "El usuario no está suspendido.", 409),
   emailEnUso: () => new ErrorApp("EMAIL_EN_USO", "Ese correo ya está registrado en otra cuenta.", 409),
+  cuentaEnUso: () =>
+    new ErrorApp("CUENTA_EN_USO", "La cuenta ya se usó para ingresar al sistema y no se puede eliminar.", 409),
 };

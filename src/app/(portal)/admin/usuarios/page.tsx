@@ -1,9 +1,10 @@
-// AD-06 · Usuarios (RF05, RF46)
+// AD-06 · Usuarios (RF05, RF46) y detalle, edición y baja de personas (US69)
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { alertaError, useSesion } from "@/components/admin/PortalAdmin";
+import { ModalPersona, type ModoPersona } from "@/components/admin/personas";
 import {
   Avatar,
   BadgeEstado,
@@ -57,6 +58,7 @@ function Usuarios({ qInicial }: { qInicial: string }) {
   const [aSuspender, setASuspender] = useState<UsuarioListado | null>(null);
   const [aReactivar, setAReactivar] = useState<UsuarioListado | null>(null);
   const [registrando, setRegistrando] = useState(false);
+  const [personaAbierta, setPersonaAbierta] = useState<{ usuario: UsuarioListado; modo: ModoPersona } | null>(null);
 
   // Espera 300 ms después de la última tecla antes de buscar; toda búsqueda nueva vuelve a la página 1.
   useEffect(() => {
@@ -309,9 +311,17 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-0.5">
-                        <Accion icono="act-eye" texto="Ver detalle · disponible próximamente" />
+                        <Accion
+                          icono="act-eye"
+                          texto="Ver detalle"
+                          onClick={() => setPersonaAbierta({ usuario: u, modo: "detalle" })}
+                        />
                         {u.estado !== "SUSPENDIDO" && (
-                          <Accion icono="act-edit" texto="Editar · disponible próximamente" />
+                          <Accion
+                            icono="act-edit"
+                            texto="Editar"
+                            onClick={() => setPersonaAbierta({ usuario: u, modo: "editar" })}
+                          />
                         )}
                         {u.usuarioId && u.estado === "SUSPENDIDO" && (
                           <Accion icono="act-refresh" texto="Reactivar acceso" onClick={() => setAReactivar(u)} />
@@ -353,6 +363,19 @@ function Usuarios({ qInicial }: { qInicial: string }) {
 
       <ModalSuspender usuario={aSuspender} onCerrar={() => setASuspender(null)} onListo={alTerminarAccion} />
       <ModalReactivar usuario={aReactivar} onCerrar={() => setAReactivar(null)} onListo={alTerminarAccion} />
+      {personaAbierta && (
+        <ModalPersona
+          key={`${personaAbierta.usuario.personaId}-${personaAbierta.modo}`}
+          personaId={personaAbierta.usuario.personaId}
+          modoInicial={personaAbierta.modo}
+          esYo={personaAbierta.usuario.usuarioId === sesion.usuario.id}
+          onCerrar={() => setPersonaAbierta(null)}
+          onListo={(mensaje) => {
+            setPersonaAbierta(null);
+            alTerminarAccion(mensaje);
+          }}
+        />
+      )}
       <ModalRegistrarAdministrador
         abierto={registrando}
         onCerrar={() => setRegistrando(false)}
