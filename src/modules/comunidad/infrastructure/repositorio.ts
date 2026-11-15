@@ -237,6 +237,13 @@ export const docentes = {
 
   porPersona: (personaId: string, db: Db = prisma) =>
     db.docente.findUnique({ where: { personaId }, select: selectDocente }),
+
+  /** Nombre y correo de docentes activos (avisos por correo, por ejemplo al publicar un horario, US31). */
+  contactos: (ids: string[], db: Db = prisma) =>
+    db.docente.findMany({
+      where: { id: { in: ids }, activo: true, persona: { activo: true } },
+      select: { id: true, persona: { select: { nombres: true, apellidos: true, email: true } } },
+    }),
 };
 
 // ---------- Apoderados (US15) ----------

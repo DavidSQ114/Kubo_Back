@@ -27,6 +27,21 @@ export async function listarDocentesActivos(): Promise<DocenteResumen[]> {
   return (await docentes.activos()).map(resumenDocente);
 }
 
+export interface ContactoDocente {
+  docenteId: string;
+  nombres: string;
+  email: string;
+}
+
+/** Correo de los docentes activos indicados, para avisarles (US31). Los que no tienen correo no aparecen. */
+export async function contactosDeDocentes(ids: string[]): Promise<ContactoDocente[]> {
+  if (ids.length === 0) return [];
+  const filas = await docentes.contactos([...new Set(ids)]);
+  return filas.flatMap((d) =>
+    d.persona.email ? [{ docenteId: d.id, nombres: d.persona.nombres, email: d.persona.email }] : [],
+  );
+}
+
 export interface DatosDocente {
   dni: string;
   nombres: string;
