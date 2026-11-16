@@ -419,6 +419,22 @@ export const estudiantesMatricula = {
       select: { id: true, gradoIngresoId: true, persona: { select: { dni: true, nombres: true, apellidos: true } } },
     }),
 
+  /** Correo de cada estudiante y de su apoderado principal activo (avisos por inasistencias, US52). */
+  contactosDeAsistencia: (ids: string[], db: Db = prisma) =>
+    db.estudiante.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        persona: { select: { nombres: true, apellidos: true, email: true } },
+        vinculosApoderado: {
+          where: { esPrincipal: true, apoderado: { activo: true, persona: { activo: true } } },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { apoderado: { select: { persona: { select: { nombres: true, email: true } } } } },
+        },
+      },
+    }),
+
   /** Apoderado de varios vínculos, con su teléfono (responsables del pago en el panel de morosidad, US24). */
   apoderadosDeVinculos: (ids: string[], db: Db = prisma) =>
     db.vinculoApoderado.findMany({

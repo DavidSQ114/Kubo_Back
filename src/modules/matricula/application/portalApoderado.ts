@@ -88,6 +88,23 @@ export async function seccionDelHijo(auth: Autenticado, estudianteId: string) {
   return { estudianteId, nombres: hijo.nombres, apellidos: hijo.apellidos, seccionId: vigente?.seccionId ?? null };
 }
 
+/**
+ * Matrícula del hijo cuya asistencia consulta el apoderado (US45): la vigente y, si no tiene (por ejemplo, un hijo
+ * retirado), la más reciente que puede ver. 403 ESTUDIANTE_NO_VINCULADO si no es su hijo.
+ */
+export async function matriculaDelHijo(auth: Autenticado, estudianteId: string) {
+  const hijo = await hijoAutorizado(auth, estudianteId);
+  const m = matriculaVigente(hijo.matriculas) ?? hijo.matriculas[0];
+  return {
+    estudianteId,
+    nombres: hijo.nombres,
+    apellidos: hijo.apellidos,
+    matriculaId: m.id,
+    anioAcademicoId: m.anioAcademicoId,
+    anio: m.anio,
+  };
+}
+
 // ---------- US42 · Selección de hijo (AC-05) ----------
 
 /**

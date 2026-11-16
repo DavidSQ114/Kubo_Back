@@ -30,6 +30,7 @@ model Matricula {
   historialesSeccion     HistorialSeccion[]
   conceptosCobro         ConceptoCobro[]
   asistenciasEstudiante  AsistenciaEstudiante[]
+  avisosAsistencia       AvisoAsistencia[]
   notas                  Nota[]
   resultadosConsolidados ResultadoConsolidado[]
   entregasTrabajo        EntregaTrabajo[]

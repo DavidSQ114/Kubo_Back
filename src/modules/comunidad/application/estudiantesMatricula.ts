@@ -54,6 +54,8 @@ export async function estudianteParaMatricula(
 
 export interface EstudianteResumen {
   dni: string;
+  nombres: string;
+  apellidos: string;
   nombreCompleto: string;
   gradoIngresoId: string | null;
 }
@@ -67,10 +69,42 @@ export async function resumenEstudiantes(ids: string[]): Promise<Record<string, 
       e.id,
       {
         dni: e.persona.dni,
+        nombres: e.persona.nombres,
+        apellidos: e.persona.apellidos,
         nombreCompleto: `${e.persona.nombres} ${e.persona.apellidos}`,
         gradoIngresoId: e.gradoIngresoId,
       },
     ]),
+  );
+}
+
+export interface ContactoDeAsistencia {
+  nombres: string;
+  apellidos: string;
+  /** Correo del estudiante; null si no tiene uno registrado. */
+  email: string | null;
+  /** Apoderado principal activo del estudiante, con su correo; null si no tiene. */
+  apoderadoPrincipal: { nombres: string; email: string | null } | null;
+}
+
+/** A quién se avisa por las inasistencias de cada estudiante: él mismo y su apoderado principal (US52). */
+export async function contactosDeAsistencia(ids: string[]): Promise<Record<string, ContactoDeAsistencia>> {
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return {};
+  const filas = await estudiantesMatricula.contactosDeAsistencia(unicos);
+  return Object.fromEntries(
+    filas.map((e) => {
+      const principal = e.vinculosApoderado[0]?.apoderado.persona ?? null;
+      return [
+        e.id,
+        {
+          nombres: e.persona.nombres,
+          apellidos: e.persona.apellidos,
+          email: e.persona.email,
+          apoderadoPrincipal: principal && { nombres: principal.nombres, email: principal.email },
+        },
+      ];
+    }),
   );
 }
 

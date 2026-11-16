@@ -187,7 +187,7 @@ const NAVEGACION: ItemNav[] = [
   { texto: "Pagos", icono: "nav-wallet", href: "/apoderado/pagos" },
   { texto: "Horario", icono: "nav-grid", href: "/apoderado/horario" },
   { texto: "Notas", icono: "nav-award" },
-  { texto: "Asistencia", icono: "nav-usercheck" },
+  { texto: "Asistencia", icono: "nav-usercheck", href: "/apoderado/asistencia" },
 ];
 
 function BarraLateral({ sesion, abierta, onCerrar }: { sesion: Sesion; abierta: boolean; onCerrar: () => void }) {

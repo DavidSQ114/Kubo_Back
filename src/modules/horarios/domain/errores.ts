@@ -1,5 +1,6 @@
 // horarios/domain: errores del módulo (US27 cuadrícula, US28 asignación, US29 cruce de docente, US30 cruce de aula,
-// US31 publicación). Los mensajes entre comillas son los del Product Backlog v3.3.
+// US31 publicación y, en erroresAsistencia, US35 toma de asistencia y US36 plazo de corrección). Los mensajes entre
+// comillas son los del Product Backlog v3.3.
 import { ErrorApp } from "@/platform/http/errores";
 import { describirBloque, type Dia, type EstadoHorario } from "./tipos";
 
@@ -95,4 +96,41 @@ export const erroresHorarios = {
       422,
       { clases },
     ),
+};
+
+/** Alumno de la lista al que le falta el estado (US35, criterio 3). */
+export interface AlumnoSinMarcar {
+  matriculaId: string;
+  nombre: string;
+}
+
+export const erroresAsistencia = {
+  claseAjena: () =>
+    new ErrorApp(
+      "CLASE_AJENA",
+      "Esta clase no está a tu cargo: solo puedes registrar la asistencia de tus propias clases.",
+      403,
+    ),
+  fechaFutura: () => new ErrorApp("FECHA_FUTURA", "No se puede registrar la asistencia de una fecha futura.", 422),
+  soloDiaActual: () => new ErrorApp("SOLO_DIA_ACTUAL", "Solo se puede registrar la asistencia del día actual.", 422),
+  diaSinClases: (mensaje: string) => new ErrorApp("DIA_SIN_CLASES", mensaje, 422),
+  claseFueraDeHorario: () =>
+    new ErrorApp("CLASE_FUERA_DE_HORARIO", "Esta clase no está programada para hoy en el horario publicado.", 422),
+  asistenciaIncompleta: (faltantes: AlumnoSinMarcar[]) =>
+    new ErrorApp("ASISTENCIA_INCOMPLETA", "Existen alumnos sin estado de asistencia registrado", 422, { faltantes }),
+  alumnoFueraDeLaClase: () =>
+    new ErrorApp(
+      "ALUMNO_FUERA_DE_LA_CLASE",
+      "La lista incluye alumnos que no pertenecen a esta clase. Vuelve a cargar la página.",
+      422,
+    ),
+  plazoVencido: (plazoHoras: number) =>
+    new ErrorApp(
+      "PLAZO_CORRECCION_VENCIDO",
+      `El plazo para modificar esta asistencia ha expirado (${plazoHoras} horas)`,
+      422,
+      { plazoHoras },
+    ),
+  sinCambios: () =>
+    new ErrorApp("ASISTENCIA_SIN_CAMBIOS", "El nuevo estado es igual al actual: no hay nada que corregir.", 409),
 };

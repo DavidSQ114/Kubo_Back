@@ -170,6 +170,17 @@ interface DatosClase {
 }
 
 export const clases = {
+  /** La clase con el estado de la versión del horario a la que pertenece (la asistencia exige que esté PUBLICADO). */
+  async porId(id: string, db: Db = prisma): Promise<(ClaseFila & { estadoHorario: EstadoHorario }) | null> {
+    const c = await db.detalleHorario.findUnique({
+      where: { id },
+      select: { ...selectClase, horario: { select: { estadoPublicacion: true } } },
+    });
+    if (!c) return null;
+    const { horario, ...clase } = c;
+    return { ...clase, estadoHorario: horario.estadoPublicacion as EstadoHorario };
+  },
+
   delHorario: (horarioId: string, db: Db = prisma): Promise<ClaseFila[]> =>
     db.detalleHorario.findMany({ where: { horarioId }, select: selectClase }),
 

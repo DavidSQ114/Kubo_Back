@@ -1,5 +1,5 @@
-// Portal del Docente (DO-01, DO-02 · US34): menú con «Inicio» y «Mi horario»; la asistencia y el registro de notas
-// llegan con sus módulos. Es la guardia de las páginas /docente: exige sesión con perfil DOCENTE (RF04).
+// Portal del Docente (DO-01, DO-02, DO-03 · US34, US35): menú con «Inicio», «Mi horario» y «Asistencia»; el registro
+// de notas llega con su módulo. Es la guardia de las páginas /docente: exige sesión con perfil DOCENTE (RF04).
 "use client";
 
 import type { ReactNode } from "react";
@@ -8,7 +8,7 @@ import { EstructuraPortal, PantallaCargando, useSesionDeRol, type ItemNav } from
 const NAVEGACION: ItemNav[] = [
   { texto: "Inicio", icono: "nav-home", href: "/docente" },
   { texto: "Mi horario", icono: "nav-grid", href: "/docente/horario" },
-  { texto: "Asistencia", icono: "nav-usercheck" },
+  { texto: "Asistencia", icono: "nav-usercheck", href: "/docente/asistencia" },
   { texto: "Registro de notas", icono: "nav-award" },
 ];
 

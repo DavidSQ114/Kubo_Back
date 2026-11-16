@@ -1,5 +1,6 @@
 # Pruebas manuales de la API de horarios: cuadrícula (US27), asignación de clases (US28), cruces de docente y de
-# aula (US29, US30) y publicación por versiones (US31).
+# aula (US29, US30), publicación por versiones (US31), horario en los portales (US34, US48, US50) y asistencia de
+# alumnos (US35, US36, US45, US52, bloques 23 a 32).
 # Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
 # Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
 # (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
@@ -110,3 +111,65 @@ GET {{base}}/horarios/apoderado/hijos/11111111-1111-4111-8111-111111111111/horar
 
 ### 22. «Mi horario» con sesión de alumno (US50) → 200; sin matrícula vigente → 403 SIN_MATRICULA_VIGENTE
 GET {{base}}/horarios/alumno/horario
+
+# ---------- Asistencia de alumnos (US35, US36, US45, US52) ----------
+# Bloques 23 a 28 con sesión de DOCENTE (con clases publicadas hoy); 29 y 30 con sesión de ADMINISTRADOR; 31 con
+# sesión de APODERADO y 32 con sesión de ALUMNO. Completa @clase, @sesion, @matricula1, @matricula2 y @registro con
+# los identificadores que devuelven los bloques anteriores.
+@clase = 00000000-0000-0000-0000-000000000000
+@sesion = 00000000-0000-0000-0000-000000000000
+@matricula1 = 00000000-0000-0000-0000-000000000000
+@matricula2 = 00000000-0000-0000-0000-000000000000
+@registro = 00000000-0000-0000-0000-000000000000
+
+### 23. Clases de hoy del docente (US35) → 200; sábado o domingo: clases [] y sinClases.mensaje
+GET {{base}}/horarios/asistencia/clases-de-hoy
+
+### 24. Abrir la sesión de una clase de hoy → 201 con la lista de alumnos; una clase de otro docente → 403 CLASE_AJENA
+POST {{base}}/horarios/asistencia/sesiones
+Content-Type: application/json
+
+{ "claseId": "{{clase}}" }
+
+### 25. Abrir con una fecha futura → 422 FECHA_FUTURA «No se puede registrar la asistencia de una fecha futura.»
+POST {{base}}/horarios/asistencia/sesiones
+Content-Type: application/json
+
+{ "claseId": "{{clase}}", "fecha": "2099-03-02" }
+
+### 26. Guardar con un alumno sin estado → 422 ASISTENCIA_INCOMPLETA «Existen alumnos sin estado de asistencia registrado»
+PUT {{base}}/horarios/asistencia/sesiones/{{sesion}}/registros
+Content-Type: application/json
+
+{ "alumnos": [
+  { "matriculaId": "{{matricula1}}", "estado": "PRESENTE", "observacion": null },
+  { "matriculaId": "{{matricula2}}", "estado": null, "observacion": null }
+] }
+
+### 27. Guardar la lista completa → 200 registrada: true y editableHasta (registro + 24 h). Repetirlo con otro estado
+# dentro del plazo corrige (estadoAnterior); pasadas 24 h → 422 PLAZO_CORRECCION_VENCIDO
+PUT {{base}}/horarios/asistencia/sesiones/{{sesion}}/registros
+Content-Type: application/json
+
+{ "alumnos": [
+  { "matriculaId": "{{matricula1}}", "estado": "PRESENTE", "observacion": null },
+  { "matriculaId": "{{matricula2}}", "estado": "FALTA_JUSTIFICADA", "observacion": "Cita médica con constancia" }
+] }
+
+### 28. Registros anteriores del docente (últimos 7 días) → 200 con editable y editableHasta de cada sesión
+GET {{base}}/horarios/asistencia/sesiones
+
+### 29. Sesiones de una fecha con sesión de administrador → 200 (todas las del día)
+GET {{base}}/horarios/asistencia/sesiones?fecha=2026-09-16
+
+### 30. Corregir fuera de plazo (US36, M-20) → 200 y auditoría CORREGIR_ASISTENCIA; sin motivo → 400; igual → 409
+POST {{base}}/horarios/asistencia/registros/{{registro}}/corregir
+Content-Type: application/json
+
+{ "estado": "FALTA_JUSTIFICADA", "motivo": "La apoderada presentó el certificado médico fuera del plazo." }
+
+### 31. Asistencia del mes de un hijo (US45) → 200; hijo ajeno → 403 ESTUDIANTE_NO_VINCULADO; ?mes=2026-13 → 400
+GET {{base}}/horarios/apoderado/hijos/{{estudiante}}/asistencia?mes=2026-09
+
+### 32. «Mi asistencia» del alumno (US52) → 200 con bimestre, delAnio, riesgo y alertaDelMes
+GET {{base}}/horarios/alumno/asistencia

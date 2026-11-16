@@ -82,6 +82,37 @@ const MESES = [
   "diciembre",
 ];
 
+/** "2026-08" → "agosto de 2026" (mes de la asistencia, AP-03). */
+export function mesLargo(mes: string): string {
+  const [anio, numero] = mes.split("-").map(Number);
+  return `${MESES[numero - 1]} de ${anio}`;
+}
+
+/** "2026-08" → "agosto". */
+export function nombreMes(mes: string): string {
+  return MESES[Number(mes.split("-")[1]) - 1];
+}
+
+/** "2026-08" y 1 → "2026-09"; con −1, "2026-07" (flechas del selector de mes). */
+export function sumarMeses(mes: string, cantidad: number): string {
+  const [anio, numero] = mes.split("-").map(Number);
+  const fecha = new Date(Date.UTC(anio, numero - 1 + cantidad, 1));
+  return `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Instante ISO → "17/09 a las 09:20" en la hora de Lima (límite para corregir la asistencia, DO-03). */
+export function diaYHora(iso: string): string {
+  const p = partes(new Date(iso));
+  return `${p.dia}/${p.mes} a las ${p.hora}`;
+}
+
+/** "2026-09-14" → "lunes 14/09" (clases anteriores de DO-03). Fecha sin hora: no cambia de zona. */
+export function diaSemanaCorto(fecha: string): string {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const diaSemana = new Date(Date.UTC(anio, mes - 1, dia)).getUTCDay();
+  return `${DIAS_SEMANA[diaSemana]} ${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")}`;
+}
+
 /** "2026-11-06" → "viernes 6 de noviembre de 2026" (saludo de AP-01). Fecha sin hora: no cambia de zona. */
 export function fechaLarga(fecha: string): string {
   const [anio, mes, dia] = fecha.split("-").map(Number);

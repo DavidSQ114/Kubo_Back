@@ -4,6 +4,11 @@ import { prisma } from "@/platform/db/prisma";
 export const PARAMETROS_POR_DEFECTO = {
   MAX_INTENTOS_LOGIN: 5,
   MINUTOS_BLOQUEO: 15,
+  // Asistencia de alumnos (US36, US45, US52): los mismos valores del seed y de la migración que los carga
+  PLAZO_CORRECCION_ASISTENCIA_H: 24,
+  UMBRAL_FALTAS_MES: 3,
+  UMBRAL_INASISTENCIA_AVISO: 0.15,
+  UMBRAL_INASISTENCIA: 0.2,
 } as const;
 
 type ClaveConocida = keyof typeof PARAMETROS_POR_DEFECTO;

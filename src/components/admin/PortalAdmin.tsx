@@ -60,6 +60,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
     grupo: "ACADÉMICO",
     items: [
       { texto: "Horarios", icono: "nav-grid", href: "/admin/horarios" },
+      { texto: "Asistencia de alumnos", icono: "nav-usercheck", href: "/admin/asistencia" },
       { texto: "Asistencia docente", icono: "nav-usercheck" },
       { texto: "Notas y rectificaciones", icono: "nav-award" },
     ],

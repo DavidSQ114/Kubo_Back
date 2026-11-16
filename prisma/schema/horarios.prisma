@@ -3,6 +3,8 @@
 // Sprint 3 (US27–US31): el catálogo de bloques es del año (orden, horas y tipo, sin día) y el día pasa a cada
 // clase (detalle_horario). en_vigor: la clase ocupa a su docente y a su aula mientras su horario es BORRADOR o
 // PUBLICADO; los cruces entre secciones los impiden uq_detalle_cruce_docente y uq_detalle_cruce_aula (migración).
+// Sprint 3 (US35, US36, US52): asistencia_estudiante guarda el estado anterior de la última corrección y
+// aviso_asistencia, los avisos por umbral ya enviados (uno por matrícula, tipo y periodo: no se repiten).
 
 model BloqueHorario {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -88,6 +90,8 @@ model AsistenciaEstudiante {
   matriculaId     String           @db.Uuid @map("matricula_id")
   matricula       Matricula        @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
   estado          EstadoAsistencia
+  // Estado que tenía antes de la última corrección (US36); null si nunca se corrigió
+  estadoAnterior  EstadoAsistencia? @map("estado_anterior")
   registradoPorId String           @db.Uuid @map("registrado_por_id")
   registradoPor   Usuario          @relation("AsistenciaEstudianteRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
   registradoEn    DateTime         @default(now()) @db.Timestamptz(3) @map("registrado_en")
@@ -102,6 +106,24 @@ model AsistenciaEstudiante {
   @@unique([sesionClaseId, matriculaId])
   @@index([matriculaId])
   @@map("asistencia_estudiante")
+}
+
+// Aviso por umbral de inasistencias ya enviado al alumno y a su apoderado principal (US52). La clave única evita
+// repetirlo: FALTAS_MES usa el mes («2026-09») como periodo y los de porcentaje, el año («2026»).
+model AvisoAsistencia {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId     String              @db.Uuid @map("matricula_id")
+  matricula       Matricula           @relation(fields: [matriculaId], references: [id], onDelete: Cascade)
+  tipo            TipoAvisoAsistencia
+  periodo         String
+  // Faltas injustificadas acumuladas en el periodo cuando se alcanzó el umbral
+  faltas          Int
+  correosEnviados Int                 @default(0) @map("correos_enviados")
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([matriculaId, tipo, periodo])
+  @@map("aviso_asistencia")
 }
 
 model AsistenciaDocente {
