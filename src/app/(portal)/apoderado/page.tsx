@@ -1,5 +1,5 @@
 // AP-01 · Inicio · Apoderado (US42, US43): saludo, aviso de pensiones vencidas con «Ver mis pagos», próximo
-// vencimiento del hijo elegido y acceso a su horario (US48). La libreta y la asistencia llegarán con sus módulos.
+// vencimiento del hijo elegido y acceso a su horario (US48) y a su asistencia (US45). La libreta llegará con su módulo.
 "use client";
 
 import Link from "next/link";
@@ -15,7 +15,7 @@ import {
 import { Icono } from "@/components/ui";
 import { fechaDia, fechaLarga, soles } from "@/lib/formato";
 
-const MODULOS_PROXIMOS = ["Notas", "Asistencia"];
+const MODULOS_PROXIMOS = ["Notas"];
 
 function ProximoVencimiento({ datos }: { datos: PagosDelHijo }) {
   const proxima = datos.cuotas.find((c) => c.estado === "PENDIENTE");
@@ -92,10 +92,25 @@ export default function InicioApoderadoPage() {
               </span>
               <span className="text-[13px] text-texto-3">Curso, aula y docente de cada bloque de la semana.</span>
             </Link>
+            <Link
+              href="/apoderado/asistencia"
+              className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 hover:border-kubo-azul"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-lg bg-kubo-azul/10">
+                  <Icono nombre="nav-usercheck-azul" size={20} />
+                </span>
+                <span className="text-[14px] text-texto-2">Asistencia</span>
+              </div>
+              <span className="text-[16px] font-semibold text-texto">
+                Ver la asistencia de {hijo.nombres.split(" ")[0]}
+              </span>
+              <span className="text-[13px] text-texto-3">Resumen del mes por día, inasistencias y tardanzas.</span>
+            </Link>
             <div className="flex flex-col gap-2 rounded-lg border border-dashed border-borde bg-white p-5">
               <span className="text-[14px] text-texto-2">Próximamente en tu portal</span>
               <p className="text-[14px] leading-[1.5] text-texto-3">
-                {MODULOS_PROXIMOS.join(", ")} de {hijo.nombres.split(" ")[0]} estarán disponibles en las próximas
+                {MODULOS_PROXIMOS.join(", ")} de {hijo.nombres.split(" ")[0]} estará disponible en las próximas
                 versiones.
               </p>
             </div>

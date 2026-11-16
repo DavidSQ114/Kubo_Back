@@ -1,6 +1,6 @@
-// AL-01 · Inicio · Alumno (US49): panel simplificado con accesos solo a Horario, Mis cursos, Notas, Asistencia y
-// Notificaciones. Las tres últimas aún no existen y se muestran como «Próximamente», igual que en el portal del
-// apoderado.
+// AL-01 · Inicio · Alumno (US49, US52): panel simplificado con accesos solo a Horario, Mis cursos, Notas, Asistencia
+// y Notificaciones. Notas y Notificaciones aún no existen y se muestran como «Próximamente», igual que en el portal
+// del apoderado.
 "use client";
 
 import Link from "next/link";
@@ -42,6 +42,8 @@ const ACCESOS: Acceso[] = [
     titulo: "Mi asistencia",
     descripcion: "Tus faltas y tardanzas del bimestre y del año.",
     icono: "nav-usercheck-azul",
+    href: "/alumno/asistencia",
+    accion: "Ver asistencia",
   },
   {
     titulo: "Notificaciones",
@@ -100,8 +102,8 @@ export default function InicioAlumnoPage() {
       </ul>
       <p className="flex items-start gap-2 text-[13px] leading-[1.5] text-texto-3">
         <Icono nombre="icon-lock" size={16} />
-        Tu cuenta de alumno es de consulta: puedes ver tu horario y tus cursos. No puedes modificar registros
-        académicos.
+        Tu cuenta de alumno es de consulta: puedes ver tu horario, tus cursos y tu asistencia. No puedes modificar
+        registros académicos.
       </p>
     </>
   );

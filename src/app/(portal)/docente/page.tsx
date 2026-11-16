@@ -1,5 +1,5 @@
-// DO-01 · Inicio · Docente (US34, US14): saludo, acceso a «Mi horario» y «Mis cursos», los cursos y secciones que
-// tiene asignados. La clase en curso, la asistencia y las notas del Figma llegan con sus módulos.
+// DO-01 · Inicio · Docente (US34, US14, US35): saludo, acceso a «Mi horario» y a «Asistencia», y los cursos y
+// secciones que tiene asignados. La clase en curso y las notas del Figma llegan con sus módulos.
 "use client";
 
 import Link from "next/link";
@@ -94,23 +94,38 @@ export default function InicioDocentePage() {
         descripcion={`Hoy es ${fechaLarga(hoyEnLima())}.`}
       />
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[360px_1fr]">
-        <Link
-          href="/docente/horario"
-          className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta hover:border-kubo-azul"
-        >
-          <span className="flex size-12 items-center justify-center rounded-lg bg-kubo-azul/10">
-            <Icono nombre="nav-grid-azul" size={24} />
-          </span>
-          <span className="text-[18px] font-semibold leading-[1.3] text-texto">Mi horario</span>
-          <span className="text-[14px] leading-[1.5] text-texto-2">
-            Tus clases de la semana con su curso, sección y aula, de todas tus secciones publicadas.
-          </span>
-          <span className="text-[14px] font-semibold text-kubo-azul">Ver horario</span>
-        </Link>
+        <div className="flex flex-col gap-6">
+          <Link
+            href="/docente/asistencia"
+            className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta hover:border-kubo-azul"
+          >
+            <span className="flex size-12 items-center justify-center rounded-lg bg-kubo-azul/10">
+              <Icono nombre="nav-usercheck-azul" size={24} />
+            </span>
+            <span className="text-[18px] font-semibold leading-[1.3] text-texto">Asistencia</span>
+            <span className="text-[14px] leading-[1.5] text-texto-2">
+              Registra la asistencia de tus clases de hoy y corrige tus registros dentro del plazo.
+            </span>
+            <span className="text-[14px] font-semibold text-kubo-azul">Tomar asistencia</span>
+          </Link>
+          <Link
+            href="/docente/horario"
+            className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta hover:border-kubo-azul"
+          >
+            <span className="flex size-12 items-center justify-center rounded-lg bg-kubo-azul/10">
+              <Icono nombre="nav-grid-azul" size={24} />
+            </span>
+            <span className="text-[18px] font-semibold leading-[1.3] text-texto">Mi horario</span>
+            <span className="text-[14px] leading-[1.5] text-texto-2">
+              Tus clases de la semana con su curso, sección y aula, de todas tus secciones publicadas.
+            </span>
+            <span className="text-[14px] font-semibold text-kubo-azul">Ver horario</span>
+          </Link>
+        </div>
         <MisCursos />
       </div>
       <p className="text-[13px] leading-[1.5] text-texto-3">
-        La toma de asistencia y el registro de notas estarán disponibles próximamente en este portal.
+        El registro de notas estará disponible próximamente en este portal.
       </p>
     </>
   );
