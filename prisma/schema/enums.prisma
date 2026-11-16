@@ -1,4 +1,5 @@
-// Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago, TipoBloque).
+// Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago, TipoBloque,
+// TipoAvisoAsistencia).
 
 enum Rol {
   ADMINISTRADOR
@@ -168,6 +169,13 @@ enum EstadoAsistencia {
   TARDANZA
   FALTA
   FALTA_JUSTIFICADA
+}
+
+// Sprint 3 (US52): umbral de inasistencias por el que ya se avisó
+enum TipoAvisoAsistencia {
+  FALTAS_MES
+  PORCENTAJE_AVISO
+  PORCENTAJE_RIESGO
 }
 
 enum EstadoAsistenciaDocente {
