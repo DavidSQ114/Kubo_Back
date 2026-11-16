@@ -1,4 +1,4 @@
-# API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31) y horario en los portales (US34, US48, US50)
+# API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31), horario en los portales (US34, US48, US50) y asistencia de alumnos (US35, US36, US45, US52)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/admin/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http). El horario en los portales del docente, del apoderado y del alumno (DO-02, AP-05, AL-02) está en [frontend-portales-horario.md](../frontend-portales-horario.md), con sus casos en [pruebas/casos-sprint3-portales-horario.md](../pruebas/casos-sprint3-portales-horario.md).
@@ -130,3 +130,107 @@ La bitácora guarda identificadores y el código del curso, no nombres de person
 - De `comunidad`: `docentesProviderComunidad` (nombres) y `contactosDeDocentes` (correos para el aviso).
 - De `matricula` (portales): `matriculaVigenteDelAlumno(sesion)` y `seccionDelHijo(sesion, estudianteId)`, que resuelven la sección y aplican el control de acceso. `horarios` queda por encima de `matricula`; `matricula` no conoce a `horarios`.
 - `academico` sigue consultando a `horarios` por el puerto `HorariosProvider` (US10 y US14: un curso o una asignación con horario no se elimina).
+
+---
+
+# Asistencia de alumnos (US35, US36, US45, US52)
+
+Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistencia de alumnos» del administrador con el modal M-20 (`/admin/asistencia`), AP-03 «Asistencia» del apoderado (`/apoderado/asistencia`) y AL-04 «Mi asistencia» del alumno (`/alumno/asistencia`); ver [frontend-asistencia.md](../frontend-asistencia.md). Casos de prueba en [pruebas/casos-sprint3-asistencia.md](../pruebas/casos-sprint3-asistencia.md) y ejemplos en [horarios.http](horarios.http).
+
+## Modelo de la asistencia
+
+- **Sesión de clase** (`sesion_clase`): una clase del horario **publicado** en una fecha. La abre el docente al elegir la clase (se crea si no existe: única por clase y fecha) y guarda en `cerrada_en` el instante del **primer registro** de la lista: desde ahí corre el plazo de corrección. Si el horario se vuelve a publicar el mismo día, la sesión ya abierta en ese bloque sigue siendo la misma.
+- **Registro de asistencia** (`asistencia_estudiante`): un alumno en una sesión, con `estado` (`PRESENTE`, `TARDANZA`, `FALTA`, `FALTA_JUSTIFICADA`; en pantalla «Presente», «Tardanza», «Ausente» y «Justificado»), `observacion` opcional, quién y cuándo lo registró y, en cada corrección, quién y cuándo lo cambió (`modificado_por_id`, `modificado_en`), el estado que tenía antes (`estado_anterior`, columna nueva) y el motivo del administrador (`motivo_cambio`).
+- **Aviso por umbral** (`aviso_asistencia`, tabla nueva): un aviso ya enviado al alumno y a su apoderado principal, único por matrícula, tipo (`FALTAS_MES`, `PORCENTAJE_AVISO`, `PORCENTAJE_RIESGO`) y periodo (el mes «2026-09» o el año «2026»). Es lo que impide repetir un aviso (US52).
+- **Parámetros** (`parametro_institucion`, generales o por año): `PLAZO_CORRECCION_ASISTENCIA_H` (24), `UMBRAL_FALTAS_MES` (3), `UMBRAL_INASISTENCIA_AVISO` (0.15) y `UMBRAL_INASISTENCIA` (0.20). Los carga el seed y, en AWS y Neon, la migración `asistencia_avisos_y_parametros` si faltan (no pisa un valor ya registrado). Sin parámetro se usan esos mismos valores por defecto.
+
+## Endpoints de asistencia
+
+| Método y ruta | Rol | Cuerpo | Respuesta `data` |
+|---|---|---|---|
+| `GET /horarios/asistencia/clases-de-hoy` | Docente | — | `ClasesDeHoy` del docente en sesión |
+| `POST /horarios/asistencia/sesiones` | Docente | `{ claseId, fecha? }` | `201 SesionDetalle`: abre (o retoma) la sesión de hoy de esa clase |
+| `GET /horarios/asistencia/sesiones?fecha=` | Docente, Administrador | — | `{ fecha, sesiones: SesionVista[] }`. Docente: las suyas de esa fecha o, sin fecha, las de los últimos 7 días. Administrador: todas las de la fecha (por defecto, hoy) |
+| `GET /horarios/asistencia/sesiones/{id}` | Docente (solo las suyas), Administrador | — | `SesionDetalle` |
+| `PUT /horarios/asistencia/sesiones/{id}/registros` | Docente (solo las suyas) | `{ alumnos: [{ matriculaId, estado, observacion }] }` | `SesionDetalle` + `avisos: { avisos, correos }` |
+| `POST /horarios/asistencia/registros/{id}/corregir` | Administrador | `{ estado, motivo, observacion? }` | `SesionDetalle` (vista del administrador) + `avisos` |
+| `GET /horarios/apoderado/hijos/{id}/asistencia?mes=AAAA-MM` | Apoderado | — | `AsistenciaDelMes` del hijo, si está vinculado (US45) |
+| `GET /horarios/alumno/asistencia` | Alumno | — | `AsistenciaDelAlumno` del alumno en sesión (US52) |
+
+- `ClasesDeHoy`: `{ fecha, dia, sinClases, clases }`. `fecha` es hoy en Lima («AAAA-MM-DD»). `sinClases` es `null` o `{ motivo, mensaje }`, con `motivo` `FIN_DE_SEMANA` («Hoy no hay clases: es fin de semana.»), `SIN_ANIO_EN_CURSO`, `FUERA_DE_BIMESTRE` o `SIN_CLASES` («No tienes clases programadas para hoy en el horario publicado.»). Cada clase: `{ claseId, curso, seccion, aula, bloque: { id, horaInicio, horaFin, etiqueta }, sesion }`, en orden de bloque; `sesion` es `null` o `{ id, …EstadoDeRegistro }`.
+- `EstadoDeRegistro`: `{ registrada, registradaEn, editableHasta, editable, motivoSoloLectura, resumen }`. `editable` es `true` si el docente puede guardar ahora: registrar por primera vez el mismo día de la clase o corregir hasta `editableHasta` (registro + plazo). Si no, `motivoSoloLectura` trae el mensaje («El plazo para modificar esta asistencia ha expirado (24 horas)»). `resumen`: `{ presentes, tardanzas, ausentes, justificados, sinMarcar }`.
+- `SesionVista`: `{ id, fecha, dia, curso, seccion, aula, docente: { id, nombreCompleto, nombreCorto }, bloque, …EstadoDeRegistro }`.
+- `SesionDetalle`: `SesionVista` + `{ plazoHoras, bimestre, faltasParaResaltar, alumnos }`. `alumnos` son quienes tenían matrícula «Matriculado» en la sección ese día según el historial de secciones (sin retirados ni anulados) y, en una sesión ya registrada, también quien tiene un registro aunque después se haya retirado o trasladado; ordenados por apellido. Cada uno: `{ registroId, matriculaId, nombre («Álvarez Torres, Camila»), dni (solo para el Administrador), estado, observacion, estadoAnterior, registradoPor, registradoEn, modificadoPor, modificadoEn, motivoCambio, faltas, tardanzas }`. `faltas` y `tardanzas` son las acumuladas en ese curso durante el bimestre de la sesión (`bimestre`, por ejemplo «Bimestre III»); la pantalla resalta a quien llega a `faltasParaResaltar` (`UMBRAL_FALTAS_MES`).
+- `AsistenciaDelMes`: `{ estudiante, anio, mes, primerMes, ultimoMes, calendario, resumen, incidencias, alerta, anual, umbralFaltasMes }`.
+  - `calendario`: los días de lunes a viernes del mes, `{ fecha, dia, estado }`, con `estado` `PRESENTE`, `TARDANZA`, `AUSENTE`, `JUSTIFICADO`, `VACACIONES` (entre bimestres), `FUERA_DEL_ANIO` o `SIN_REGISTRO`.
+  - `resumen`: `{ presentes, tardanzas, ausentes, justificados, diasConClases, porcentajeAsistencia }`, en días; el porcentaje es `null` sin registros.
+  - `incidencias`: de la más reciente a la más antigua, `{ fecha, alcance: "DIA" | "CLASE", estado, clase: { curso, horaInicio, docente } | null, observacion }`.
+  - `alerta`: `null` o `{ mensaje: "Atención: 3 inasistencias injustificadas este mes", faltas, fechas }`.
+  - `anual`: `SituacionAnual` `{ faltas, lectivos, porcentaje, nivel: "SIN_RIESGO" | "AVISO" | "RIESGO", porcentajeAviso, porcentajeRiesgo, faltasAntesDelRiesgo }`.
+  - `primerMes` y `ultimoMes`: entre qué meses se puede navegar (del inicio del año al mes actual, o al último del año si ya terminó).
+- `AsistenciaDelAlumno`: `{ estudiante, anio, bimestre: { numero, nombre, faltas, tardanzas, justificadas } | null, delAnio: { faltas, tardanzas, justificadas, desde }, riesgo: SituacionAnual, alertaDelMes, detalle, sinInasistencias }`. `detalle` son las faltas, tardanzas y justificaciones del bimestre. `sinInasistencias` es `true` si no tiene faltas, tardanzas ni justificaciones en el año: la pantalla muestra «¡Felicidades! No registras inasistencias este periodo».
+
+## Reglas de la asistencia
+
+**Toma de asistencia (US35)**
+
+- El docente ve sus clases del día según el horario **publicado** del año **en curso** y la fecha de **Lima**. En fin de semana, sin año en curso o fuera de los bimestres, la lista llega vacía con el mensaje de `sinClases`.
+- Solo se abre la sesión de una clase **propia** (`403 CLASE_AJENA`), programada ese día en el horario publicado (`422 CLASE_FUERA_DE_HORARIO`) y del **día actual**: una fecha futura responde `422 FECHA_FUTURA` y un día pasado, `422 SOLO_DIA_ACTUAL`.
+- Al guardar, todos los alumnos de la lista deben tener estado: si falta alguno, `422 ASISTENCIA_INCOMPLETA` «Existen alumnos sin estado de asistencia registrado» con `details.faltantes: [{ matriculaId, nombre }]`, y no se guarda nada. Un alumno que no es de la clase (o repetido) responde `422 ALUMNO_FUERA_DE_LA_CLASE`.
+- La observación es opcional (hasta 200 caracteres); vacía se guarda como `null`. El apoderado la ve en «Asistencia» (US35, criterio 4).
+
+**Plazo de corrección (US36)**
+
+- El docente corrige la lista de su sesión hasta `PLAZO_CORRECCION_ASISTENCIA_H` horas después del **primer** registro (el plazo no se reinicia al corregir). Solo cambian los registros distintos; en cada uno quedan `modificado_por_id`, `modificado_en` y, si cambia el estado, `estado_anterior`.
+- Pasado el plazo: `422 PLAZO_CORRECCION_VENCIDO` «El plazo para modificar esta asistencia ha expirado (24 horas)», y la sesión se devuelve con `editable: false` (solo lectura).
+- El **administrador** corrige un registro en cualquier momento con `POST …/registros/{id}/corregir`: `motivo` obligatorio (5 a 300 caracteres) y auditoría `CORREGIR_ASISTENCIA` con el estado anterior y el nuevo. Si el estado y la observación quedan iguales: `409 ASISTENCIA_SIN_CAMBIOS`. El docente no puede usar este endpoint (`403`).
+- Las escrituras bloquean la fila de la sesión o del registro (`FOR UPDATE`): dos guardados simultáneos no duplican registros.
+
+**Asistencia del hijo (US45)**
+
+- El día es **Ausente** solo si el alumno faltó **sin justificar** a todas sus clases registradas de ese día; **Justificado** si faltó a todas y todas las faltas están justificadas; **Tardanza** si asistió y llegó tarde a alguna; **Presente** en los demás casos. Si faltó a algunas clases y no a todas, el día es Presente (o Tardanza) y esas clases aparecen en `incidencias`.
+- `alerta` aparece al llegar a `UMBRAL_FALTAS_MES` días Ausente en el mes consultado. Sin registros en el mes, `resumen.diasConClases` es 0 y la pantalla muestra «No hay registros de asistencia disponibles para este periodo».
+- Solo hijos vinculados: otro estudiante responde `403 ESTUDIANTE_NO_VINCULADO`. Un hijo retirado conserva su asistencia (se usa su matrícula más reciente).
+
+**Mi asistencia (US52) y avisos**
+
+- Las faltas cuentan **días Ausente** (sin justificar); las tardanzas, días con tardanza. Se acumulan en el bimestre que contiene hoy (en vacaciones, el último que empezó) y en el año.
+- El porcentaje es faltas del año / días de clase del año (lunes a viernes dentro de los bimestres; no descuenta feriados). Nivel `AVISO` al llegar a `UMBRAL_INASISTENCIA_AVISO` y `RIESGO` al llegar a `UMBRAL_INASISTENCIA`.
+- **Aviso único:** cuando una falta registrada o corregida hace que el alumno alcance por primera vez un umbral, se deja constancia en `aviso_asistencia` y se envía un correo al alumno y a su apoderado principal: `FALTAS_MES` una vez por mes, `PORCENTAJE_AVISO` y `PORCENTAJE_RIESGO` una vez por año. Si se alcanzan los dos porcentajes a la vez, se escribe solo el de riesgo. El correo se envía **después** de confirmar la transacción y su falla no revierte la asistencia. La notificación dentro de la aplicación queda para US55.
+
+**Seguridad**
+
+- Sin sesión, `401 NO_AUTENTICADO`; con otro perfil, `403 ACCESO_DENEGADO`. El docente sale de la sesión: no ve ni guarda sesiones de otro docente (`403 CLASE_AJENA`). El apoderado solo ve a sus hijos y el alumno no envía identificadores: siempre recibe lo suyo.
+
+## Códigos de error de la asistencia
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Identificador, fecha, mes, estado u observación con formato inválido; motivo vacío o corto |
+| `CLASE_AJENA` | 403 | La clase o la sesión es de otro docente |
+| `ESTUDIANTE_NO_VINCULADO` | 403 | El apoderado pide la asistencia de un estudiante que no es su hijo |
+| `SIN_MATRICULA_VIGENTE` | 403 | El alumno en sesión no tiene matrícula vigente |
+| `NO_ENCONTRADO` | 404 | No existe la clase, la sesión o el registro |
+| `ASISTENCIA_SIN_CAMBIOS` | 409 | La corrección del administrador no cambia el estado ni la observación |
+| `FECHA_FUTURA` | 422 | «No se puede registrar la asistencia de una fecha futura.» |
+| `SOLO_DIA_ACTUAL` | 422 | «Solo se puede registrar la asistencia del día actual.» |
+| `DIA_SIN_CLASES` | 422 | Fin de semana, sin año en curso o fuera de los bimestres |
+| `CLASE_FUERA_DE_HORARIO` | 422 | La clase no está programada ese día en el horario publicado |
+| `ASISTENCIA_INCOMPLETA` | 422 | «Existen alumnos sin estado de asistencia registrado» (`details.faltantes`) |
+| `ALUMNO_FUERA_DE_LA_CLASE` | 422 | La lista trae un alumno que no es de la clase o repetido |
+| `PLAZO_CORRECCION_VENCIDO` | 422 | «El plazo para modificar esta asistencia ha expirado (24 horas)» |
+
+## Auditoría de la asistencia (RF03)
+
+| Acción | Entidad | Anterior → nuevo |
+|---|---|---|
+| `CORREGIR_ASISTENCIA` | `asistencia_estudiante` | `{ estado, observacion }` → `{ estado, observacion, sesionClaseId, matriculaId, fecha, fueraDePlazo }`, con el `motivo` |
+
+El registro y las correcciones del docente dentro del plazo no van a la bitácora: quedan en la propia fila (`registrado_por_id`, `modificado_por_id`, `modificado_en`, `estado_anterior`).
+
+## Dependencias de la asistencia
+
+- `horarios` es dueño de `sesion_clase`, `asistencia_estudiante` y `aviso_asistencia`.
+- De `matricula`: `matriculasDeSeccionEnFecha` (lista de la clase según el historial de secciones), `datosDeMatriculas` (nuevo: estado y estudiante de cada matrícula), `matriculaVigenteDelAlumno` y `matriculaDelHijo` (nuevo: la matrícula del hijo autorizado).
+- De `comunidad`: `resumenEstudiantes` (ahora también con `nombres` y `apellidos` por separado), `nombresDeUsuarios` y `contactosDeAsistencia` (nuevo: correo del estudiante y de su apoderado principal).
+- De `academico`: `listarAnios`, `obtenerAnio` (bimestres), `asignacionesDeClases` y `fechaEnLima`.
