@@ -1,7 +1,8 @@
 // horarios: interfaz pública. Otros módulos y las rutas importan SOLO desde aquí (US27 cuadrícula por sección,
 // US28 asignación de clases, US29 y US30 cruces de docente y de aula, US31 publicación por versiones, el horario
-// publicado en los portales del docente, del apoderado y del alumno, US34, US48 y US50, y el puerto que académico usa
-// para no borrar cursos ni asignaciones con horario, US10 y US14).
+// publicado en los portales del docente, del apoderado y del alumno, US34, US48 y US50, la asistencia de alumnos por
+// sesión de clase, US35 y US36, su consulta en los portales, US45 y US52, y el puerto que académico usa para no borrar
+// cursos ni asignaciones con horario, US10 y US14).
 export { horariosProviderHorarios } from "./infrastructure/horariosProvider";
 export {
   DIAS,
@@ -33,4 +34,31 @@ export {
 } from "./application/consultas";
 export { horarioDelAlumno, horarioDelHijo, type HorarioDeEstudiante } from "./application/portales";
 export { resumenDelDocente, type ResumenDelDocente } from "./domain/portales";
+export {
+  ESTADOS_ASISTENCIA,
+  NOMBRE_ESTADO_ASISTENCIA,
+  type EstadoAsistencia,
+  type EstadoDia,
+  type Incidencia,
+} from "./domain/asistencia";
+export {
+  clasesDeHoy,
+  abrirSesion,
+  listarSesiones,
+  detalleDeSesion,
+  guardarAsistencia,
+  corregirAsistencia,
+  type ClasesDeHoy,
+  type ClaseDeHoy,
+  type SesionVista,
+  type SesionDetalle,
+  type SesionGuardada,
+  type AlumnoDeSesion,
+} from "./application/asistencia";
+export {
+  asistenciaDelHijo,
+  asistenciaDelAlumno,
+  type AsistenciaDelMes,
+  type AsistenciaDelAlumno,
+} from "./application/asistenciaPortales";
 export * as esquemasHorarios from "./schemas";

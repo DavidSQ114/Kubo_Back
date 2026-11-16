@@ -92,6 +92,12 @@ export const matriculas = {
     return m && fila(m);
   },
 
+  async porIds(ids: string[], db: Db = prisma): Promise<MatriculaFila[]> {
+    if (!ids.length) return [];
+    const filas = await db.matricula.findMany({ where: { id: { in: ids } }, select: selectMatricula });
+    return filas.map(fila);
+  },
+
   /** Matrículas Matriculado de la sección: se cuenta con la fila de la sección ya bloqueada. */
   contarMatriculados: (seccionId: string, db: Db = prisma) =>
     db.matricula.count({ where: { seccionId, estado: "MATRICULADO" } }),

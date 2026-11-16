@@ -27,7 +27,7 @@ import {
   type MotivoRetiro,
 } from "../domain/cambios";
 import { erroresMatricula as E } from "../domain/errores";
-import { NOMBRE_ESTADO_MATRICULA } from "../domain/matriculas";
+import { NOMBRE_ESTADO_MATRICULA, type EstadoMatricula } from "../domain/matriculas";
 import { cuotas, historial, matriculas, type MatriculaFila } from "../infrastructure/repositorio";
 import { detalleMatricula } from "./matriculas";
 
@@ -208,6 +208,34 @@ export async function seccionDeMatriculaEnFecha(matriculaId: string, fecha: stri
 /** Matrículas (no anuladas) que estaban en la sección en esa fecha: la lista de una asistencia o un registro de notas. */
 export const matriculasDeSeccionEnFecha = (seccionId: string, fecha: string) =>
   historial.matriculasDeSeccionEnFecha(seccionId, fecha);
+
+export interface MatriculaDeLista {
+  matriculaId: string;
+  estudianteId: string;
+  anioAcademicoId: string;
+  seccionId: string | null;
+  estado: EstadoMatricula;
+}
+
+/**
+ * Estudiante, año y estado de varias matrículas, por id: con ellos la asistencia arma la lista de una clase (US35) y
+ * decide a quién avisar (US52). Las que no existen no aparecen.
+ */
+export async function datosDeMatriculas(ids: string[]): Promise<Record<string, MatriculaDeLista>> {
+  const filas = await matriculas.porIds([...new Set(ids)]);
+  return Object.fromEntries(
+    filas.map((m) => [
+      m.id,
+      {
+        matriculaId: m.id,
+        estudianteId: m.estudianteId,
+        anioAcademicoId: m.anioAcademicoId,
+        seccionId: m.seccionId,
+        estado: m.estado,
+      },
+    ]),
+  );
+}
 
 // ---------- Ficha de matrícula en PDF (US20) ----------
 
