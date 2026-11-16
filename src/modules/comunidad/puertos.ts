@@ -38,6 +38,11 @@ export interface RegistrosMatriculaProvider {
    * no se elimina, solo se desactiva su perfil. Va dentro de la transacción de la baja.
    */
   registrosDeEstudiante(tx: Tx, estudianteId: string): Promise<{ matriculas: number; pagos: number }>;
+  /**
+   * ¿El estudiante tiene una matrícula vigente («Matriculado» en un año abierto)? Solo con ella se le crea el acceso
+   * al portal del alumno (US49). Un retirado o con la matrícula anulada no la tiene.
+   */
+  tieneMatriculaVigente(tx: Tx, estudianteId: string): Promise<boolean>;
 }
 
 let registrosMatricula: RegistrosMatriculaProvider | null = null;

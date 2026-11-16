@@ -84,7 +84,7 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 | `GET /comunidad/personas/{id}/historial` | — | `{ items: EventoHistorial[] }`: los 50 cambios más recientes |
 | `DELETE /comunidad/personas/{id}` | `?perfil=` (opcional) | `{ resultado, nombreCompleto, perfiles, motivos }` |
 
-- `DetallePersona`: `{ personaId, nombreCompleto, dni, nombres, apellidos, email, telefono, direccion, fechaNacimiento, sexo, ocupacion, especialidad, colegioProcedencia, perfiles, perfilesRegistrados, cuenta }`. `email` es el correo de la cuenta o, sin cuenta, el de la persona. `perfiles` son los activos y `perfilesRegistrados`, todos los que tiene. `cuenta`: `{ usuarioId, estado, usada }` o `null`.
+- `DetallePersona`: `{ personaId, nombreCompleto, dni, nombres, apellidos, email, telefono, direccion, fechaNacimiento, sexo, ocupacion, especialidad, colegioProcedencia, perfiles, perfilesRegistrados, estudianteId, cuenta }`. `estudianteId` es el id de su perfil de estudiante (o `null`): con él se crea su acceso al portal (US49). `email` es el correo de la cuenta o, sin cuenta, el de la persona. `perfiles` son los activos y `perfilesRegistrados`, todos los que tiene. `cuenta`: `{ usuarioId, estado, usada }` o `null`.
 - **PATCH.** Lo que no se envía no cambia; `null` deja vacío un dato opcional. Solo se guardan los campos con un valor distinto del registrado: sin cambios responde `200` con `cambios: []` y no escribe en la auditoría.
   - `ocupacion` exige perfil de apoderado; `especialidad`, de docente; `sexo` y `colegioProcedencia`, de estudiante (`422 PERFIL_NO_APLICA`).
   - `email`: no puede ser el de otra persona ni el de otra cuenta (`409 EMAIL_EN_USO`). Si la persona tiene cuenta, el correo de acceso cambia **en la misma transacción**, aumenta `version_sesion`, se revocan sus sesiones y se anulan los enlaces de recuperación pendientes (`sesionesCerradas: true`). Después de confirmar se avisa al correo nuevo y al anterior (a este, con el correo nuevo enmascarado). Si un envío falla, el cambio **no** se revierte: `avisos: { nuevo, anterior }` indica cuál salió. Sin cuenta, `avisos` es `null`.
@@ -94,6 +94,21 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 - `EventoHistorial`: `{ id, accion, fecha, responsable, motivo, cambios, perfil }`. En `EDITAR_PERSONA`, `cambios` es `{ campo, anterior, nuevo }[]` (el DNI llega enmascarado: `******78`). En `DESACTIVAR_PERFIL`, `perfil` es el rol desactivado.
 - **DELETE.** Sin cuenta usada (nunca ingresó), vínculos, matrículas, pagos ni asignaciones de cursos o tutorías, la persona se **elimina** con sus perfiles y su cuenta sin usar: `resultado: "ELIMINADA"`. Con alguno de esos registros se conserva y se **desactivan** sus perfiles activos, cerrando sus sesiones: `resultado: "PERFIL_DESACTIVADO"`, con `perfiles` (los desactivados) y `motivos` (frases como «tiene 2 matrículas»). `?perfil=DOCENTE` retira solo ese perfil; si la persona conserva otro perfil activo, no se elimina aunque no tenga registros. Nadie se da de baja a sí mismo (`422 OPERACION_NO_PERMITIDA`).
 - Se bloquea la fila de la persona durante la edición y la baja, para que dos operaciones simultáneas no registren un valor anterior equivocado.
+
+### Acceso del alumno al portal (US49, pantalla AD-06)
+
+Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desde el detalle del estudiante en AD-06, botón «Crear acceso al portal».
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `POST /comunidad/estudiantes/{id}/acceso` | `{ email, enviarCorreo? }` | `201 { estudianteId, personaId, usuarioId, nombreCompleto, email, correoEnviado, passwordTemporal }` |
+
+- `{id}` es el `estudianteId`, que `GET /comunidad/personas/{id}` devuelve en `DetallePersona.estudianteId` (`null` si la persona no tiene perfil de estudiante).
+- Crea la cuenta igual que la de un apoderado (RF43): estado `PENDIENTE_ACTIVACION`, contraseña temporal de 12 caracteres y **cambio obligatorio en el primer ingreso**. `passwordTemporal` se devuelve **una sola vez**, para mostrarla al Administrador por si el correo no llega; en la base solo queda su hash bcrypt.
+- Requisitos, en este orden: el estudiante existe y está activo (`404 ESTUDIANTE_NO_ENCONTRADO`); la persona no tiene ya una cuenta (`409 ACCESO_EXISTENTE`); tiene una **matrícula vigente**, es decir, `MATRICULADO` en un año abierto, ni retirado ni con la matrícula anulada (`422 SIN_MATRICULA_VIGENTE`; lo informa `matricula` por el puerto `RegistrosMatriculaProvider`); y el correo no es el de otra persona ni el de otra cuenta (`409 EMAIL_EN_USO`).
+- Todo va en una transacción que bloquea la fila de la persona: dos administradores a la vez crean una sola cuenta. La persona queda con el correo de su cuenta. Auditoría `CREAR_ACCESO_ALUMNO`.
+- Después de confirmar se envía el correo de bienvenida con la contraseña temporal (salvo `enviarCorreo: false`). Si el envío falla, la cuenta **no** se revierte: `correoEnviado: false`.
+- El alumno ingresa con el perfil `ALUMNO`. Con credenciales incorrectas el login responde `401 CREDENCIALES_INVALIDAS` «Correo o contraseña incorrectos. Verifica tus datos e inténtalo nuevamente.», sin decir cuál de los dos falló ([identidad.md](identidad.md)).
 
 ## Códigos de error
 
@@ -112,6 +127,8 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 | `APODERADO_NO_ENCONTRADO` · `ESTUDIANTE_NO_ENCONTRADO` | 404 | No existe o ya no está activo |
 | `SIN_APODERADO` · `PRINCIPAL_INVALIDO` · `APODERADO_REPETIDO` · `ESTUDIANTE_REPETIDO` · `GRADO_INVALIDO` | 422 | Reglas de los vínculos y del grado de ingreso |
 | `SIN_ANIO_EN_MATRICULA` | 422 | «Guardar como borrador» sin año en matrícula ni en curso |
+| `ACCESO_EXISTENTE` | 409 | «El estudiante ya tiene una cuenta para ingresar al portal.» (US49) |
+| `SIN_MATRICULA_VIGENTE` | 422 | «El estudiante no tiene una matrícula vigente. Confirma su matrícula antes de crear su acceso al portal.» (US49) |
 | `NO_ENCONTRADO` | 404 | «La persona no existe.» (US69) |
 | `DNI_YA_REGISTRADO` | 409 | «Ya existe otra persona registrada con ese DNI.» (US69) |
 | `PERFILES_YA_INACTIVOS` | 409 | La persona tiene registros asociados y sus perfiles ya están desactivados: no se puede eliminar |
@@ -126,3 +143,5 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 Se registran en `registro_auditoria`: `REGISTRAR_ADMINISTRADOR`, `REACTIVAR_PERFIL_ADMINISTRADOR`, `REGISTRAR_DOCENTE`, `REACTIVAR_PERFIL_DOCENTE`, `REGISTRAR_APODERADO` (con `personaExistia` y `perfilReactivado`), `VINCULAR_APODERADO` (uno por vínculo; si cambia el principal, el valor anterior guarda el vínculo que dejó de serlo) y `REGISTRAR_ESTUDIANTE` (con `matriculaEnProcesoId` si se guardó como borrador), con el administrador responsable, valor anterior y nuevo, IP y requestId. El DNI no se escribe en la auditoría ni en los logs (el logger además oculta `dni`, `telefono`, `direccion` y `fechaNacimiento`).
 
 La edición y la baja de personas (US69) se registran sobre la entidad `persona`: `EDITAR_PERSONA` (una fila por edición, con `valor_anterior` y `valor_nuevo` de cada campo cambiado y el `motivo` si cambió el DNI, los nombres o los apellidos), `DESACTIVAR_PERFIL` (una fila por perfil, con los registros que impidieron eliminar) y `ELIMINAR_PERSONA` (con nombres, perfiles y si se eliminó su cuenta). En estas filas el DNI solo deja ver sus 2 últimos dígitos (`******78`); los demás datos se guardan completos, como exige la historia. El historial de la persona se lee de estas filas. La bitácora es inmutable (`tg_auditoria_inmutable`): no hay ruta ni consulta que la modifique.
+
+El acceso del alumno al portal (US49) registra `CREAR_ACCESO_ALUMNO` sobre la entidad `usuario`, con `estudianteId`, `personaId` y el estado inicial `PENDIENTE_ACTIVACION`. No guarda el correo ni la contraseña temporal.

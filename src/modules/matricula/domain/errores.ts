@@ -195,6 +195,13 @@ export const erroresMatricula = {
 
   // ---------- Portal del apoderado (US42, US43, US44) ----------
   /** 403 aunque el estudiante exista: el apoderado no distingue entre «no existe» y «no es tuyo». */
+  /** Portal del alumno (US49): solo ingresa quien tiene una matrícula «Matriculado» en un año abierto. */
+  sinMatriculaVigente: () =>
+    new ErrorApp(
+      "SIN_MATRICULA_VIGENTE",
+      "No tienes una matrícula vigente. Comunícate con la secretaría del colegio.",
+      403,
+    ),
   estudianteNoVinculado: () =>
     new ErrorApp("ESTUDIANTE_NO_VINCULADO", "No tienes acceso a la información de este estudiante.", 403),
 };

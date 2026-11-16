@@ -1,5 +1,6 @@
 // comunidad: interfaz pública (usuarios y administradores RF46, docentes US13, búsqueda de personas por DNI D-07,
-// apoderados US15, estudiantes US17 y sus vínculos, y edición y baja de personas US69).
+// apoderados US15, estudiantes US17 y sus vínculos, edición y baja de personas US69 y acceso del alumno al portal
+// US49).
 export { listarUsuarios, resumenUsuarios, registrarAdministrador, type UsuarioListado } from "./application/usuarios";
 export { perfilesProviderComunidad } from "./infrastructure/perfilesProvider";
 export * as esquemasComunidad from "./schemas";
@@ -27,6 +28,12 @@ export {
   type DatosEstudiante,
 } from "./application/estudiantes";
 export { vincularApoderado, type DatosVinculo } from "./application/vinculos";
+export {
+  crearAccesoAlumno,
+  estudianteDePersona,
+  type DatosAccesoAlumno,
+  type EstudianteEnSesion,
+} from "./application/accesoAlumno";
 export {
   estudianteParaMatricula,
   estudianteParaFicha,

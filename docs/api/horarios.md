@@ -1,7 +1,7 @@
-# API · Horarios: cuadrícula por sección, asignación de clases, cruces y publicación (US27–US31)
+# API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31) y horario en los portales (US34, US48, US50)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/admin/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/admin/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http). El horario en los portales del docente, del apoderado y del alumno (DO-02, AP-05, AL-02) está en [frontend-portales-horario.md](../frontend-portales-horario.md), con sus casos en [pruebas/casos-sprint3-portales-horario.md](../pruebas/casos-sprint3-portales-horario.md).
 
 La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
@@ -21,9 +21,11 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 | `DELETE /horarios/secciones/{id}/clases/{dia}/{bloqueId}` | Administrador | — | `Cuadricula` con el bloque vacío |
 | `POST /horarios/secciones/{id}/borrador` | Administrador | — | `201 Cuadricula` del borrador (nuevo o el que ya existía) |
 | `POST /horarios/secciones/{id}/publicar` | Administrador | — | `Cuadricula` publicada + `aviso: { docentes, enviados }` |
-| `GET /horarios/secciones/{id}/publicado` | Administrador, Docente | — | `HorarioDeSeccion`: solo la versión publicada |
+| `GET /horarios/secciones/{id}/publicado` | Administrador | — | `HorarioDeSeccion`: solo la versión publicada |
 | `GET /horarios/docentes/{id}/publicado?anioId=` | Administrador | — | `HorarioDeDocente` |
-| `GET /horarios/mi-horario?anioId=` | Docente | — | `HorarioDeDocente` del docente en sesión |
+| `GET /horarios/mi-horario?anioId=` | Docente | — | `HorarioDeDocente` del docente en sesión (US34) |
+| `GET /horarios/apoderado/hijos/{id}/horario` | Apoderado | — | `HorarioDeEstudiante` del hijo, si está vinculado (US48) |
+| `GET /horarios/alumno/horario` | Alumno | — | `HorarioDeEstudiante` del alumno en sesión (US50) |
 
 `{dia}` es `LUNES`, `MARTES`, `MIERCOLES`, `JUEVES` o `VIERNES`.
 
@@ -41,7 +43,8 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - `Clase`: `{ id, dia, bloqueId, curso: { id, codigo, nombre }, docente: { id, nombreCompleto, nombreCorto }, aula: { id, nombre }, seccion: { id, etiqueta }, asignacionActiva }`. `asignacionActiva` es `false` si, después de armar el horario, el docente dejó de tener asignado el curso.
 - `Ocupacion`: `{ docentes: [{ docenteId, seccion }], aulas: [{ aulaId, seccion }] }`. Es una ayuda para el modal («Ocupado · 4° A»); la validación definitiva ocurre al guardar.
 - `HorarioDeSeccion`: `{ seccion, dias, bloques, horario, clases }`. Si la sección no tiene un horario publicado, `horario` es `null` y `clases` está vacío. Nunca incluye el borrador.
-- `HorarioDeDocente`: `{ docente: { id, nombreCompleto }, anio: { id, anio } | null, dias, bloques, clases }`: las clases del docente en los horarios **publicados** de las secciones del año, cada una con su `seccion` y su `aula`. Sin `anioId` usa el año por defecto (el `EN_CURSO`; si no, el `EN_MATRICULA`; si no, el abierto más reciente); sin años abiertos, `anio` es `null`.
+- `HorarioDeDocente`: `{ docente: { id, nombreCompleto }, anio: { id, anio } | null, dias, bloques, clases }`: las clases del docente en los horarios **publicados** de las secciones del año, cada una con su `seccion` y su `aula`. Sin `anioId` usa el año por defecto (el `EN_CURSO`; si no, el `EN_MATRICULA`; si no, el abierto más reciente); sin años abiertos, `anio` es `null`. `resumen` es `{ bloques, secciones }`: los bloques con clase en la semana y las etiquetas de las secciones en las que dicta («2° A», «3° B»), sin repetir.
+- `HorarioDeEstudiante`: `{ estudiante: { estudianteId, nombres, nombreCompleto }, seccion, dias, bloques, horario, clases }`. Es el `HorarioDeSeccion` de la sección en la que el estudiante está matriculado. `horario` es `null` (y `clases`, vacío) si la sección aún no publica su horario; `seccion` es `null` si el estudiante no tiene una sección con matrícula vigente.
 
 ## Reglas
 
@@ -73,7 +76,15 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - Después de confirmar la transacción se avisa **por correo** a los docentes con clases en la versión publicada («Kubo · Horario de 5° A publicado» o «… actualizado»). Si el correo falla, la publicación **no** se revierte: `aviso.enviados` indica cuántos salieron. La notificación dentro de la aplicación llega con US55.
 - Sin borrador no hay nada que publicar: `409 SIN_CAMBIOS_POR_PUBLICAR`.
 
-**Para otros módulos (portales, bloque 4).** `horarioPublicadoDeSeccion(seccionId)`, `horarioPublicadoDeDocente(docenteId, anioId?)` y `miHorarioDocente(sesion, anioId?)` se exportan desde `@/modules/horarios`. El horario del alumno y del apoderado usará `horarioPublicadoDeSeccion` con la sección de la matrícula; su endpoint y su control de acceso llegan con esas pantallas.
+**Horario en los portales (US34, US48, US50)**
+
+- Los tres portales leen **solo la versión `PUBLICADO` vigente** con las mismas consultas del bloque 3 (`horarioPublicadoDeSeccion` y `horarioPublicadoDeDocente`). El borrador en edición nunca se muestra. Cuando se publica una versión nueva, la siguiente consulta ya la devuelve: el usuario no hace nada más (la pantalla, además, vuelve a consultar al recuperar el foco).
+- **Nadie elige la sección.** El docente y el alumno salen de la sesión; el apoderado envía el `{id}` de su hijo y el servidor comprueba el vínculo. Ningún endpoint de portal recibe un id de sección ni de docente.
+  - `GET /horarios/mi-horario` (US34): clases del docente en sesión en **todas sus secciones publicadas** del año, cada una con `curso`, `seccion` y `aula`. Sin clases publicadas responde `200` con `clases: []` y `resumen: { bloques: 0, secciones: [] }`; la pantalla muestra «Aún no tienes cursos asignados para este periodo».
+  - `GET /horarios/apoderado/hijos/{id}/horario` (US48): horario de la sección del hijo, con `curso`, `aula` y `docente` en cada clase. El hijo debe estar entre los estudiantes vinculados a la persona en sesión, con la misma regla del portal de pagos (`403 ESTUDIANTE_NO_VINCULADO` si no; ver [matricula.md](matricula.md#portal-del-apoderado-us42-us43-us44)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado por la institución». Un hijo retirado se sigue viendo en el portal, pero sin sección: `seccion: null`.
+  - `GET /horarios/alumno/horario` (US50): horario de la sección de la **matrícula vigente** del alumno en sesión. Sin matrícula vigente: `403 SIN_MATRICULA_VIGENTE` (ver [matricula.md](matricula.md#portal-del-alumno-us49)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado».
+- `GET /horarios/secciones/{id}/publicado` quedó **solo para el Administrador**. En el bloque 3 también lo podía llamar cualquier docente con el id de cualquier sección; ahora cada perfil ve únicamente su horario por su propio endpoint.
+- Con otro perfil, cada endpoint responde `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.»; sin sesión, `401 NO_AUTENTICADO`.
 
 ## Códigos de error
 
@@ -96,7 +107,9 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 | `CLASES_SIN_DOCENTE_VIGENTE` | 422 | Hay clases cuyo docente ya no tiene asignado el curso (`details.clases`) |
 | `PLAN_SIN_CURSOS` | 422 | El grado de la sección no tiene cursos en su plan de estudios |
 | `JORNADA_NO_CONFIGURADA` | 422 | Falta el parámetro `BLOQUES_HORARIO` o no es válido (lo carga la migración `jornada_por_defecto`; en local, también el seed) |
-| `ACCESO_DENEGADO` | 403 | Rol sin permiso, o `mi-horario` con un usuario sin perfil de docente |
+| `ACCESO_DENEGADO` | 403 | «No tiene permisos para acceder a este recurso.»: rol sin permiso, o `mi-horario` con un usuario sin perfil de docente |
+| `ESTUDIANTE_NO_VINCULADO` | 403 | El apoderado pide el horario de un estudiante que no es su hijo (US48) |
+| `SIN_MATRICULA_VIGENTE` | 403 | El alumno en sesión no tiene una matrícula vigente (US50) |
 
 ## Auditoría (RF03)
 
@@ -115,4 +128,5 @@ La bitácora guarda identificadores y el código del curso, no nombres de person
 - `horarios` es dueño de `bloque_horario`, `horario` y `detalle_horario`.
 - De `academico` usa, por su `index.ts`: `seccionParaHorario`, `planDeSeccion` (cursos del plan con sus horas y la asignación docente activa), `asignacionesDeClases`, `aulasPorId`, `listarAnios` y `anioPorDefecto`.
 - De `comunidad`: `docentesProviderComunidad` (nombres) y `contactosDeDocentes` (correos para el aviso).
+- De `matricula` (portales): `matriculaVigenteDelAlumno(sesion)` y `seccionDelHijo(sesion, estudianteId)`, que resuelven la sección y aplican el control de acceso. `horarios` queda por encima de `matricula`; `matricula` no conoce a `horarios`.
 - `academico` sigue consultando a `horarios` por el puerto `HorariosProvider` (US10 y US14: un curso o una asignación con horario no se elimina).

@@ -118,7 +118,8 @@ export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf"
 export function inicioPorRol(rol: Rol): string {
   if (rol === "ADMINISTRADOR") return "/admin/usuarios";
   if (rol === "APODERADO") return "/apoderado";
-  return "/inicio";
+  if (rol === "DOCENTE") return "/docente";
+  return "/alumno";
 }
 
 export const NOMBRE_ROL: Record<Rol, string> = {

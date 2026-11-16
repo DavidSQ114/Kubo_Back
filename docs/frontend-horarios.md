@@ -67,5 +67,5 @@ No se agregaron íconos: se usan los de `public/figma` (`nav-grid-gris`, `icon-p
 ## Pendiente
 
 - Vistas «Ver por docente» y «Ver por aula», e «Importar CSV» (AD-17).
-- «Mi horario» del docente (DO-02) y del alumno (AL-02): bloque 4. La API ya ofrece el horario publicado por sección y por docente.
+- «Mi horario» del docente (DO-02), del alumno (AL-02) y el horario del apoderado (AP-05) llegaron en el bloque 4: ver [frontend-portales-horario.md](frontend-portales-horario.md).
 - Editar el catálogo de bloques horarios desde la aplicación.
