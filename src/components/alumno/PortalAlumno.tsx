@@ -1,6 +1,5 @@
-// Portal del Alumno (AL-01 · US49): panel simplificado con «Inicio», «Mis cursos», «Mi horario» y «Mi asistencia»
-// (US52); «Mis notas» se muestra como «Próximamente» hasta que exista su módulo. Es la guardia de las páginas /alumno:
-// exige sesión con perfil ALUMNO (RF04) y una matrícula vigente, que el servidor comprueba en cada consulta.
+// Portal del Alumno (AL-01 · US49): panel simplificado con «Inicio», «Mis cursos», «Mi horario», «Mis notas» (US51) y
+// «Mi asistencia» (US52). Es la guardia de las páginas /alumno: exige sesión con perfil ALUMNO (RF04) y una matrícula vigente, que el servidor comprueba en cada consulta.
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
@@ -40,7 +39,7 @@ const NAVEGACION: ItemNav[] = [
   { texto: "Inicio", icono: "nav-home", href: "/alumno" },
   { texto: "Mis cursos", icono: "nav-book", href: "/alumno/cursos" },
   { texto: "Mi horario", icono: "nav-grid", href: "/alumno/horario" },
-  { texto: "Mis notas", icono: "nav-award" },
+  { texto: "Mis notas", icono: "nav-award", href: "/alumno/notas" },
   { texto: "Mi asistencia", icono: "nav-usercheck", href: "/alumno/asistencia" },
 ];
 

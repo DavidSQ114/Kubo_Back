@@ -1,6 +1,6 @@
-// Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos», «Horario» (US48) y los módulos que llegarán
-// después, barra superior con el estudiante consultado y «Cambiar de hijo» (AP-01, AP-02) y la selección de hijo
-// (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
+// Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos», «Horario» (US48), «Notas» (US46) y
+// «Asistencia» (US45), barra superior con el estudiante consultado y «Cambiar de hijo» (AP-01, AP-02) y la selección
+// de hijo (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
 // También es la guardia de las páginas /apoderado: exige sesión con perfil APODERADO (RF04). Lo que ve cada hijo lo
 // autoriza el servidor en cada consulta; aquí solo se recuerda cuál se eligió.
 "use client";
@@ -186,7 +186,7 @@ const NAVEGACION: ItemNav[] = [
   { texto: "Inicio", icono: "nav-home", href: "/apoderado" },
   { texto: "Pagos", icono: "nav-wallet", href: "/apoderado/pagos" },
   { texto: "Horario", icono: "nav-grid", href: "/apoderado/horario" },
-  { texto: "Notas", icono: "nav-award" },
+  { texto: "Notas", icono: "nav-award", href: "/apoderado/notas" },
   { texto: "Asistencia", icono: "nav-usercheck", href: "/apoderado/asistencia" },
 ];
 
