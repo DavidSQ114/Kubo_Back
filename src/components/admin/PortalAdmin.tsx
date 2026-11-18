@@ -1,10 +1,12 @@
-// Estructura del portal del Administrador: barra lateral (Sidebar / admin) + barra superior, según AD-06.
+// Estructura del portal del Administrador: barra lateral (Sidebar / admin) + barra superior con la campana de
+// notificaciones (US55, M-11), según AD-06.
 // También es la guardia de las páginas /admin: exige sesión válida con perfil ADMINISTRADOR (RF04).
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { CampanaNotificaciones } from "@/components/portal/notificaciones";
 import { Badge, Icono, Spinner } from "@/components/ui";
 import {
   api,
@@ -320,14 +322,7 @@ function BarraSuperior() {
       </form>
       <div className="flex-1" />
       <InsigniaAnio />
-      <button
-        type="button"
-        aria-label="Notificaciones"
-        title="Notificaciones · disponible próximamente"
-        className="size-10 shrink-0"
-      >
-        <Icono nombre="btn-notificaciones" size={40} />
-      </button>
+      <CampanaNotificaciones />
     </header>
   );
 }
