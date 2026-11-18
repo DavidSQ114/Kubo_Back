@@ -7,17 +7,19 @@ import { Selector, type Aula } from "@/components/admin/grados";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Icono, Modal, Tarjeta } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import {
+  lineasRechazo,
+  listaBloques,
+  NOMBRE_DIA,
+  textoAvanceCurso,
+  textoBloque,
+  type DetallesRechazo,
+  type DiaHorario,
+} from "@/lib/horarios";
 
-export type Dia = "LUNES" | "MARTES" | "MIERCOLES" | "JUEVES" | "VIERNES";
+export { NOMBRE_DIA, textoBloque };
+export type Dia = DiaHorario;
 export type EstadoHorario = "BORRADOR" | "PUBLICADO" | "ARCHIVADO";
-
-export const NOMBRE_DIA: Record<Dia, string> = {
-  LUNES: "Lunes",
-  MARTES: "Martes",
-  MIERCOLES: "Miércoles",
-  JUEVES: "Jueves",
-  VIERNES: "Viernes",
-};
 
 export interface Bloque {
   id: string;
@@ -117,10 +119,6 @@ const NOMBRE_ESTADO: Record<EstadoHorario, string> = {
 const TONO_ESTADO = { BORRADOR: "ambar", PUBLICADO: "verde", ARCHIVADO: "gris" } as const;
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
-
-/** «Martes 12:35 – 13:20». */
-export const textoBloque = (b: { dia: Dia; horaInicio: string; horaFin: string }) =>
-  `${NOMBRE_DIA[b.dia]} ${b.horaInicio} – ${b.horaFin}`;
 
 /** «Borrador · versión 3», «Publicado · versión 2» o «Sin horario». */
 export function BadgeVersion({ horario }: { horario: Version | null }) {
@@ -285,9 +283,17 @@ function Validacion({ tono, titulo, detalle }: { tono: "ok" | "aviso" | "error";
 
 /** «Validaciones»: lo que el sistema ya garantiza al guardar y lo que falta para publicar (US29, US30, US31). */
 export function PanelValidaciones({ cuadricula }: { cuadricula: Cuadricula }) {
+  // mismos datos que el banner del rechazo: cursos con asignados y horas, y las clases sin docente vigente
   const faltan = cuadricula.pendientes.cursos.reduce((total, c) => total + c.faltan, 0);
   const excedidos = cuadricula.plan.filter((c) => c.sobran > 0);
-  const sinDocente = cuadricula.clases.filter((c) => !c.asignacionActiva).length;
+  const horas = new Map(cuadricula.bloques.map((b) => [b.id, b]));
+  const sinDocente = cuadricula.clases
+    .filter((c) => !c.asignacionActiva)
+    .map((c) => ({
+      dia: c.dia,
+      horaInicio: horas.get(c.bloqueId)?.horaInicio ?? "",
+      horaFin: horas.get(c.bloqueId)?.horaFin ?? "",
+    }));
   return (
     <Tarjeta className="flex flex-col gap-4 p-6">
       <h2 className="text-[18px] font-semibold leading-[1.3] text-texto">Validaciones</h2>
@@ -302,11 +308,11 @@ export function PanelValidaciones({ cuadricula }: { cuadricula: Cuadricula }) {
           titulo="Sin cruces de aula"
           detalle="Ningún aula tiene dos secciones en el mismo bloque: el sistema lo impide al guardar."
         />
-        {sinDocente > 0 ? (
+        {sinDocente.length > 0 ? (
           <Validacion
             tono="error"
-            titulo={`${plural(sinDocente, "clase", "clases")} con un docente que ya no tiene el curso`}
-            detalle="Vuelve a asignarlas antes de publicar."
+            titulo={`${plural(sinDocente.length, "clase", "clases")} con un docente que ya no tiene el curso`}
+            detalle={`Vuelve a asignarlas antes de publicar: ${listaBloques(sinDocente)}.`}
           />
         ) : (
           <Validacion
@@ -319,14 +325,14 @@ export function PanelValidaciones({ cuadricula }: { cuadricula: Cuadricula }) {
           <Validacion
             tono="aviso"
             titulo={`${plural(faltan, "bloque", "bloques")} sin asignar`}
-            detalle="Complétalos antes de publicar."
+            detalle={`${cuadricula.pendientes.cursos.map(textoAvanceCurso).join(" · ")}. Complétalos antes de publicar.`}
           />
         )}
         {excedidos.length > 0 && (
           <Validacion
             tono="aviso"
             titulo="Cursos con bloques de más"
-            detalle={excedidos.map((c) => `${c.nombre} (${c.asignados} de ${c.horasSemanales})`).join(" · ")}
+            detalle={excedidos.map(textoAvanceCurso).join(" · ")}
           />
         )}
         {faltan === 0 && excedidos.length === 0 && cuadricula.plan.length > 0 && (
@@ -387,25 +393,16 @@ export function PanelCursos({ cuadricula }: { cuadricula: Cuadricula }) {
   );
 }
 
-/** «No se puede publicar: existen bloques horarios sin asignar» con los cursos y los bloques pendientes (US31). */
-export function AlertaPendientes({ mensaje, pendientes }: { mensaje: string; pendientes: Partial<Pendientes> }) {
-  const MAXIMO_BLOQUES = 8;
-  const libres = pendientes.bloquesLibres ?? [];
+/**
+ * Banner del rechazo al publicar (US31) con su detalle: cursos con bloques de menos o de más, bloques libres y
+ * clases cuyo docente ya no tiene el curso.
+ */
+export function AlertaPendientes({ mensaje, detalles }: { mensaje: string; detalles: DetallesRechazo }) {
   return (
     <Alerta tipo="error" titulo={mensaje}>
-      {pendientes.cursos && pendientes.cursos.length > 0 && (
-        <p>
-          {pendientes.cursos
-            .map((c) => `${c.nombre}: ${c.faltan === 1 ? "falta 1 bloque" : `faltan ${c.faltan} bloques`}`)
-            .join(" · ")}
-        </p>
-      )}
-      {libres.length > 0 && (
-        <p>
-          Bloques libres: {libres.slice(0, MAXIMO_BLOQUES).map(textoBloque).join(" · ")}
-          {libres.length > MAXIMO_BLOQUES && ` · y ${libres.length - MAXIMO_BLOQUES} más`}
-        </p>
-      )}
+      {lineasRechazo(detalles).map((linea) => (
+        <p key={linea}>{linea}</p>
+      ))}
     </Alerta>
   );
 }

@@ -16,11 +16,11 @@ import {
   type Celda,
   type Cuadricula,
   type CuadriculaPublicada,
-  type Pendientes,
 } from "@/components/admin/horarios";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api, type ApiError } from "@/lib/api";
+import type { DetallesRechazo } from "@/lib/horarios";
 
 type Carga<T> = { fase: "cargando" } | { fase: "error"; mensaje: string } | { fase: "lista"; datos: T };
 
@@ -194,7 +194,7 @@ function Vacio({ titulo, children }: { titulo: string; children: React.ReactNode
 
 interface Rechazo {
   mensaje: string;
-  pendientes: Partial<Pendientes>;
+  detalles: DetallesRechazo;
 }
 
 /** Cuadrícula de una sección con su versión, sus avisos y sus modales. Al cambiar de sección, el padre cambia la key. */
@@ -264,7 +264,7 @@ function EditorHorario({ seccionId, aulas }: { seccionId: string; aulas: Aula[] 
 
   function rechazado(e: ApiError) {
     setPublicando(false);
-    setRechazo({ mensaje: e.message, pendientes: e.detalles as Partial<Pendientes> });
+    setRechazo({ mensaje: e.message, detalles: e.detalles as DetallesRechazo });
   }
 
   const carga: Carga<Cuadricula> = estado?.clave === clave ? estado.carga : { fase: "cargando" };
@@ -333,7 +333,7 @@ function EditorHorario({ seccionId, aulas }: { seccionId: string; aulas: Aula[] 
 
       {aviso && <Alerta tipo="exito" icono="icon-check-verde" titulo={aviso} />}
       {error && <Alerta tipo="error" titulo={error} />}
-      {rechazo && <AlertaPendientes mensaje={rechazo.mensaje} pendientes={rechazo.pendientes} />}
+      {rechazo && <AlertaPendientes mensaje={rechazo.mensaje} detalles={rechazo.detalles} />}
       {c.motivoSoloLectura && (
         <Alerta tipo="aviso" titulo={c.motivoSoloLectura}>
           El horario se muestra solo para consulta.
