@@ -83,6 +83,20 @@ export const matriculas = {
     return m && fila(m);
   },
 
+  /** La matrícula más reciente del estudiante en el año, en cualquier estado (datos de demostración). */
+  async ultimaDelAnio(estudianteId: string, anioAcademicoId: string, db: Db = prisma): Promise<MatriculaFila | null> {
+    const m = await db.matricula.findFirst({
+      where: { estudianteId, anioAcademicoId },
+      orderBy: { createdAt: "desc" },
+      select: selectMatricula,
+    });
+    return m && fila(m);
+  },
+
+  /** Solo para los datos de demostración de morosidad (scripts/demoMorosidad.ts). */
+  cambiarFechaMatricula: (id: string, fechaMatricula: string, tx: Tx) =>
+    tx.matricula.update({ where: { id }, data: { fechaMatricula: aFecha(fechaMatricula) }, select: { id: true } }),
+
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM matricula WHERE id = ${id}::uuid FOR UPDATE`;
   },
@@ -278,3 +292,7 @@ export const cuotas = {
 /** Pagos no anulados aplicados a las cuotas de la matrícula: con alguno, la matrícula no se anula. */
 export const contarPagosVigentes = (matriculaId: string, db: Db = prisma) =>
   db.pago.count({ where: { conceptoCobro: { matriculaId }, operacionPago: { estado: { not: "ANULADO" } } } });
+
+/** Todos los pagos aplicados a las cuotas de la matrícula, también los anulados (datos de demostración). */
+export const contarPagos = (matriculaId: string, db: Db = prisma) =>
+  db.pago.count({ where: { conceptoCobro: { matriculaId } } });

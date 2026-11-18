@@ -1,7 +1,9 @@
 // matricula/schemas: validación de entradas (RNF16) de la matrícula en sección (US18), su anulación (M-19), el
-// traslado de sección (US19), el retiro (US57), los pagos (US22, US23, US04) y los recordatorios de pago (US59).
+// traslado de sección (US19), el retiro (US57), los pagos (US22, US23, US04), los recordatorios de pago (US59) y los
+// argumentos del script de datos de demostración de morosidad.
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
+import { FECHA_DEMO_POR_DEFECTO } from "./domain/demoMorosidad";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { MAXIMO_RECORDATORIOS } from "./domain/recordatorios";
@@ -158,4 +160,13 @@ export const AvisoPasarelaSchema = z.object({
 
 export const DevolucionSchema = z.object({
   detalle: z.string().trim().max(300, "Observación demasiado larga").nullable().optional(),
+});
+
+/** Argumentos de npm run demo:morosidad (scripts/demoMorosidad.ts): --dni <8 dígitos> [--desde AAAA-MM-DD]. */
+export const DemoMorosidadSchema = z.object({
+  dni: z
+    .string({ message: "Indica el DNI del estudiante con --dni" })
+    .trim()
+    .regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
+  desde: fecha("La fecha --desde debe tener el formato AAAA-MM-DD").default(FECHA_DEMO_POR_DEFECTO),
 });

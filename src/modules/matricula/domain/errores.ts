@@ -204,4 +204,33 @@ export const erroresMatricula = {
     ),
   estudianteNoVinculado: () =>
     new ErrorApp("ESTUDIANTE_NO_VINCULADO", "No tienes acceso a la información de este estudiante.", 403),
+
+  // ---------- Datos de demostración de morosidad (scripts/demoMorosidad.ts) ----------
+  demoSinAnioEnCurso: () => new ErrorApp("DEMO_SIN_ANIO_EN_CURSO", "No hay un año académico en curso.", 422),
+  demoPersonaNoEncontrada: () => new ErrorApp("DEMO_PERSONA_NO_ENCONTRADA", "No hay ninguna persona con ese DNI.", 404),
+  demoNoEsEstudiante: () =>
+    new ErrorApp("DEMO_NO_ES_ESTUDIANTE", "La persona con ese DNI no es un estudiante activo.", 422),
+  demoSinMatricula: (anio: number) =>
+    new ErrorApp("DEMO_SIN_MATRICULA", `El estudiante no tiene una matrícula en proceso ni vigente en ${anio}.`, 422),
+  demoMatriculaNoVigente: (estado: "RETIRADO" | "ANULADO") =>
+    new ErrorApp(
+      "DEMO_MATRICULA_NO_VIGENTE",
+      `La matrícula del estudiante está ${estado === "RETIRADO" ? "retirada" : "anulada"}: no se modifica.`,
+      422,
+    ),
+  demoCuotasConPagos: (pagos: number) =>
+    new ErrorApp(
+      "DEMO_CUOTAS_CON_PAGOS",
+      "Alguna cuota de la matrícula ya tiene pagos: no se modifica su cronograma.",
+      409,
+      { pagos },
+    ),
+  demoFechaFueraDelAnio: (anio: number) =>
+    new ErrorApp("DEMO_FECHA_FUERA_DEL_ANIO", `La fecha --desde debe ser del año ${anio}.`, 422),
+  demoFechaPosterior: (fechaMatricula: string) =>
+    new ErrorApp(
+      "DEMO_FECHA_POSTERIOR",
+      `La fecha --desde no puede ser posterior a la fecha de matrícula actual (${fechaMatricula}).`,
+      422,
+    ),
 };

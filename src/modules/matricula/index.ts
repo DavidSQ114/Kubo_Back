@@ -3,7 +3,8 @@
 // US43, US44), portal del alumno (US49: matrícula vigente, panel y «Mis cursos»), sección del hijo para su horario
 // (US48), su matrícula para la asistencia (US45) y la libreta (US46), la restricción de la libreta por deuda (US26),
 // pago en línea y conciliación (US70, US71), recordatorios de pago a apoderados morosos (US59), sección en una fecha,
-// datos de las matrículas de una lista de asistencia (US35) y los puertos
+// datos de las matrículas de una lista de asistencia (US35), los datos de demostración de morosidad
+// (scripts/demoMorosidad.ts) y los puertos
 // que usan académico (vacantes, US08) y comunidad (matrícula «En proceso» del registro de estudiantes, US17).
 export { matriculasProviderMatricula } from "./infrastructure/matriculasProvider";
 export { matriculaBorradorProviderMatricula } from "./infrastructure/matriculaBorradorProvider";
@@ -82,4 +83,5 @@ export {
   type ResultadoAviso,
   type ResumenConciliacion,
 } from "./application/pasarela";
+export { prepararDemoMorosidad, type ResultadoDemoMorosidad } from "./application/demoMorosidad";
 export * as esquemasMatricula from "./schemas";
