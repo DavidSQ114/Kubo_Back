@@ -1,12 +1,13 @@
-// AD-15 · Notas y rectificaciones · Administrador (US39, criterio 4): registros cerrados por los docentes por año,
-// bimestre y grado, con «Ver» (el registro en solo lectura) y «Publicar» o «Publicar seleccionados». Publicar pasa el
-// registro a PUBLICADO: desde ese momento el apoderado y el alumno ven sus notas, y se avisa por correo a los
-// apoderados. Las solicitudes de rectificación (US41) no son de esta entrega.
+// AD-15 · Notas y rectificaciones · Administrador (US39, criterio 4; US41): registros cerrados por los docentes por
+// año, bimestre y grado, con «Ver» (el registro en solo lectura) y «Publicar» o «Publicar seleccionados». Publicar pasa
+// el registro a PUBLICADO: desde ese momento el apoderado y el alumno ven sus notas, y se avisa por correo a los
+// apoderados. La pestaña «Solicitudes de rectificación» es la bandeja para aprobar o rechazar las de los docentes.
 "use client";
 
 import { useEffect, useState } from "react";
 import { Selector } from "@/components/admin/grados";
 import { alertaError } from "@/components/admin/PortalAdmin";
+import { BandejaRectificaciones } from "@/components/admin/rectificaciones";
 import { GrillaNotas, LeyendaLogros, type RegistroDeNotas } from "@/components/docente/notas";
 import { Alerta, Badge, Boton, Icono, Modal, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -42,7 +43,8 @@ interface NotasPublicadas {
   aviso: { apoderados: number; enviados: number };
 }
 
-type Pestana = "porPublicar" | "publicados";
+type Pestana = "porPublicar" | "rectificaciones" | "publicados";
+type PestanaRegistros = Exclude<Pestana, "rectificaciones">;
 
 interface Filtros {
   anioId: string;
@@ -64,6 +66,8 @@ export default function NotasAdminPage() {
   const [publicando, setPublicando] = useState(false);
   const [resultado, setResultado] = useState<NotasPublicadas | null>(null);
   const [viendo, setViendo] = useState<RegistroPublicable | null>(null);
+  const [pendientes, setPendientes] = useState<number | null>(null);
+  const [intentoPendientes, setIntentoPendientes] = useState(0);
 
   useEffect(() => {
     let vigente = true;
@@ -79,11 +83,22 @@ export default function NotasAdminPage() {
     };
   }, [filtros, intento]);
 
+  // número de solicitudes pendientes para la pestaña (la bandeja avisa cuando cambia)
+  useEffect(() => {
+    let vigente = true;
+    api<{ pendientes: number }>("/evaluacion/rectificaciones?estado=PENDIENTES&tamano=1")
+      .then((d) => vigente && setPendientes(d.pendientes))
+      .catch(() => vigente && setPendientes(null));
+    return () => {
+      vigente = false;
+    };
+  }, [intentoPendientes]);
+
   const cambiar = (c: Partial<Filtros>) => {
     setSeleccion(new Set());
     setFiltros((f) => ({ ...f, ...c }));
   };
-  const lista = datos ? datos[pestana] : [];
+  const lista = datos && pestana !== "rectificaciones" ? datos[pestana] : [];
   const elegidos = datos ? datos.porPublicar.filter((r) => seleccion.has(r.cierreId)) : [];
 
   async function publicar(registros: RegistroPublicable[]) {
@@ -113,7 +128,8 @@ export default function NotasAdminPage() {
         <p className="text-[13px] text-texto-3">Académico / Notas y rectificaciones</p>
         <h1 className="text-[28px] font-semibold text-texto">Notas y rectificaciones</h1>
         <p className="text-[15px] text-texto-2">
-          Revisa los registros consolidados por los docentes y publícalos para los apoderados y los alumnos.
+          Revisa los registros consolidados por los docentes, publícalos para los apoderados y los alumnos y atiende las
+          solicitudes de rectificación.
         </p>
       </div>
 
@@ -121,6 +137,7 @@ export default function NotasAdminPage() {
         {(
           [
             ["porPublicar", "Registros por publicar"],
+            ["rectificaciones", "Solicitudes de rectificación"],
             ["publicados", "Publicados"],
           ] as const
         ).map(([clave, texto]) => (
@@ -135,13 +152,22 @@ export default function NotasAdminPage() {
             }}
             className={`-mb-px border-b-2 py-2.5 text-[15px] ${pestana === clave ? "border-kubo-azul font-semibold text-kubo-azul" : "border-transparent text-texto-2 hover:text-texto"}`}
           >
-            {texto} {datos ? `(${datos[clave].length})` : ""}
+            {texto}{" "}
+            {clave === "rectificaciones"
+              ? pendientes !== null
+                ? `(${pendientes})`
+                : ""
+              : datos
+                ? `(${datos[clave].length})`
+                : ""}
           </button>
         ))}
       </div>
 
-      {error && <Alerta tipo="error" titulo={error} />}
-      {resultado && (
+      {pestana === "rectificaciones" && <BandejaRectificaciones onCambio={() => setIntentoPendientes((n) => n + 1)} />}
+
+      {pestana !== "rectificaciones" && error && <Alerta tipo="error" titulo={error} />}
+      {pestana !== "rectificaciones" && resultado && (
         <Alerta tipo="exito" titulo="Notas publicadas.">
           {`Se ${resultado.publicados.length === 1 ? "publicó" : "publicaron"} ${cantidad(resultado.publicados.length, "registro", "registros")}: los apoderados y los alumnos ya ven esas notas. `}
           {resultado.aviso.apoderados === 0
@@ -152,75 +178,77 @@ export default function NotasAdminPage() {
         </Alerta>
       )}
 
-      <Tarjeta className="flex flex-col gap-4 p-6">
-        {!datos && !error && (
-          <div className="flex items-center gap-3 text-[14px] text-texto-2">
-            <Spinner claro={false} /> Cargando…
-          </div>
-        )}
-        {datos && !datos.anio && <Alerta tipo="info" titulo="Todavía no hay años académicos registrados." />}
-        {datos?.anio && (
-          <>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="w-32">
-                <Selector
-                  etiqueta="Año"
-                  valor={datos.anio.id}
-                  onCambiar={(v) => cambiar({ anioId: v, periodoId: "", gradoId: "" })}
-                >
-                  {datos.anios.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.anio}
-                    </option>
-                  ))}
-                </Selector>
-              </div>
-              <div className="w-44">
-                <Selector etiqueta="Bimestre" valor={filtros.periodoId} onCambiar={(v) => cambiar({ periodoId: v })}>
-                  <option value="">Todos</option>
-                  {datos.bimestres.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.nombre}
-                    </option>
-                  ))}
-                </Selector>
-              </div>
-              <div className="w-52">
-                <Selector etiqueta="Grado" valor={filtros.gradoId} onCambiar={(v) => cambiar({ gradoId: v })}>
-                  <option value="">Todos los grados</option>
-                  {datos.grados.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.nombre}
-                    </option>
-                  ))}
-                </Selector>
-              </div>
-              {pestana === "porPublicar" && (
-                <Boton
-                  className="ml-auto"
-                  icono="icon-send"
-                  disabled={elegidos.length === 0}
-                  onClick={() => setConfirmar(elegidos)}
-                >
-                  Publicar seleccionados ({elegidos.length})
-                </Boton>
-              )}
+      {pestana !== "rectificaciones" && (
+        <Tarjeta className="flex flex-col gap-4 p-6">
+          {!datos && !error && (
+            <div className="flex items-center gap-3 text-[14px] text-texto-2">
+              <Spinner claro={false} /> Cargando…
             </div>
-            <TablaRegistros
-              lista={lista}
-              pestana={pestana}
-              seleccion={seleccion}
-              onSeleccion={setSeleccion}
-              onVer={setViendo}
-              onPublicar={(r) => setConfirmar([r])}
-            />
-            <Alerta tipo="info">
-              Un registro «Cerrado» solo es visible para el docente y la administración hasta que lo publiques. Luego
-              aparece en la libreta del alumno y del apoderado, y sigue sin poder modificarse.
-            </Alerta>
-          </>
-        )}
-      </Tarjeta>
+          )}
+          {datos && !datos.anio && <Alerta tipo="info" titulo="Todavía no hay años académicos registrados." />}
+          {datos?.anio && (
+            <>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-32">
+                  <Selector
+                    etiqueta="Año"
+                    valor={datos.anio.id}
+                    onCambiar={(v) => cambiar({ anioId: v, periodoId: "", gradoId: "" })}
+                  >
+                    {datos.anios.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.anio}
+                      </option>
+                    ))}
+                  </Selector>
+                </div>
+                <div className="w-44">
+                  <Selector etiqueta="Bimestre" valor={filtros.periodoId} onCambiar={(v) => cambiar({ periodoId: v })}>
+                    <option value="">Todos</option>
+                    {datos.bimestres.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.nombre}
+                      </option>
+                    ))}
+                  </Selector>
+                </div>
+                <div className="w-52">
+                  <Selector etiqueta="Grado" valor={filtros.gradoId} onCambiar={(v) => cambiar({ gradoId: v })}>
+                    <option value="">Todos los grados</option>
+                    {datos.grados.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nombre}
+                      </option>
+                    ))}
+                  </Selector>
+                </div>
+                {pestana === "porPublicar" && (
+                  <Boton
+                    className="ml-auto"
+                    icono="icon-send"
+                    disabled={elegidos.length === 0}
+                    onClick={() => setConfirmar(elegidos)}
+                  >
+                    Publicar seleccionados ({elegidos.length})
+                  </Boton>
+                )}
+              </div>
+              <TablaRegistros
+                lista={lista}
+                pestana={pestana}
+                seleccion={seleccion}
+                onSeleccion={setSeleccion}
+                onVer={setViendo}
+                onPublicar={(r) => setConfirmar([r])}
+              />
+              <Alerta tipo="info">
+                Un registro «Cerrado» solo es visible para el docente y la administración hasta que lo publiques. Luego
+                aparece en la libreta del alumno y del apoderado, y sigue sin poder modificarse.
+              </Alerta>
+            </>
+          )}
+        </Tarjeta>
+      )}
 
       {viendo && <DetalleRegistro registro={viendo} onCerrar={() => setViendo(null)} />}
 
@@ -269,7 +297,7 @@ function TablaRegistros({
   onPublicar,
 }: {
   lista: RegistroPublicable[];
-  pestana: Pestana;
+  pestana: PestanaRegistros;
   seleccion: Set<string>;
   onSeleccion: (s: Set<string>) => void;
   onVer: (r: RegistroPublicable) => void;

@@ -1,6 +1,7 @@
-// DO-04 · Registro de notas · Docente (US37, US39, US40): el docente elige uno de sus cursos y secciones y un bimestre;
-// en el bimestre activo califica cada competencia con AD, A, B o C (puede guardar una parte y volver luego) y cierra el
-// registro (M-10). Un bimestre no activo o un registro cerrado se muestran en solo lectura con su mensaje.
+// DO-04 · Registro de notas · Docente (US37, US39, US40, US41): el docente elige uno de sus cursos y secciones y un
+// bimestre; en el bimestre activo califica cada competencia con AD, A, B o C (puede guardar una parte y volver luego) y
+// cierra el registro (M-10). Un bimestre no activo o un registro cerrado se muestran en solo lectura con su mensaje; en
+// uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado.
 "use client";
 
 import { useState } from "react";
@@ -22,6 +23,13 @@ import {
   type RegistroCerrado,
   type RegistroDeNotas,
 } from "@/components/docente/notas";
+import {
+  claveNota,
+  ModalSolicitarRectificacion,
+  SolicitudesDelRegistro,
+  type SolicitudCreada,
+  type SolicitudRectificacion,
+} from "@/components/docente/rectificaciones";
 import { EncabezadoPagina, mensajeError } from "@/components/portal";
 import {
   AsistenciaVacia,
@@ -86,6 +94,8 @@ function RegistroDelBimestre({
   onCambio: () => void;
 }) {
   const consulta = useConsulta<RegistroDeNotas>(`/evaluacion/registros/${asignacionId}/bimestres/${bimestreId}`);
+  const mias = useConsulta<SolicitudRectificacion[]>("/evaluacion/docente/rectificaciones");
+  const [rectificando, setRectificando] = useState(false);
   const [propio, setPropio] = useState<RegistroDeNotas | null>(null);
   const [ediciones, setEdiciones] = useState<Record<string, string>>({});
   const [invalidas, setInvalidas] = useState<Set<string>>(new Set());
@@ -199,8 +209,29 @@ function RegistroDelBimestre({
     }
   }
 
+  function solicitudEnviada({ solicitud, aviso }: SolicitudCreada) {
+    setRectificando(false);
+    mias.recargar();
+    setMensaje({
+      tipo: "exito",
+      titulo: "Solicitud de rectificación enviada.",
+      detalle:
+        `La nota de ${solicitud.estudiante} en ${solicitud.competencia.columna} quedó «${solicitud.nombreEstado}». ` +
+        (aviso.enviados > 0
+          ? `Se avisó por correo a ${aviso.enviados} de ${aviso.destinatarios} ${aviso.destinatarios === 1 ? "administrador" : "administradores"}.`
+          : "No se pudo enviar el aviso por correo; la solicitud quedó registrada igualmente."),
+    });
+  }
+
   const cerrado = r.estado !== "ABIERTO";
   const regla = r.regla ? `${r.regla.nombre} · versión ${r.regla.version}` : null;
+  const solicitudes =
+    mias.carga.fase === "listo"
+      ? mias.carga.datos.filter((s) => s.asignacionId === asignacionId && s.periodoId === bimestreId)
+      : [];
+  const pendientes = new Set(
+    solicitudes.filter((s) => s.pendiente).map((s) => claveNota(s.matriculaId, s.competencia.competenciaPlanId)),
+  );
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -238,6 +269,13 @@ function RegistroDelBimestre({
         <Alerta tipo="info" titulo={r.mensaje ?? undefined}>
           {r.cerradoEn && `Registro cerrado el ${diaYHora(r.cerradoEn)}${r.cerradoPor ? ` por ${r.cerradoPor}` : ""}. `}
           {r.correccion}
+          {r.alumnos.length > 0 && (
+            <div className="mt-3">
+              <Boton variante="secundario" icono="icon-comentario" onClick={() => setRectificando(true)}>
+                Solicitar rectificación
+              </Boton>
+            </div>
+          )}
         </Alerta>
       )}
       {r.motivoSoloLectura === "PERIODO_NO_ACTIVO" && (
@@ -265,8 +303,25 @@ function RegistroDelBimestre({
             )}
           </div>
         )}
+        {mias.carga.fase === "error" && (
+          <Alerta tipo="error" titulo="No pudimos cargar tus solicitudes de rectificación">
+            {mias.carga.mensaje}{" "}
+            <button type="button" onClick={mias.reintentar} className="font-semibold text-kubo-azul underline">
+              Reintentar
+            </button>
+          </Alerta>
+        )}
+        <SolicitudesDelRegistro solicitudes={solicitudes} />
       </Tarjeta>
 
+      {rectificando && (
+        <ModalSolicitarRectificacion
+          registro={r}
+          pendientes={pendientes}
+          onCerrar={() => setRectificando(false)}
+          onEnviada={solicitudEnviada}
+        />
+      )}
       {modal && (
         <ModalCerrarRegistro
           registro={r}
