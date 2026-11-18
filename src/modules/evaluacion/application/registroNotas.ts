@@ -311,6 +311,19 @@ async function armarRegistro(
   };
 }
 
+/**
+ * Registro cerrado o publicado de cualquier docente, en solo lectura, para que el Administrador lo revise antes de
+ * publicarlo (US39, criterio 4; AD-15 «Ver»). Un registro abierto no se muestra aquí: sus notas aún son provisionales.
+ */
+export async function registroDeCierre(cierreId: string, ahora: Date = new Date()): Promise<RegistroDeNotas> {
+  const cierre = await cierres.porId(cierreId);
+  if (!cierre || estadoDeRegistro(cierre) === "ABIERTO") throw E.registroNoEncontrado();
+  const asignacion = (await asignacionParaNotas(cierre.asignacionDocenteId))!;
+  const anio = (await listarAnios()).find((a) => a.id === asignacion.anio.id)!;
+  const bimestre = bimestresDe(anio, fechaEnLima(ahora)).find((b) => b.id === cierre.periodoEvaluacionId)!;
+  return armarRegistro(asignacion, bimestre, ahora);
+}
+
 // ---------- US37 · Mis registros y registro de notas ----------
 
 /**

@@ -58,3 +58,34 @@ export const GuardarNotasSchema = {
     throw r.error;
   },
 };
+
+// ---------- Publicación (US39) y libreta (US46, US51, US66) ----------
+
+const IdOpcional = z
+  .string()
+  .optional()
+  .transform((v) => (v ? v : undefined))
+  .pipe(IdSchema.optional());
+
+/** Query de GET /publicaciones: año (por defecto, el que está en curso), bimestre, grado, sección y curso. */
+export const FiltroPublicacionSchema = z.object({
+  anioId: IdOpcional,
+  periodoId: IdOpcional,
+  gradoId: IdOpcional,
+  seccionId: IdOpcional,
+  cursoId: IdOpcional,
+});
+
+/** Un año tiene unas 40 secciones por 10 cursos y 4 bimestres; 200 registros a la vez sobran. */
+const MAXIMO_REGISTROS_POR_PUBLICACION = 200;
+
+/** Cuerpo de POST /publicaciones: los registros cerrados que se publican («Publicar» o «Publicar seleccionados»). */
+export const PublicarNotasSchema = z.object({
+  cierreIds: z
+    .array(IdSchema, { message: "Envía la lista de registros" })
+    .min(1, "Elige al menos un registro para publicar")
+    .max(MAXIMO_REGISTROS_POR_PUBLICACION, "Publica como máximo 200 registros a la vez"),
+});
+
+/** Query de la libreta en PDF: el bimestre que se descarga. */
+export const LibretaPdfSchema = z.object({ periodoId: IdSchema });

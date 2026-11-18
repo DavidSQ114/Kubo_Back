@@ -1,5 +1,6 @@
 // evaluacion/infrastructure: consultas de cierre_calificacion, nota y resultado_consolidado (dueño: evaluacion) para
-// el registro de notas (US37), el cierre de bimestre (US39) y su bloqueo (US40).
+// el registro de notas (US37), el cierre y la publicación del bimestre (US39), su bloqueo (US40) y la libreta del
+// apoderado y del alumno (US46, US51), que solo lee notas de registros PUBLICADOS.
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -15,6 +16,7 @@ export interface CierreFila {
   estado: string;
   cerradoPorId: string | null;
   cerradoEn: Date | null;
+  publicadoPorId: string | null;
   publicadoEn: Date | null;
 }
 
@@ -26,6 +28,7 @@ const selectCierre = {
   estado: true,
   cerradoPorId: true,
   cerradoEn: true,
+  publicadoPorId: true,
   publicadoEn: true,
 } as const;
 
@@ -64,6 +67,23 @@ export const cierres = {
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM cierre_calificacion WHERE id = ${id}::uuid FOR UPDATE`;
   },
+
+  /** Registros CERRADOS y PUBLICADOS de los bimestres de un año (publicación de notas, AD-15). */
+  cerradosDelAnio: (anioAcademicoId: string, db: Db = prisma): Promise<CierreFila[]> =>
+    db.cierreCalificacion.findMany({
+      where: { periodoEvaluacion: { anioAcademicoId }, estado: { in: ["CERRADO", "PUBLICADO"] } },
+      select: selectCierre,
+    }),
+
+  porId: (id: string, db: Db = prisma): Promise<CierreFila | null> =>
+    db.cierreCalificacion.findUnique({ where: { id }, select: selectCierre }),
+
+  porIds: (ids: string[], db: Db = prisma): Promise<CierreFila[]> =>
+    db.cierreCalificacion.findMany({ where: { id: { in: ids } }, select: selectCierre }),
+
+  /** CERRADO → PUBLICADO: desde aquí el apoderado y el alumno ven las notas (US39, criterio 4). */
+  publicar: (tx: Tx, id: string, datos: { publicadoPorId: string; publicadoEn: Date }): Promise<CierreFila> =>
+    tx.cierreCalificacion.update({ where: { id }, data: { ...datos, estado: "PUBLICADO" }, select: selectCierre }),
 
   cerrar: (
     tx: Tx,
@@ -132,4 +152,69 @@ export const resultados = {
     cierreId: string,
     filas: { matriculaId: string; logroConsolidado: LogroNota; detalleCalculo: Prisma.InputJsonValue }[],
   ) => tx.resultadoConsolidado.createMany({ data: filas.map((f) => ({ ...f, cierreId })) }),
+
+  /** Estudiantes consolidados por registro (columna «Estudiantes» de AD-15). */
+  async conteoPorCierre(cierreIds: string[], db: Db = prisma): Promise<Record<string, number>> {
+    if (!cierreIds.length) return {};
+    const filas = await db.resultadoConsolidado.groupBy({
+      by: ["cierreId"],
+      where: { cierreId: { in: cierreIds } },
+      _count: { _all: true },
+    });
+    return Object.fromEntries(filas.map((f) => [f.cierreId, f._count._all]));
+  },
+
+  /** Matrículas consolidadas de varios registros (a quién avisar al publicar, US39). */
+  matriculasDeCierres: (cierreIds: string[], db: Db = prisma) =>
+    db.resultadoConsolidado.findMany({
+      where: { cierreId: { in: cierreIds } },
+      select: { cierreId: true, matriculaId: true },
+    }),
+};
+
+// ---------- Libreta (US46, US51): solo registros PUBLICADOS ----------
+
+export interface ResultadoPublicado {
+  cierreId: string;
+  asignacionDocenteId: string;
+  periodoEvaluacionId: string;
+  publicadoEn: Date;
+  logroConsolidado: LogroNota | null;
+}
+
+export interface NotaPublicada {
+  cierreId: string;
+  competenciaPlanId: string;
+  logro: LogroNota;
+}
+
+/**
+ * Lo único que la libreta lee de las notas. El filtro `estado: "PUBLICADO"` está en la consulta: un registro abierto
+ * o solo cerrado nunca sale de la base hacia el apoderado o el alumno, la pantalla no decide qué ocultar.
+ */
+export const publicados = {
+  async resultadosDeMatricula(matriculaId: string, db: Db = prisma): Promise<ResultadoPublicado[]> {
+    const filas = await db.resultadoConsolidado.findMany({
+      where: { matriculaId, cierre: { estado: "PUBLICADO" } },
+      select: {
+        cierreId: true,
+        logroConsolidado: true,
+        cierre: { select: { asignacionDocenteId: true, periodoEvaluacionId: true, publicadoEn: true } },
+      },
+    });
+    return filas.map((f) => ({
+      cierreId: f.cierreId,
+      asignacionDocenteId: f.cierre.asignacionDocenteId,
+      periodoEvaluacionId: f.cierre.periodoEvaluacionId,
+      // un registro PUBLICADO siempre tiene fecha de publicación; la de creación es solo un respaldo
+      publicadoEn: f.cierre.publicadoEn ?? new Date(0),
+      logroConsolidado: f.logroConsolidado,
+    }));
+  },
+
+  notasDeMatricula: (matriculaId: string, db: Db = prisma): Promise<NotaPublicada[]> =>
+    db.nota.findMany({
+      where: { matriculaId, cierre: { estado: "PUBLICADO" } },
+      select: { cierreId: true, competenciaPlanId: true, logro: true },
+    }),
 };
