@@ -502,7 +502,7 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
 
     const r = await registroDeNotas(propio, asignacionA, bimestreI, ABRIL);
     expect(r).toMatchObject({ estado: "CERRADO", editable: false, motivoSoloLectura: "REGISTRO_CERRADO" });
-    expect(r.correccion).toContain("Administrador por el canal de soporte institucional");
+    expect(r.correccion).toContain("envía una solicitud de rectificación a la administración");
     expect((await misRegistros(propio, ABRIL)).cursos[0].estados[bimestreI]).toBe("CERRADO");
   });
 
