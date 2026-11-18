@@ -1,15 +1,16 @@
 // evaluacion/application: publicación de notas del Administrador (US39 criterio 4, AD-15 «Notas y rectificaciones»).
 // Lista los registros CERRADOS por los docentes (por publicar) y los PUBLICADOS, por año, bimestre, grado, sección y
-// curso; publicar pasa el registro de CERRADO a PUBLICADO con auditoría PUBLICAR_NOTAS y, después de confirmar, avisa
-// por correo a los apoderados vinculados. Un registro publicado sigue bloqueado por tg_nota_registro_cerrado (US40).
+// curso; publicar pasa el registro de CERRADO a PUBLICADO con auditoría PUBLICAR_NOTAS y, en la misma transacción,
+// notifica a los apoderados vinculados y a los alumnos con cuenta (US55); el correo a los apoderados sale después de
+// confirmar. Un registro publicado sigue bloqueado por tg_nota_registro_cerrado (US40).
 import { prisma } from "@/platform/db/prisma";
 import { registrarAuditoria } from "@/platform/auditoria";
-import { enviarCorreo } from "@/platform/correo";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import { logger } from "@/platform/logger";
+import { despacharCorreos, registrarAvisos, type AvisoInterno, type CorreoSaliente } from "@/platform/notificaciones";
 import { anioPorDefecto, asignacionesParaNotas, listarAnios, listarGrados, type AnioVista } from "@/modules/academico";
 import { apoderadosDeEstudiantes, docentesProviderComunidad, nombresDeUsuarios } from "@/modules/comunidad";
-import type { Autenticado } from "@/modules/identidad";
+import { usuariosDePersonas, type Autenticado } from "@/modules/identidad";
 import { datosDeMatriculas } from "@/modules/matricula";
 import { erroresEvaluacion as E } from "../domain/errores";
 import { verificarPublicable } from "../domain/libreta";
@@ -140,67 +141,104 @@ export interface NotasPublicadas {
 }
 
 interface AvisoParaApoderado {
-  email: string;
+  personaId: string;
+  email: string | null;
   nombres: string;
   /** Por hijo («Valeria»), los cursos publicados («Matemática · Bimestre II»). */
   porHijo: Map<string, Set<string>>;
 }
 
-/** Junta en un solo correo por apoderado todos los cursos publicados de sus hijos. */
-async function avisosParaApoderados(registros: RegistroPublicable[]) {
+interface AvisosDePublicacion {
+  /** Apoderados con correo a quienes se escribe. */
+  apoderadosConCorreo: number;
+  notificaciones: AvisoInterno[];
+  correos: CorreoSaliente[];
+}
+
+const SIN_AVISOS: AvisosDePublicacion = { apoderadosConCorreo: 0, notificaciones: [], correos: [] };
+
+/**
+ * A quién se avisa de la publicación (US39, US55): por apoderado vinculado, todos los cursos publicados de sus hijos
+ * (una notificación y un correo); por alumno con cuenta del portal, sus cursos (solo notificación).
+ */
+async function avisosDePublicacion(registros: RegistroPublicable[]): Promise<AvisosDePublicacion> {
   const matriculas = await resultados.matriculasDeCierres(registros.map((r) => r.cierreId));
   const datos = await datosDeMatriculas(matriculas.map((m) => m.matriculaId));
   const estudiantes = await apoderadosDeEstudiantes(Object.values(datos).map((d) => d.estudianteId));
-  const avisos = new Map<string, AvisoParaApoderado>();
+  const apoderados = new Map<string, AvisoParaApoderado>();
+  const alumnos = new Map<string, Set<string>>();
   for (const m of matriculas) {
     const r = registros.find((x) => x.cierreId === m.cierreId)!;
     const e = estudiantes[datos[m.matriculaId]?.estudianteId ?? ""];
     if (!e) continue;
+    const curso = `${r.curso.nombre} · ${r.bimestre.nombre}`;
+    alumnos.set(e.personaId, (alumnos.get(e.personaId) ?? new Set()).add(curso));
     for (const a of e.apoderados) {
-      if (!a.email) continue;
-      const aviso = avisos.get(a.personaId) ?? { email: a.email, nombres: a.nombres, porHijo: new Map() };
+      const aviso = apoderados.get(a.personaId) ?? { ...a, porHijo: new Map() };
       const hijo = e.nombres.split(" ")[0];
-      aviso.porHijo.set(hijo, (aviso.porHijo.get(hijo) ?? new Set()).add(`${r.curso.nombre} · ${r.bimestre.nombre}`));
-      avisos.set(a.personaId, aviso);
+      aviso.porHijo.set(hijo, (aviso.porHijo.get(hijo) ?? new Set()).add(curso));
+      apoderados.set(a.personaId, aviso);
     }
   }
-  return [...avisos.values()];
+  const usuarios = await usuariosDePersonas([...apoderados.keys(), ...alumnos.keys()]);
+  const notificaciones: AvisoInterno[] = [];
+  const correos: CorreoSaliente[] = [];
+  for (const a of apoderados.values()) {
+    const lineas = [...a.porHijo.entries()].map(([hijo, cursos]) => `${hijo}: ${[...cursos].join(", ")}`);
+    const usuarioId = usuarios[a.personaId];
+    if (usuarioId) {
+      notificaciones.push({
+        usuarioId,
+        tipo: "NOTAS",
+        titulo: "Notas publicadas",
+        mensaje: lineas.join(" · "),
+        enlace: "/apoderado/notas",
+      });
+    }
+    if (a.email) {
+      correos.push({
+        para: a.email,
+        asunto: "Kubo · Notas publicadas",
+        texto:
+          `Hola, ${a.nombres.split(" ")[0]}:\n\n` +
+          `Se publicaron las notas de estos cursos:\n${lineas.map((l) => `- ${l}`).join("\n")}\n\n` +
+          "Ingresa a Kubo, en «Notas», para ver la libreta con el logro de cada competencia.\n\n" +
+          "Este es un mensaje automático: no lo respondas.",
+      });
+    }
+  }
+  for (const [personaId, cursos] of alumnos) {
+    const usuarioId = usuarios[personaId];
+    if (!usuarioId) continue;
+    notificaciones.push({
+      usuarioId,
+      tipo: "NOTAS",
+      titulo: "Notas publicadas",
+      mensaje: `Ya puedes ver tus logros de ${[...cursos].join(", ")}.`,
+      enlace: "/alumno/notas",
+    });
+  }
+  return { apoderadosConCorreo: correos.length, notificaciones, correos };
 }
 
-/** Avisa a los apoderados vinculados que hay notas publicadas (US39). Nunca lanza: la publicación ya se confirmó. */
-async function avisarApoderados(registros: RegistroPublicable[], meta: MetaSolicitud): Promise<AvisoPublicacion> {
-  const aviso: AvisoPublicacion = { apoderados: 0, enviados: 0 };
+/** Los avisos se calculan antes de publicar; si fallan, la publicación sigue sin avisos (nunca se bloquea). */
+async function avisosSeguros(registros: RegistroPublicable[], meta: MetaSolicitud): Promise<AvisosDePublicacion> {
   try {
-    const avisos = await avisosParaApoderados(registros);
-    aviso.apoderados = avisos.length;
-    const envios = await Promise.allSettled(
-      avisos.map((a) => {
-        const lineas = [...a.porHijo.entries()].map(([hijo, cursos]) => `- ${hijo}: ${[...cursos].join(", ")}`);
-        return enviarCorreo({
-          para: a.email,
-          asunto: "Kubo · Notas publicadas",
-          texto:
-            `Hola, ${a.nombres.split(" ")[0]}:\n\n` +
-            `Se publicaron las notas de estos cursos:\n${lineas.join("\n")}\n\n` +
-            "Ingresa a Kubo, en «Notas», para ver la libreta con el logro de cada competencia.\n\n" +
-            "Este es un mensaje automático: no lo respondas.",
-        });
-      }),
-    );
-    aviso.enviados = envios.filter((r) => r.status === "fulfilled" && r.value).length;
+    return await avisosDePublicacion(registros);
   } catch (e) {
-    logger.warn("No se pudo avisar a los apoderados de la publicación de notas", {
+    logger.warn("No se pudo preparar el aviso de la publicación de notas", {
       requestId: meta.requestId,
       error: (e as Error).message,
     });
+    return SIN_AVISOS;
   }
-  return aviso;
 }
 
 /**
  * Publica uno o varios registros cerrados (US39, criterio 4; «Publicar» y «Publicar seleccionados» de AD-15). En una
  * transacción bloquea cada registro, exige que siga CERRADO, lo pasa a PUBLICADO y registra PUBLICAR_NOTAS: si uno no
- * se puede publicar, no se publica ninguno. Luego avisa por correo a los apoderados, sin revertir si el envío falla.
+ * se puede publicar, no se publica ninguno. En la misma transacción notifica a apoderados y alumnos (US55); luego
+ * intenta el correo a los apoderados: si falla, queda en la bandeja de salida y no revierte la publicación.
  */
 export async function publicarNotas(
   admin: Autenticado,
@@ -216,8 +254,9 @@ export async function publicarNotas(
   const vistas = anio ? await vistasDeRegistros(filas, anio) : [];
   // todos deben ser del mismo año (la pantalla publica dentro de un año)
   if (vistas.length !== ids.length) throw E.registroNoEncontrado();
+  const avisos = await avisosSeguros(vistas, meta);
 
-  await prisma.$transaction(async (tx) => {
+  const correoIds = await prisma.$transaction(async (tx) => {
     for (const r of vistas) {
       await cierres.bloquearFila(tx, r.cierreId);
       // otra pestaña pudo publicarlo (o el estado cambiar) mientras se esperaba el bloqueo
@@ -244,8 +283,13 @@ export async function publicarNotas(
         meta,
       );
     }
+    return registrarAvisos(tx, {
+      notificaciones: avisos.notificaciones,
+      correos: avisos.correos,
+      origen: { entidad: "cierre_calificacion", id: vistas[0].cierreId },
+    });
   });
+  const aviso = { apoderados: avisos.apoderadosConCorreo, enviados: await despacharCorreos(correoIds, meta.requestId) };
   const publicados = await vistasDeRegistros(await cierres.porIds(ids), anio!);
-  const aviso = await avisarApoderados(publicados, meta);
   return { publicados: publicados.sort(ordenRegistros), aviso };
 }

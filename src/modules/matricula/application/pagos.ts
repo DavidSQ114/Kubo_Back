@@ -1,7 +1,8 @@
 // matricula/application: pensiones y pagos (AD-11). Registro de pago manual (US22, M-01), pagos con número de
 // operación repetido que quedan Observado (US23), anulación con motivo (US04, M-02), recibo en PDF con correlativo
 // (US25, M-03), estado de cuenta del estudiante, registro de un pago en línea aprobado por el Sistema (US70) y su
-// devolución (US71). Cada escritura va en una transacción con las cuotas bloqueadas.
+// devolución (US71). Cada escritura va en una transacción con las cuotas bloqueadas. Un pago confirmado notifica al
+// apoderado responsable en la misma transacción (US55); la copia del recibo por correo sale después de confirmar.
 import { createHash } from "node:crypto";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -10,10 +11,11 @@ import { enviarCorreo, smtpConfigurado } from "@/platform/correo";
 import { logger } from "@/platform/logger";
 import { obtenerParametro } from "@/platform/config/parametros";
 import type { MetaSolicitud } from "@/platform/http/ruta";
+import { registrarAvisos } from "@/platform/notificaciones";
 import { generarPdf, type DocumentoPdf } from "@/platform/pdf";
 import { aCentimos, deCentimos, fechaEnLima, listarSecciones, obtenerAnio } from "@/modules/academico";
 import { estudianteParaFicha, nombresDeUsuarios, type EstudianteFicha } from "@/modules/comunidad";
-import type { Autenticado } from "@/modules/identidad";
+import { usuariosDePersonas, type Autenticado } from "@/modules/identidad";
 import { seccionEnFecha } from "../domain/cambios";
 import { erroresMatricula as E } from "../domain/errores";
 import { NOMBRE_ESTADO_MATRICULA, type ModalidadPago } from "../domain/matriculas";
@@ -74,7 +76,7 @@ interface ContextoRecibo {
   estudiante: EstudianteFicha;
   anio: number;
   seccion: string | null;
-  responsable: { nombreCompleto: string; email: string | null } | null;
+  responsable: { personaId: string; nombreCompleto: string; email: string | null } | null;
   registradoPor: string;
 }
 
@@ -103,7 +105,11 @@ async function contextoRecibo(op: Pick<OperacionFila, "matriculaId" | "fechaPago
     estudiante,
     anio: anio.anio,
     seccion: seccion ? `${seccion.grado.numero}° ${seccion.nombre}` : null,
-    responsable: responsable && { nombreCompleto: responsable.nombreCompleto, email: responsable.email },
+    responsable: responsable && {
+      personaId: responsable.personaId,
+      nombreCompleto: responsable.nombreCompleto,
+      email: responsable.email,
+    },
     registradoPor: registrador ? (nombres[registrador]?.nombreCorto ?? "—") : NOMBRE_SISTEMA,
   } satisfies ContextoRecibo;
 }
@@ -230,6 +236,48 @@ async function enviarCopia(
 
 const resumenCuotas = (lista: { concepto: string }[]) => lista.map((c) => c.concepto);
 
+// ---------- Notificación del pago confirmado (US55) ----------
+
+/** Cuenta del apoderado responsable del pago; null si no tiene (o si no se pudo consultar: el pago no se bloquea). */
+async function usuarioDelResponsable(ctx: ContextoRecibo | null, requestId: string): Promise<string | null> {
+  if (!ctx?.responsable) return null;
+  try {
+    return (await usuariosDePersonas([ctx.responsable.personaId]))[ctx.responsable.personaId] ?? null;
+  } catch (e) {
+    logger.warn("No se pudo preparar la notificación del pago", { requestId, error: (e as Error).message });
+    return null;
+  }
+}
+
+/** Notifica al apoderado responsable que el pago quedó confirmado, dentro de la transacción del pago. */
+async function notificarPago(
+  tx: Tx,
+  usuarioId: string | null,
+  datos: {
+    operacionId: string;
+    origen: OrigenPago;
+    estudiante: string;
+    conceptos: string[];
+    monto: string;
+    recibo: string;
+  },
+) {
+  if (!usuarioId) return;
+  await registrarAvisos(tx, {
+    notificaciones: [
+      {
+        usuarioId,
+        tipo: "PAGO",
+        titulo: datos.origen === "PASARELA" ? "Pago en línea confirmado" : "Pago registrado",
+        mensaje: `${datos.estudiante} · ${datos.conceptos.join(", ")} · S/ ${datos.monto} · Recibo ${datos.recibo}`,
+        enlace: "/apoderado/pagos",
+      },
+    ],
+    correos: [],
+    origen: { entidad: ENTIDAD, id: datos.operacionId },
+  });
+}
+
 // ---------- Registrar un pago manual (US22, US23) ----------
 
 export interface DatosPago {
@@ -328,6 +376,7 @@ async function registrarOperacion(actor: Actor, datos: DatosPago, meta: MetaSoli
   const ctx = matriculaId
     ? await contextoRecibo({ matriculaId, fechaPago: datos.fechaPago, registradoPorId: actor.usuarioId })
     : null;
+  const destinatario = await usuarioDelResponsable(ctx, meta.requestId);
 
   const resultado = await prisma.$transaction(async (tx) => {
     if (pasarela) {
@@ -373,6 +422,14 @@ async function registrarOperacion(actor: Actor, datos: DatosPago, meta: MetaSoli
     if (estado === "CONFIRMADO") {
       await cuotasDePago.marcar(tx, conceptoIds, "PENDIENTE", "PAGADO");
       comprobante = await emitirComprobante(tx, (await operaciones.porId(id, tx))!, ctx!, Number(hoy.slice(0, 4)));
+      await notificarPago(tx, destinatario, {
+        operacionId: id,
+        origen: actor.origen,
+        estudiante: ctx!.estudiante.nombres.split(" ")[0],
+        conceptos: resumenCuotas(lista),
+        monto: deCentimos(montoCentimos),
+        recibo: comprobante.numero,
+      });
       if (anual && modalidadAnterior && actor.usuarioId) {
         await pasarAModalidadAnual(
           tx,
@@ -499,6 +556,7 @@ export async function confirmarPagoObservado(admin: Autenticado, operacionId: st
   if (!previa) throw E.pagoNoEncontrado();
   verificarObservado(previa.estado);
   const [ctx, anual] = await Promise.all([contextoRecibo(previa), esPagoAnual(operacionId)]);
+  const destinatario = await usuarioDelResponsable(ctx, meta.requestId);
   const hoy = fechaEnLima(new Date());
 
   const comprobante = await prisma.$transaction(async (tx) => {
@@ -514,6 +572,14 @@ export async function confirmarPagoObservado(admin: Autenticado, operacionId: st
     await operaciones.confirmar(tx, operacionId, admin.usuarioId);
     await cuotasDePago.marcar(tx, ids, "PENDIENTE", "PAGADO");
     const emitido = await emitirComprobante(tx, { ...op, estado: "CONFIRMADO" }, ctx, Number(hoy.slice(0, 4)));
+    await notificarPago(tx, destinatario, {
+      operacionId,
+      origen: op.origen,
+      estudiante: ctx.estudiante.nombres.split(" ")[0],
+      conceptos: resumenCuotas(op.cuotas),
+      monto: op.monto,
+      recibo: emitido.numero,
+    });
     if (anual) {
       const m = await matriculas.porId(op.matriculaId, tx);
       if (m && m.modalidadPago !== "ANUAL") {
