@@ -1,6 +1,7 @@
 // evaluacion/application: registro de notas cualitativas del docente (US37, DO-04), cierre y consolidación del
 // bimestre (US39, M-10) y bloqueo del registro cerrado (US40). El docente sale de la sesión, nunca de la URL: un curso
 // o una sección de otro docente responde 403. El registro de un curso y sección en un bimestre es cierre_calificacion.
+// Cada nota guardada queda en la bitácora de notas (US03) en la misma transacción.
 import { prisma } from "@/platform/db/prisma";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { enviarCorreo } from "@/platform/correo";
@@ -47,7 +48,9 @@ import {
   type NotaPedida,
   type SituacionDelRegistro,
 } from "../domain/notas";
+import { columnasDelRegistro } from "../domain/rectificacion";
 import { cierres, estadoDeRegistro, notas, resultados, type NotaFila } from "../infrastructure/repositorio";
+import { registrarEnBitacora, type CambioDeNota } from "./bitacora";
 
 // ---------- Vistas ----------
 
@@ -117,8 +120,8 @@ export interface RegistroDeNotas extends SituacionDelRegistro {
   pendientes: Pendiente[];
 }
 
-const etiquetaDe = (s: { nombre: string; grado: { numero: number } }) => `${s.grado.numero}° ${s.nombre}`;
-const nombreDeLista = (p: { nombres: string; apellidos: string }) => `${p.apellidos}, ${p.nombres}`;
+export const etiquetaDe = (s: { nombre: string; grado: { numero: number } }) => `${s.grado.numero}° ${s.nombre}`;
+export const nombreDeLista = (p: { nombres: string; apellidos: string }) => `${p.apellidos}, ${p.nombres}`;
 
 async function docenteEnSesion(auth: Autenticado) {
   const docente = await docentesProviderComunidad.docentePorPersona(auth.personaId);
@@ -143,7 +146,7 @@ function bimestresDe(anio: AnioVista, hoy: string): BimestreVista[] {
 }
 
 /** Asignación del docente en sesión y el bimestre pedido, que debe ser de su mismo año. */
-async function cargarContexto(auth: Autenticado, asignacionId: string, periodoId: string, ahora: Date) {
+export async function cargarContexto(auth: Autenticado, asignacionId: string, periodoId: string, ahora: Date) {
   const docente = await docenteEnSesion(auth);
   const asignacion = await asignacionParaNotas(asignacionId);
   if (!asignacion) throw errores.noEncontrado("El curso");
@@ -152,7 +155,7 @@ async function cargarContexto(auth: Autenticado, asignacionId: string, periodoId
   const anio = (await listarAnios()).find((a) => a.id === asignacion.anio.id)!;
   const bimestre = bimestresDe(anio, fechaEnLima(ahora)).find((b) => b.id === periodoId);
   if (!bimestre) throw E.bimestreAjeno();
-  return { asignacion, bimestre };
+  return { asignacion, bimestre, docente };
 }
 
 /**
@@ -160,7 +163,7 @@ async function cargarContexto(auth: Autenticado, asignacionId: string, periodoId
  * vigente (MATRICULADO) en la sección, por apellido. Un alumno trasladado o retirado sale de la lista, pero sus
  * notas se conservan.
  */
-async function alumnosDelRegistro(seccionId: string, cerrados: string[] | null, hoy: string) {
+export async function alumnosDelRegistro(seccionId: string, cerrados: string[] | null, hoy: string) {
   let ids = cerrados;
   if (!ids) {
     const enSeccion = await matriculasDeSeccionEnFecha(seccionId, hoy);
@@ -394,7 +397,7 @@ export async function guardarNotas(
   datos: { notas: NotaPedida[] },
   ahora: Date = new Date(),
 ): Promise<NotasGuardadas> {
-  const { asignacion, bimestre } = await cargarContexto(auth, asignacionId, periodoId, ahora);
+  const { asignacion, bimestre, docente } = await cargarContexto(auth, asignacionId, periodoId, ahora);
   const actual = await cierres.de(asignacion.id, bimestre.id);
   // registro cerrado (US40) o bimestre no activo (US37): se rechaza aunque la petición no venga de la pantalla
   verificarEditable(situacionDelRegistro(estadoDeRegistro(actual), bimestre.activo));
@@ -405,6 +408,23 @@ export async function guardarNotas(
   verificarCeldas(datos.notas, alumnos, competencias);
   const regla = await reglaDelBimestre(asignacion.anio.id, bimestre.numero);
   if (!regla) throw E.sinReglaConsolidacion();
+  const columnas = columnasDelRegistro(competencias);
+  const nombres = new Map(alumnos.map((a) => [a.matriculaId, a.nombre]));
+  const cambio = (
+    n: { id: string; matriculaId: string; competenciaPlanId: string },
+    cierreId: string,
+    anterior: LogroNota | null,
+    nuevo: LogroNota,
+  ): CambioDeNota => ({
+    notaId: n.id,
+    cierreId,
+    matriculaId: n.matriculaId,
+    competenciaPlanId: n.competenciaPlanId,
+    anterior,
+    nuevo,
+    estudiante: nombres.get(n.matriculaId)!,
+    competencia: columnas.get(n.competenciaPlanId)!,
+  });
 
   const resumen = await prisma.$transaction(async (tx) => {
     const cierre = await cierres.asegurarYBloquear(tx, {
@@ -414,11 +434,39 @@ export async function guardarNotas(
     });
     // otro guardado o un cierre pudo terminar mientras esta transacción esperaba el bloqueo
     verificarEditable(situacionDelRegistro(estadoDeRegistro(cierre), bimestre.activo));
-    const cambios = cambiosDeNotas(await notas.delCierre(cierre.id, tx), datos.notas);
-    if (cambios.nuevas.length) await notas.crear(tx, cierre.id, cambios.nuevas, auth.usuarioId);
+    const guardadas = await notas.delCierre(cierre.id, tx);
+    const cambios = cambiosDeNotas(guardadas, datos.notas);
+    const creadas = cambios.nuevas.length ? await notas.crear(tx, cierre.id, cambios.nuevas, auth.usuarioId) : [];
     for (const m of cambios.modificadas) {
       await notas.cambiar(tx, m.id, { logro: m.logro, logroAnterior: m.anterior, modificadoPorId: auth.usuarioId });
     }
+    // US03: cada nota nueva o cambiada, con su valor anterior, en la misma transacción
+    await registrarEnBitacora(
+      tx,
+      {
+        usuarioId: auth.usuarioId,
+        usuarioNombre: docente.nombreCompleto,
+        docenteId: docente.id,
+        docenteNombre: docente.nombreCompleto,
+        anio: asignacion.anio.anio,
+        curso: { codigo: asignacion.curso.codigo, nombre: asignacion.curso.nombre },
+        seccion: etiquetaDe(asignacion.seccion),
+        bimestre: { numero: bimestre.numero, nombre: bimestre.nombre },
+        origen: "REGISTRO",
+        solicitudId: null,
+      },
+      [
+        ...creadas.map((n) => cambio(n, cierre.id, null, n.logro)),
+        ...cambios.modificadas.map((m) =>
+          cambio(
+            guardadas.find((g) => g.id === m.id)!,
+            cierre.id,
+            m.anterior,
+            m.logro,
+          ),
+        ),
+      ],
+    );
     return { nuevas: cambios.nuevas.length, modificadas: cambios.modificadas.length, sinCambio: cambios.sinCambio };
   });
   return { ...(await armarRegistro(asignacion, bimestre, ahora)), guardado: resumen };

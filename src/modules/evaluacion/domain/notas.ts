@@ -16,12 +16,8 @@ export const ESTADOS_REGISTRO = ["ABIERTO", "CERRADO", "PUBLICADO"] as const;
 /** Estado del registro de un curso y sección en un bimestre. Sin notas todavía, está ABIERTO. */
 export type EstadoRegistro = (typeof ESTADOS_REGISTRO)[number];
 
-/**
- * Cómo se corrige una nota de un registro cerrado mientras la rectificación (US41) no forma parte de la entrega
- * (US40, criterio 3).
- */
-export const MENSAJE_CORRECCION =
-  "Si necesitas corregir una nota, solicítalo al Administrador por el canal de soporte institucional.";
+/** Cómo se corrige una nota de un registro cerrado (US40, criterio 3): con una solicitud de rectificación (US41). */
+export const MENSAJE_CORRECCION = "Si detectas un error, envía una solicitud de rectificación a la administración.";
 
 export const esLogroNota = (valor: unknown): valor is LogroNota =>
   typeof valor === "string" && (LOGROS_NOTA as readonly string[]).includes(valor);
