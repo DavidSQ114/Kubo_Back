@@ -384,16 +384,45 @@ export function bimestreDeReferencia<T extends Bimestre>(bimestres: T[], fecha: 
   return empezados.find((b) => contiene(b, fecha)) ?? empezados.at(-1) ?? null;
 }
 
-/** Días de lunes a viernes dentro de los bimestres: los días de clase del año (no se descuentan feriados). */
-export function diasLectivos(bimestres: Rango[]): number {
+/**
+ * Días de lunes a viernes dentro de los bimestres: los días de clase del año (no se descuentan feriados). Con `desde`,
+ * solo los que caen ese día o después.
+ */
+export function diasLectivos(bimestres: Rango[], desde?: string): number {
   let total = 0;
   for (const b of bimestres) {
-    for (let t = aInstante(b.fechaInicio).getTime(); t <= aInstante(b.fechaFin).getTime(); t += MS_POR_DIA) {
+    const inicio = desde && desde > b.fechaInicio ? desde : b.fechaInicio;
+    for (let t = aInstante(inicio).getTime(); t <= aInstante(b.fechaFin).getTime(); t += MS_POR_DIA) {
       if (diaDeClases(aFecha(new Date(t)))) total += 1;
     }
   }
   return total;
 }
+
+export interface BaseDeInasistencia {
+  /** Días de clase que le corresponden al alumno: la base del porcentaje y de los umbrales. */
+  lectivos: number;
+  /** Desde qué día se cuentan («AAAA-MM-DD»). */
+  desde: string;
+  /** Se cuentan desde su matrícula porque se matriculó después de que empezaron las clases. */
+  desdeMatricula: boolean;
+}
+
+/**
+ * Base de las inasistencias del alumno (D-11): los días de clase desde su fecha de matrícula (o desde el inicio de
+ * las clases si se matriculó antes) hasta el fin del último bimestre. Matriculado el 06/11/2026 con el último bimestre
+ * hasta el 15/12/2026, son 28 días. Sin bimestres, 0.
+ */
+export function baseDeInasistencia(bimestres: Rango[], fechaMatricula: string): BaseDeInasistencia {
+  const inicioClases = bimestres.map((b) => b.fechaInicio).sort()[0];
+  if (!inicioClases) return { lectivos: 0, desde: fechaMatricula, desdeMatricula: false };
+  const desdeMatricula = fechaMatricula > inicioClases;
+  const desde = desdeMatricula ? fechaMatricula : inicioClases;
+  return { lectivos: diasLectivos(bimestres, desde), desde, desdeMatricula };
+}
+
+/** «1 falta», «2 faltas», «0 faltas»: la cantidad con el sustantivo en singular o plural. */
+export const cantidad = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
 
 export type EstadoCalendario = EstadoDia | "SIN_REGISTRO" | "VACACIONES" | "FUERA_DEL_ANIO";
 
@@ -445,7 +474,10 @@ export interface Umbrales {
 const BASE_UMBRAL = 10_000;
 const enBase = (umbral: number) => Math.round(umbral * BASE_UMBRAL);
 
-/** ¿Las faltas llegan a la fracción `umbral` de los días de clase del año? Sin días de clase no hay porcentaje. */
+/**
+ * ¿Las faltas llegan a la fracción `umbral` de los días de clase que le corresponden al alumno (D-11)? Sin días de
+ * clase no hay porcentaje.
+ */
 export function alcanzaUmbral(faltas: number, lectivos: number, umbral: number): boolean {
   return lectivos > 0 && faltas * BASE_UMBRAL >= enBase(umbral) * lectivos;
 }
@@ -455,9 +487,14 @@ export function porcentajeDeInasistencia(faltas: number, lectivos: number): numb
   return lectivos > 0 ? Math.round((faltas / lectivos) * 1000) / 10 : 0;
 }
 
-/** Faltas que aún caben antes de llegar al umbral: 9 de 120 días con 20 % → 15. Nunca es negativo. */
+/**
+ * Faltas que todavía no llegan al umbral (D-11): las que el alumno puede sumar sin alcanzarlo. Con 187 días y 20 % el
+ * umbral se alcanza en la falta 38 (37,4 días); con 1 falta le quedan 36. Nunca es negativo.
+ */
 export function faltasAntesDelUmbral(faltas: number, lectivos: number, umbral: number): number {
-  return Math.max(0, Math.ceil((enBase(umbral) * lectivos) / BASE_UMBRAL) - faltas);
+  // primera cantidad de faltas que alcanza el umbral; la anterior es la última que todavía no llega
+  const faltasQueAlcanzan = Math.ceil((enBase(umbral) * lectivos) / BASE_UMBRAL);
+  return Math.max(0, faltasQueAlcanzan - 1 - faltas);
 }
 
 export type NivelDeRiesgo = "SIN_RIESGO" | "AVISO" | "RIESGO";
@@ -471,8 +508,12 @@ export function nivelDeRiesgo(faltas: number, lectivos: number, umbrales: Umbral
 export interface SituacionAnual {
   /** Días de inasistencia injustificada del año. */
   faltas: number;
-  /** Días de clase del año. */
+  /** Días de clase que le corresponden al alumno: desde su matrícula (o el inicio de clases) hasta el fin del año. */
   lectivos: number;
+  /** Desde qué día se cuentan los días de clase («AAAA-MM-DD»). */
+  desde: string;
+  /** Los días de clase se cuentan desde su matrícula («28 días de clase desde tu matrícula»). */
+  desdeMatricula: boolean;
   /** Porcentaje de inasistencias con un decimal (7.5). */
   porcentaje: number;
   nivel: NivelDeRiesgo;
@@ -486,10 +527,13 @@ export interface SituacionAnual {
 const aPorcentaje = (fraccion: number) => Math.round(fraccion * 1000) / 10;
 
 /** Situación del año frente a los umbrales de la institución (barra «Nivel de riesgo» de AL-04). */
-export function situacionAnual(faltas: number, lectivos: number, umbrales: Umbrales): SituacionAnual {
+export function situacionAnual(faltas: number, base: BaseDeInasistencia, umbrales: Umbrales): SituacionAnual {
+  const { lectivos } = base;
   return {
     faltas,
     lectivos,
+    desde: base.desde,
+    desdeMatricula: base.desdeMatricula,
     porcentaje: porcentajeDeInasistencia(faltas, lectivos),
     nivel: nivelDeRiesgo(faltas, lectivos, umbrales),
     porcentajeAviso: aPorcentaje(umbrales.aviso),
@@ -501,7 +545,7 @@ export function situacionAnual(faltas: number, lectivos: number, umbrales: Umbra
 /** Alerta mensual (US45, criterio 2): «Atención: 3 inasistencias injustificadas este mes», o null. */
 export function alertaDelMes(faltasInjustificadas: number, umbralFaltasMes: number): string | null {
   if (faltasInjustificadas < umbralFaltasMes) return null;
-  return `Atención: ${faltasInjustificadas} inasistencias injustificadas este mes`;
+  return `Atención: ${cantidad(faltasInjustificadas, "inasistencia injustificada", "inasistencias injustificadas")} este mes`;
 }
 
 export const TIPOS_AVISO = ["FALTAS_MES", "PORCENTAJE_AVISO", "PORCENTAJE_RIESGO"] as const;
@@ -522,7 +566,7 @@ export interface SituacionDeFaltas {
   mes: string;
   faltasDelMes: number;
   faltasDelAnio: number;
-  /** Días de clase del año (lunes a viernes dentro de sus bimestres). */
+  /** Días de clase que le corresponden al alumno desde su matrícula (D-11); ver `baseDeInasistencia`. */
   lectivos: number;
 }
 

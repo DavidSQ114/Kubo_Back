@@ -215,6 +215,8 @@ export interface MatriculaDeLista {
   anioAcademicoId: string;
   seccionId: string | null;
   estado: EstadoMatricula;
+  /** «AAAA-MM-DD»: desde aquí se cuentan los días de clase del alumno (D-11). */
+  fechaMatricula: string;
 }
 
 /**
@@ -232,6 +234,7 @@ export async function datosDeMatriculas(ids: string[]): Promise<Record<string, M
         anioAcademicoId: m.anioAcademicoId,
         seccionId: m.seccionId,
         estado: m.estado,
+        fechaMatricula: m.fechaMatricula,
       },
     ]),
   );

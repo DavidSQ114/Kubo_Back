@@ -102,6 +102,8 @@ export async function matriculaDelHijo(auth: Autenticado, estudianteId: string) 
     matriculaId: m.id,
     anioAcademicoId: m.anioAcademicoId,
     anio: m.anio,
+    /** Base de los días de clase del alumno (D-11). */
+    fechaMatricula: m.fechaMatricula,
   };
 }
 

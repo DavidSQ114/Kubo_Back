@@ -10,12 +10,14 @@ import {
   avisosAlcanzados,
   avisosConCorreo,
   avisosPendientes,
+  baseDeInasistencia,
+  cantidad,
   diasDeAsistencia,
-  diasLectivos,
   mesDe,
   nombreDelMes,
   porcentajeDeInasistencia,
   type Aviso,
+  type BaseDeInasistencia,
   type Umbrales,
 } from "../domain/asistencia";
 import { asistencias, avisos } from "../infrastructure/asistencia";
@@ -36,38 +38,41 @@ const enPorcentaje = (valor: number) => `${String(valor).replace(".", ",")} %`;
 /** Texto del aviso para el alumno (`sujeto` «Registras») o para su apoderado («Diego registra»). */
 function textoDelAviso(
   aviso: Aviso,
-  datos: { sujeto: string; lectivos: number; umbrales: Umbrales },
+  datos: { sujeto: string; lectivos: number; desdeMatricula: boolean; umbrales: Umbrales },
 ): { asunto: string; cuerpo: string } {
+  const inasistencias = cantidad(aviso.faltas, "inasistencia injustificada", "inasistencias injustificadas");
   if (aviso.tipo === "FALTAS_MES") {
     return {
-      asunto: `Kubo · ${aviso.faltas} inasistencias injustificadas en ${nombreDelMes(aviso.periodo)}`,
+      asunto: `Kubo · ${inasistencias} en ${nombreDelMes(aviso.periodo)}`,
       cuerpo:
-        `${datos.sujeto} ${aviso.faltas} inasistencias injustificadas en ${nombreDelMes(aviso.periodo)}. ` +
-        "Si hay una constancia que las justifique, preséntala al tutor de la sección.",
+        `${datos.sujeto} ${inasistencias} en ${nombreDelMes(aviso.periodo)}. ` +
+        `Si hay una constancia que ${aviso.faltas === 1 ? "la justifique" : "las justifique"}, preséntala al tutor ` +
+        "de la sección.",
     };
   }
+  const base = `${cantidad(datos.lectivos, "día de clase", "días de clase")}${datos.desdeMatricula ? " desde la matrícula" : ""}`;
   const porcentaje = enPorcentaje(porcentajeDeInasistencia(aviso.faltas, datos.lectivos));
   const limite = enPorcentaje(Math.round(datos.umbrales.riesgo * 1000) / 10);
   if (aviso.tipo === "PORCENTAJE_RIESGO") {
     return {
       asunto: "Kubo · Riesgo por inasistencias",
       cuerpo:
-        `${datos.sujeto} ${aviso.faltas} inasistencias injustificadas en el año escolar ${aviso.periodo} ` +
-        `(${porcentaje} de los días de clase): se alcanzó el límite institucional de ${limite}. ` +
+        `${datos.sujeto} ${inasistencias} en el año escolar ${aviso.periodo} ` +
+        `(${porcentaje} de ${base}): se alcanzó el límite institucional de ${limite}. ` +
         "Conversa con el tutor de la sección para evitar consecuencias académicas.",
     };
   }
   return {
     asunto: "Kubo · Aviso por inasistencias",
     cuerpo:
-      `${datos.sujeto} ${aviso.faltas} inasistencias injustificadas en el año escolar ${aviso.periodo} ` +
-      `(${porcentaje} de los días de clase). El límite institucional es ${limite}: ` +
+      `${datos.sujeto} ${inasistencias} en el año escolar ${aviso.periodo} ` +
+      `(${porcentaje} de ${base}). El límite institucional es ${limite}: ` +
       "conviene evitar nuevas inasistencias.",
   };
 }
 
 /** Envía el aviso al alumno y a su apoderado principal. Devuelve cuántos correos salieron. */
-async function enviarAviso(aviso: Aviso, contacto: ContactoDeAsistencia, lectivos: number, umbrales: Umbrales) {
+async function enviarAviso(aviso: Aviso, contacto: ContactoDeAsistencia, base: BaseDeInasistencia, umbrales: Umbrales) {
   const nombre = contacto.nombres.split(" ")[0];
   const destinatarios: { para: string; saludo: string; sujeto: string }[] = [];
   if (contacto.email) destinatarios.push({ para: contacto.email, saludo: nombre, sujeto: "Registras" });
@@ -81,7 +86,12 @@ async function enviarAviso(aviso: Aviso, contacto: ContactoDeAsistencia, lectivo
   // allSettled: un correo que falla no impide enviar el otro
   const resultados = await Promise.allSettled(
     destinatarios.map((d) => {
-      const { asunto, cuerpo } = textoDelAviso(aviso, { sujeto: d.sujeto, lectivos, umbrales });
+      const { asunto, cuerpo } = textoDelAviso(aviso, {
+        sujeto: d.sujeto,
+        lectivos: base.lectivos,
+        desdeMatricula: base.desdeMatricula,
+        umbrales,
+      });
       return enviarCorreo({
         para: d.para,
         asunto,
@@ -93,21 +103,22 @@ async function enviarAviso(aviso: Aviso, contacto: ContactoDeAsistencia, lectivo
 }
 
 async function avisarMatricula(
-  m: { matriculaId: string; estudianteId: string },
+  m: { matriculaId: string; estudianteId: string; fechaMatricula: string },
   anio: AnioDeAsistencia,
   umbrales: Umbrales,
   fecha: string,
 ): Promise<AvisosEnviados> {
   const registros = await asistencias.deMatricula(m.matriculaId, anio);
   const ausencias = diasDeAsistencia(registros).filter((d) => d.estado === "AUSENTE");
-  const lectivos = diasLectivos(anio.bimestres);
+  // la base son los días de clase que le corresponden desde su matrícula, no los de todo el año (D-11)
+  const base = baseDeInasistencia(anio.bimestres, m.fechaMatricula);
   const alcanzados = avisosAlcanzados(
     {
       anio: anio.anio,
       mes: mesDe(fecha),
       faltasDelMes: ausencias.filter((d) => mesDe(d.fecha) === mesDe(fecha)).length,
       faltasDelAnio: ausencias.length,
-      lectivos,
+      lectivos: base.lectivos,
     },
     umbrales,
   );
@@ -126,7 +137,7 @@ async function avisarMatricula(
   const contacto = (await contactosDeAsistencia([m.estudianteId]))[m.estudianteId];
   let correos = 0;
   for (const aviso of avisosConCorreo(nuevos)) {
-    const enviados = contacto ? await enviarAviso(aviso, contacto, lectivos, umbrales) : 0;
+    const enviados = contacto ? await enviarAviso(aviso, contacto, base, umbrales) : 0;
     await avisos.marcarCorreos(aviso.id, enviados);
     correos += enviados;
   }

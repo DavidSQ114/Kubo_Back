@@ -17,7 +17,7 @@ import {
   type SituacionAnual,
 } from "@/components/portal/asistencia";
 import { Alerta, Badge, Icono, Tarjeta } from "@/components/ui";
-import { fechaDia } from "@/lib/formato";
+import { cantidad, fechaDia } from "@/lib/formato";
 
 interface Acumulado {
   faltas: number;
@@ -103,12 +103,13 @@ function NivelDeRiesgo({ riesgo }: { riesgo: SituacionAnual }) {
       </div>
       <div className="flex flex-wrap justify-between gap-2 text-[12px] text-texto-3">
         <span>
-          {riesgo.faltas} faltas de {riesgo.lectivos} días de clase
+          {cantidad(riesgo.faltas, "falta", "faltas")} de {cantidad(riesgo.lectivos, "día de clase", "días de clase")}{" "}
+          {riesgo.desdeMatricula ? "desde tu matrícula" : "del año"}
         </span>
         <span>
           {riesgo.nivel === "RIESGO"
             ? "Superaste el umbral institucional"
-            : `Te quedan ${riesgo.faltasAntesDelRiesgo} faltas antes del umbral`}
+            : `${riesgo.faltasAntesDelRiesgo === 1 ? "Te queda" : "Te quedan"} ${cantidad(riesgo.faltasAntesDelRiesgo, "falta", "faltas")} antes del umbral`}
         </span>
       </div>
     </Tarjeta>

@@ -86,7 +86,11 @@ export interface Incidencia {
 /** Situación del año frente a los umbrales de inasistencia de la institución. */
 export interface SituacionAnual {
   faltas: number;
+  /** Días de clase que le corresponden al alumno: desde su matrícula (o el inicio de clases) hasta fin de año. */
   lectivos: number;
+  desde: string;
+  /** Se matriculó después de que empezaron las clases: los días se cuentan desde su matrícula. */
+  desdeMatricula: boolean;
   porcentaje: number;
   nivel: "SIN_RIESGO" | "AVISO" | "RIESGO";
   porcentajeAviso: number;

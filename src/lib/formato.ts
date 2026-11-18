@@ -119,3 +119,6 @@ export function fechaLarga(fecha: string): string {
   const diaSemana = new Date(Date.UTC(anio, mes - 1, dia)).getUTCDay();
   return `${DIAS_SEMANA[diaSemana]} ${dia} de ${MESES[mes - 1]} de ${anio}`;
 }
+
+/** «1 falta», «2 faltas», «0 faltas»: la cantidad con el sustantivo en singular o plural. */
+export const cantidad = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
