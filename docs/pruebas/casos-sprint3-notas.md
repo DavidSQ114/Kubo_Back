@@ -1,0 +1,52 @@
+# Casos de prueba · Sprint 3, bloque 6: evaluación (US37, US39, US40)
+
+Pantalla DO-04 «Registro de notas» del docente (`/docente/notas`) y modal M-10 «Cerrar registro del bimestre». Pantallas: [frontend-notas.md](../frontend-notas.md). API: [evaluacion.md](../api/evaluacion.md).
+
+Las reglas puras se prueban con Vitest en `tests/evaluacion/notas.test.ts` (valores permitidos, bimestre activo, guardado parcial con el valor anterior, completitud, consolidación con moda y con promedio ponderado según la versión que rige en el bimestre y bloqueo tras el cierre). Los permisos, el guardado, el cierre incompleto, el cierre concurrente del mismo registro, la consolidación con cada versión de la regla y la escritura rechazada después del cierre (también directo en la base) se prueban en `tests/evaluacion/notas.integracion.test.ts`, que corre en el CI con PostgreSQL y fechas fijas.
+
+**Precondición común (PC):** seed cargado y año **2026** «En curso» con sus cuatro bimestres; hoy cae en el **Bimestre III** (activo); los bimestres I y II ya terminaron y el IV no empezó. Regla de consolidación (AD-05): **versión 1 «Moda de los logros»** con desempate «mayor jerarquía». Solo datos ficticios (RNF14):
+- **Matemática** de 3.° con cuatro competencias (C1 Cantidad, C2 Regularidad, C3 Forma, C4 Datos) y **Juan Pérez Salazar** asignado en **3° B** (con cuenta). **Luis Campos Ruiz** tiene Matemática en **3° A** (con cuenta).
+- Ocho estudiantes matriculados en 3° B, entre ellos **Castillo Ramos, Bruno**, **Quispe Rojas, Valeria** y **Soto Lima, Fabiana**. Un noveno estudiante **retirado** de 3° B.
+- Un administrador activo con correo (el del seed).
+
+Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepción** (el sistema rechaza la operación y muestra el mensaje).
+
+## US37 · Registro de notas cualitativas
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US37-01 | US37 | básico | PC; sesión de Juan Pérez | 1. Menú «Registro de notas». | — | Título «Registro de notas», «Año 2026 · Bimestre III en curso». Selector «Curso y sección» con «Matemática · 3° B» (solo sus cursos). Pestañas «Bimestre I · no activo», «Bimestre II · no activo», «Bimestre III · activo» (elegida) y «Bimestre IV · no activo». Grilla con los 8 alumnos por apellido (sin el retirado), columnas C1–C4 y «Consolidado», leyenda AD/A/B/C, «Avance del registro: 0 %» y «Guardar cambios» deshabilitado. |
+| CP-US37-02 | US37 | básico | CP-US37-01 | 1. Clic en la celda C1 de Bruno. 2. Elegir «AD · Logro destacado» de la lista. 3. Escribir «a» en C2. 4. «Guardar cambios». | — | La lista muestra AD, A, B y C con su nombre. La celda toma el color del logro; «a» se convierte en «A». Al guardar: «Notas guardadas.» con «2 notas nuevas y 0 cambios…», el avance sube y cada nota guarda alumno, competencia, bimestre, quién y cuándo. |
+| CP-US37-03 | US37 | alterno | CP-US37-02 | 1. Salir de la pantalla. 2. Volver a «Registro de notas». | — | Las dos notas siguen ahí: el registro se puede guardar en partes. Bruno muestra «Incompleto» en «Consolidado». |
+| CP-US37-04 | US37 | básico | CP-US37-02 | 1. Cambiar C1 de Bruno a «B». 2. «Guardar cambios». 3. Pasar el cursor sobre la celda. | — | «Notas guardadas.» con «0 notas nuevas y 1 cambio». La nota guarda `logro_anterior = AD`, `modificado_por_id` y `modificado_en`; el detalle de la celda dice «Registrada por J. Pérez el …; cambiada de AD a B por J. Pérez el …». |
+| CP-US37-05 | US37 | excepción | CP-US37-01 | 1. Escribir «15» en C2 de Bruno. 2. «Guardar cambios». | — | Alerta roja «Solo se permiten los valores AD, A, B o C» con «Se rechazó el valor «15» ingresado para Castillo Ramos, Bruno en C2. El registro no se guardó.»; la celda y la fila se resaltan en rojo. No se guarda ninguna nota del pedido. |
+| CP-US37-06 | US37 | excepción | Sesión de Juan Pérez | 1. `PUT /evaluacion/registros/{asignación}/bimestres/{III}/notas` con `"logro": "15"`, `"logro": 4` y `"logro": "ad"`. | — | `400 VALOR_NO_PERMITIDO` «Solo se permiten los valores AD, A, B o C» con `details.celdas`. No se guarda nada (validación Zod del servidor). |
+| CP-US37-07 | US37 | excepción | PC; sesión de Juan Pérez | 1. Pestaña «Bimestre IV · no activo». 2. `PUT …/bimestres/{IV}/notas`. | — | Alerta ámbar «Este periodo de evaluación no está activo.» y «El registro se muestra en solo lectura…». Las celdas son de solo lectura y no hay «Guardar cambios» ni «Cerrar registro del bimestre». La API responde `422 PERIODO_NO_ACTIVO` con el mismo mensaje. |
+| CP-US37-08 | US37 | alterno | Bimestre III con estado «Finalizado» en AD-02, o año no «En curso» | 1. «Registro de notas». | — | Ningún bimestre está activo: el encabezado dice «ningún bimestre en curso hoy» y el registro se muestra en solo lectura con «Este periodo de evaluación no está activo.». |
+| CP-US37-09 | US37 | excepción | Sesión de Juan Pérez | 1. `GET`, `PUT …/notas` y `POST …/cerrar` con la asignación de Luis Campos (3° A). | — | `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.» en los tres casos; Juan Pérez no ve 3° A en su selector. |
+| CP-US37-10 | US37 | excepción | Sesión de Juan Pérez | 1. `PUT …/notas` con un alumno de 3° A o una competencia de otro curso. | — | `422 NOTA_FUERA_DEL_REGISTRO`. No se guarda nada. |
+| CP-US37-11 | US37 | excepción | Sin sesión; luego con sesión de Apoderado, de Alumno y de Administrador | 1. `GET /evaluacion/registros`. 2. `PUT …/notas`. 3. `POST …/cerrar`. | — | Sin sesión: `401 NO_AUTENTICADO`. Con otro perfil: `403 ACCESO_DENEGADO`. |
+| CP-US37-12 | US37 | alterno | Docente sin cursos asignados | 1. «Registro de notas». | — | «Aún no tienes cursos asignados.» y qué hacer. |
+| CP-US37-13 | US37 | alterno | Sesión de Juan Pérez en un celular (390 px) | 1. «Registro de notas». 2. Calificar y guardar. | — | Cada alumno es una tarjeta con su consolidado y una celda por competencia («C1 · Cantidad»). Las pestañas dicen «Bim. III · activo». No hay desplazamiento horizontal de la página. |
+
+## US39 · Consolidación y cierre de bimestre
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US39-01 | US39 | excepción | CP-US37-02 (faltan notas) | 1. «Cerrar registro del bimestre». | — | Modal M-10 «Cerrar registro del bimestre · Matemática 3° B · Bimestre III» con la alerta «Existen registros de notas incompletos», «Completa estas calificaciones para poder cerrar el registro.» y la lista de alumnos con sus competencias faltantes («C2, C3, C4 · sin calificar»). «Cerrar registro» está deshabilitado. |
+| CP-US39-02 | US39 | excepción | CP-US37-02 | 1. `POST …/cerrar`. | — | `422 NOTAS_INCOMPLETAS` «Existen registros de notas incompletos» con `details.pendientes` (alumno y competencias). El registro sigue «Abierto». |
+| CP-US39-03 | US39 | alterno | Todas las notas completas y una celda cambiada sin guardar | 1. «Cerrar registro del bimestre». | — | El modal avisa «Tienes cambios sin guardar» y no deja cerrar hasta guardar. |
+| CP-US39-04 | US39 | básico | Todas las competencias de los 8 alumnos calificadas y guardadas | 1. «Cerrar registro del bimestre». 2. «Cerrar registro». | Valeria: AD, A, AD, A | El modal explica que se calcula el consolidado con la regla vigente («moda de los logros, versión 1»), que ya no se podrá editar y que se avisa a la administración. Al cerrar: «Registro cerrado.» con el número de estudiantes y de administradores avisados; la columna «Consolidado» muestra el logro de cada alumno (Valeria: AD por desempate de mayor jerarquía) y la pestaña pasa a «Bimestre III · cerrado». Se guardan los resultados con la versión 1 y el registro queda `CERRADO`, con quién y cuándo lo cerró. Queda `CERRAR_REGISTRO_NOTAS` en la bitácora con el resumen. |
+| CP-US39-05 | US39 | básico | CP-US39-04 | 1. Revisar el correo del administrador. | — | Correo «Kubo · Notas consolidadas de Matemática 3° B (Bimestre III)»: el registro está consolidado y listo para su publicación a los apoderados. Si el servidor de correo falla, el cierre no se revierte y el mensaje lo dice. |
+| CP-US39-06 | US39 | alterno | AD-05 con una **versión 2 «Promedio ponderado»** que rige desde el Bimestre III; pesos 2, 1, 1, 1 (AD-04) | 1. Repetir CP-US39-04. | Bruno: C, AD, AD, A | El modal y el encabezado citan «Promedio ponderado · versión 2». Bruno: (1×2 + 4 + 4 + 3) / 5 = 2,6 → A. El resultado guarda la versión 2. Un registro del Bimestre II cerrado antes conserva la versión 1. |
+| CP-US39-07 | US39 | excepción | Registro completo abierto en dos pestañas | 1. «Cerrar registro» en las dos casi a la vez (o dos `POST …/cerrar` simultáneos). | — | Uno cierra y consolida; el otro recibe `409 REGISTRO_CERRADO` «Este registro está cerrado y no puede modificarse directamente.» y la pantalla pasa a solo lectura. Hay un solo juego de resultados y una sola fila de auditoría. |
+| CP-US39-08 | US39 | excepción | Año sin regla de consolidación | 1. Guardar una nota. | — | `422 SIN_REGLA_CONSOLIDACION` «El año no tiene una regla de consolidación configurada. Comunícate con el Administrador.». |
+
+## US40 · Bloqueo de registro cerrado
+
+| ID | Historia | Tipo | Precondiciones | Pasos | Datos | Resultado esperado |
+|---|---|---|---|---|---|---|
+| CP-US40-01 | US40 | básico | CP-US39-04 | 1. Volver a «Bimestre III · cerrado». 2. Intentar editar una celda. | — | Las celdas son insignias de solo lectura, sin lista ni «Guardar cambios». Alerta azul «Este registro está cerrado y no puede modificarse directamente.» con la fecha y quién lo cerró, e insignia «Cerrado». |
+| CP-US40-02 | US40 | excepción | CP-US39-04; sesión de Juan Pérez | 1. `PUT …/bimestres/{III}/notas` con un logro válido. 2. `POST …/cerrar`. | — | `409 REGISTRO_CERRADO` «Este registro está cerrado y no puede modificarse directamente.» en ambos, aunque el bimestre siga activo. La nota no cambia. |
+| CP-US40-03 | US40 | excepción | CP-US39-04 | 1. Con acceso a la base de pruebas: `UPDATE nota SET logro = 'AD' WHERE …` de una nota del registro cerrado. | — | La base lo rechaza: `REGISTRO_CERRADO: el registro de notas está cerrado…` (trigger `tg_nota_registro_cerrado`). |
+| CP-US40-04 | US40 | básico | CP-US40-01 | 1. Leer la alerta del registro cerrado. | — | Indica «Si necesitas corregir una nota, solicítalo al Administrador por el canal de soporte institucional.»: la rectificación (US41) no está en esta entrega y no hay ningún camino para editar el registro cerrado. |

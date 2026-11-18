@@ -1,0 +1,73 @@
+# Pruebas manuales de la API de evaluación: registro de notas (US37), cierre y consolidación del bimestre (US39) y
+# bloqueo del registro cerrado (US40).
+# Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
+# Todas las rutas exigen sesión de DOCENTE: inicia sesión con un docente con identidad.http (las cookies de sesión se
+# guardan solas entre solicitudes, también entre archivos).
+# Pensado para una base con un año «En curso», un bimestre activo hoy, una regla de consolidación (AD-05) y un curso
+# con competencias (AD-04) asignado al docente en una sección con alumnos matriculados. Solo datos ficticios.
+
+@base = http://localhost:3000/api/v1
+
+### 1. Mis registros → 200: año, bimestres (con «activo») y mis cursos con el estado de cada bimestre
+# @name mios
+GET {{base}}/evaluacion/registros
+
+###
+@asignacion = {{mios.response.body.$.data.cursos[0].asignacionId}}
+@bimestre = {{mios.response.body.$.data.bimestreActivoId}}
+
+### 2. Registro del bimestre activo → 200: alumnos por competencias, editable: true
+# @name registro
+GET {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}
+
+###
+@alumno1 = {{registro.response.body.$.data.alumnos[0].matriculaId}}
+@alumno2 = {{registro.response.body.$.data.alumnos[1].matriculaId}}
+@c1 = {{registro.response.body.$.data.competencias[0].competenciaPlanId}}
+@c2 = {{registro.response.body.$.data.competencias[1].competenciaPlanId}}
+
+### 3. Guardar una parte → 200: guardado { nuevas: 2, modificadas: 0, sinCambio: 0 }
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "notas": [
+  { "matriculaId": "{{alumno1}}", "competenciaPlanId": "{{c1}}", "logro": "A" },
+  { "matriculaId": "{{alumno1}}", "competenciaPlanId": "{{c2}}", "logro": "AD" }
+] }
+
+### 4. Cambiar una nota → 200: modificadas 1; la nota trae logroAnterior "A", modificadoPor y modificadoEn
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "notas": [ { "matriculaId": "{{alumno1}}", "competenciaPlanId": "{{c1}}", "logro": "B" } ] }
+
+### 5. Valor fuera de la escala → 400 VALOR_NO_PERMITIDO «Solo se permiten los valores AD, A, B o C»
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "notas": [ { "matriculaId": "{{alumno2}}", "competenciaPlanId": "{{c1}}", "logro": "15" } ] }
+
+### 6. Cerrar con notas pendientes → 422 NOTAS_INCOMPLETAS «Existen registros de notas incompletos» + details.pendientes
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/cerrar
+
+### 7. (Completa todas las notas desde la pantalla o con el bloque 3) Cerrar → 200: estado CERRADO, consolidado por
+### alumno, regla { version } y aviso { administradores, enviados }
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/cerrar
+
+### 8. Escribir en el registro cerrado → 409 REGISTRO_CERRADO «Este registro está cerrado y no puede modificarse directamente.»
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "notas": [ { "matriculaId": "{{alumno1}}", "competenciaPlanId": "{{c1}}", "logro": "AD" } ] }
+
+### 9. Cerrar otra vez → 409 REGISTRO_CERRADO
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/cerrar
+
+### 10. Un bimestre que no está activo (elige otro id de «bimestres» del bloque 1) → 200 con editable: false y
+### mensaje «Este periodo de evaluación no está activo.»; un PUT responde 422 PERIODO_NO_ACTIVO
+@otroBimestre = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{otroBimestre}}
+
+### 11. Curso de otro docente (asignación ajena) → 403 ACCESO_DENEGADO
+@asignacionAjena = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/registros/{{asignacionAjena}}/bimestres/{{bimestre}}
