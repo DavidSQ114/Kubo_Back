@@ -49,6 +49,9 @@ export const ConsultaPersonaSchema = z.object({
 
 const MENSAJE_EMAIL = "Formato de correo electrónico inválido";
 
+/** Sexo opcional, con las mismas opciones en el registro de docentes, apoderados y estudiantes y en la edición. */
+const sexo = () => z.enum(["FEMENINO", "MASCULINO"], { message: "Elige el sexo" }).optional().nullable();
+
 export const RegistrarDocenteSchema = z.object({
   dni: z
     .string({ message: "Ingresa el DNI" })
@@ -73,6 +76,7 @@ export const RegistrarDocenteSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha de nacimiento debe tener el formato AAAA-MM-DD")
     .optional()
     .nullable(),
+  sexo: sexo(),
   enviarCorreo: z.boolean().optional(),
 });
 
@@ -143,6 +147,7 @@ export const RegistrarApoderadoSchema = z.object({
     .trim()
     .min(2, "Ingresa la ocupación")
     .max(100, "Ocupación demasiado larga"),
+  sexo: sexo(),
   /** Estudiantes ya registrados que se vinculan en el mismo guardado (paso 2 de AD-08). */
   vinculos: z.array(VinculoConEstudianteSchema).max(10, "Vincula como máximo 10 estudiantes a la vez").default([]),
   enviarCorreo: z.boolean().optional(),
@@ -154,7 +159,7 @@ export const RegistrarEstudianteSchema = z.object({
   apellidos: nombre("los apellidos"),
   fechaNacimiento: fechaNacimiento(),
   gradoIngresoId: uuid("Elige el grado de ingreso"),
-  sexo: z.enum(["FEMENINO", "MASCULINO"], { message: "Elige el sexo" }).optional().nullable(),
+  sexo: sexo(),
   colegioProcedencia: textoOpcional(150, "Colegio de procedencia demasiado largo"),
   direccion: textoOpcional(200, "Dirección demasiado larga"),
   apoderados: z
@@ -209,7 +214,7 @@ export const EditarPersonaSchema = z.object({
   fechaNacimiento: fechaNacimiento().nullable().optional(),
   ocupacion: textoPerfil("Ocupación", "Ingresa la ocupación").optional(),
   especialidad: textoPerfil("Especialidad", "Ingresa la especialidad").optional(),
-  sexo: z.enum(["FEMENINO", "MASCULINO"], { message: "Elige el sexo" }).nullable().optional(),
+  sexo: sexo(),
   colegioProcedencia: textoOpcional(150, "Colegio de procedencia demasiado largo"),
   dni: dni().optional(),
   nombres: nombre("los nombres").optional(),

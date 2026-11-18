@@ -32,7 +32,7 @@ Content-Type: application/json
 POST {{base}}/comunidad/docentes
 Content-Type: application/json
 
-{ "dni": "45872136", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "juan.perez@kubo.edu.pe", "especialidad": "Matemática", "telefono": "987 654 321", "fechaNacimiento": "1986-06-14" }
+{ "dni": "45872136", "nombres": "Juan Carlos", "apellidos": "Pérez Salazar", "email": "juan.perez@kubo.edu.pe", "especialidad": "Matemática", "telefono": "987 654 321", "fechaNacimiento": "1986-06-14", "sexo": "MASCULINO" }
 
 ### 6. Mismo DNI otra vez → 409 «Ya existe un usuario registrado con este DNI»
 POST {{base}}/comunidad/docentes
@@ -94,7 +94,7 @@ Content-Type: application/json
 POST {{base}}/comunidad/apoderados
 Content-Type: application/json
 
-{ "dni": "41234567", "nombres": "Jorge Luis", "apellidos": "Quispe Huamán", "fechaNacimiento": "1980-05-10", "email": "jorge.quispe@correo.pe", "telefono": "987 654 321", "direccion": "Jr. Lima 123, Lima", "ocupacion": "Ingeniero" }
+{ "dni": "41234567", "nombres": "Jorge Luis", "apellidos": "Quispe Huamán", "fechaNacimiento": "1980-05-10", "email": "jorge.quispe@correo.pe", "telefono": "987 654 321", "direccion": "Jr. Lima 123, Lima", "ocupacion": "Ingeniero", "sexo": "MASCULINO" }
 
 @apoderado = {{apoderado.response.body.$.data.apoderadoId}}
 

@@ -44,6 +44,11 @@ describe("datos de una persona ya registrada (US15, D-07)", () => {
     const enviados = { telefono: "987654321", email: "otro@correo.pe", direccion: "Jr. Lima 123" };
     expect(datosFaltantes(registrados, enviados)).toEqual({ telefono: "987654321", direccion: "Jr. Lima 123" });
   });
+  it("completa el sexo solo si no estaba registrado", () => {
+    expect(datosFaltantes({ sexo: null }, { sexo: "FEMENINO" })).toEqual({ sexo: "FEMENINO" });
+    expect(datosFaltantes({ sexo: "MASCULINO" }, { sexo: "FEMENINO" })).toEqual({});
+    expect(datosFaltantes({ sexo: null }, { sexo: null })).toEqual({});
+  });
   it("no cambia nada si la persona ya tiene todos sus datos", () => {
     expect(datosFaltantes({ telefono: "912345678" }, { telefono: "987654321" })).toEqual({});
   });
@@ -58,6 +63,11 @@ describe("datos del apoderado (US15)", () => {
     const r = RegistrarApoderadoSchema.parse({ ...valido, telefono: "987 654 321" });
     expect(r.telefono).toBe("987654321");
     expect(r.vinculos).toEqual([]);
+  });
+  it("acepta el sexo como opcional, con las mismas opciones que el registro de estudiantes", () => {
+    expect(RegistrarApoderadoSchema.parse(valido).sexo).toBeUndefined();
+    expect(RegistrarApoderadoSchema.parse({ ...valido, sexo: "FEMENINO" }).sexo).toBe("FEMENINO");
+    expect(error({ sexo: "F" })).toBe("Elige el sexo");
   });
   it("rechaza un teléfono con menos de 9 dígitos", () => {
     expect(error({ telefono: "98765432" })).toBe("El número de teléfono debe tener 9 dígitos");

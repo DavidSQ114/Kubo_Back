@@ -7,6 +7,7 @@ import type { MetaSolicitud } from "@/platform/http/ruta";
 import type { DocenteResumen } from "@/modules/academico";
 import { asegurarCuenta, enviarBienvenida, type Autenticado } from "@/modules/identidad";
 import { accionPerfilDocente, normalizarTelefono } from "../domain/docentes";
+import { datosFaltantes } from "../domain/vinculos";
 import { docentes, personas } from "../infrastructure/repositorio";
 import { personaParaPerfil } from "./personas";
 
@@ -50,6 +51,7 @@ export interface DatosDocente {
   especialidad: string;
   telefono?: string | null;
   fechaNacimiento?: string | null;
+  sexo?: "FEMENINO" | "MASCULINO" | null;
   /** Correo de bienvenida con la contraseña temporal (por defecto, sí). */
   enviarCorreo?: boolean;
 }
@@ -57,14 +59,19 @@ export interface DatosDocente {
 /**
  * Registra un Docente (US13). Si el DNI es de una persona nueva, crea persona, perfil y cuenta con contraseña
  * temporal (debe cambiarla al ingresar, US54). Si la persona ya existe con otro perfil, solo le agrega el perfil
- * Docente: no cambia sus datos ni crea otra cuenta, y los nombres enviados deben coincidir con los registrados
- * (D-07, PERSONA_NO_COINCIDE). Todo en una transacción; el correo va después.
+ * Docente: no cambia sus datos ni crea otra cuenta (solo completa el sexo si no estaba registrado), y los nombres
+ * enviados deben coincidir con los registrados (D-07, PERSONA_NO_COINCIDE). Todo en una transacción; el correo va
+ * después.
  */
 export async function registrarDocente(admin: Autenticado, datos: DatosDocente, urlBase: string, meta: MetaSolicitud) {
   let resultado;
   try {
     resultado = await prisma.$transaction(async (tx) => {
       const existente = await personaParaPerfil(tx, datos);
+      if (existente) {
+        const faltantes = datosFaltantes(existente, { sexo: datos.sexo ?? null });
+        if (Object.keys(faltantes).length) await personas.completar(existente.id, faltantes, tx);
+      }
       const persona =
         existente ??
         (await personas.crear(
@@ -75,6 +82,7 @@ export async function registrarDocente(admin: Autenticado, datos: DatosDocente, 
             email: datos.email,
             telefono: datos.telefono ? normalizarTelefono(datos.telefono) : null,
             fechaNacimiento: datos.fechaNacimiento ? new Date(`${datos.fechaNacimiento}T00:00:00.000Z`) : null,
+            sexo: datos.sexo ?? null,
           },
           tx,
         ));
@@ -98,6 +106,7 @@ export async function registrarDocente(admin: Autenticado, datos: DatosDocente, 
           nuevo: {
             personaId: persona.id,
             especialidad: datos.especialidad,
+            sexo: datos.sexo ?? null,
             personaExistia: Boolean(existente),
             cuentaCreada: cuenta.creada,
           },

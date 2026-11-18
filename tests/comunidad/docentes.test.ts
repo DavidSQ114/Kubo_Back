@@ -44,6 +44,12 @@ describe("datos del docente (US13)", () => {
     expect(error({ telefono: "98765432" })).toBe("El teléfono debe tener 9 dígitos");
     expect(RegistrarDocenteSchema.safeParse({ ...valido, telefono: null }).success).toBe(true);
   });
+  it("acepta el sexo como opcional, con las mismas opciones que el registro de estudiantes", () => {
+    expect(RegistrarDocenteSchema.parse(valido).sexo).toBeUndefined();
+    expect(RegistrarDocenteSchema.parse({ ...valido, sexo: null }).sexo).toBeNull();
+    expect(RegistrarDocenteSchema.parse({ ...valido, sexo: "MASCULINO" }).sexo).toBe("MASCULINO");
+    expect(error({ sexo: "OTRO" })).toBe("Elige el sexo");
+  });
   it("exige la especialidad", () => {
     expect(error({ especialidad: "" })).toBe("Elige la especialidad");
   });

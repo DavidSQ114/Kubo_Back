@@ -79,6 +79,10 @@ Precondición adicional: existe la administradora ficticia Rosa Elena Huamán To
 | CP-US13-18 | US13 | básico | PC | 1. Consultar un DNI nuevo por la API. | `GET /comunidad/personas?dni=45872199` | `200 { "data": null }`. |
 | CP-US13-19 | US13 | excepción | PC | 1. Consultar un DNI de 7 dígitos. | `?dni=4123567` | `400 DATOS_INVALIDOS`: «El DNI debe tener 8 dígitos». |
 | CP-US13-20 | US13 | excepción | Sesión de un perfil que no es Administrador | 1. Llamar a `GET /comunidad/personas?dni=41235678`. | — | `403 ACCESO_DENEGADO`. |
+| CP-US13-21 | US13 | básico | PC | 1. Abrir «Registrar docente». 2. Llenar los datos y elegir «Sexo (opcional)». 3. «Registrar docente». | DNI 45872140 · Femenino | Se registra. El selector ofrece «Sin indicar», «Femenino» y «Masculino», como el registro de estudiantes. En «Usuarios», «Ver detalle» muestra «Sexo: Femenino». La auditoría `REGISTRAR_DOCENTE` incluye `sexo: "FEMENINO"`. |
+| CP-US13-22 | US13 | alterno | PC | 1. Registrar un docente dejando «Sin indicar». | DNI 45872141 | Se registra con `persona.sexo = null`: el sexo es opcional. |
+| CP-US13-23 | US13 | alterno | CP-US13-12 (Rosa Elena sin sexo registrado) | 1. Elegir la especialidad y «Femenino». 2. «Agregar perfil Docente». | Matemática · Femenino | Se agrega el perfil y se completa su sexo. Si ya tenía un sexo registrado, no se reemplaza (solo se completan los datos que faltan). |
+| CP-US13-24 | US13 | excepción | PC | 1. `POST /comunidad/docentes` con un sexo no válido. | `"sexo": "OTRO"` | `400 DATOS_INVALIDOS`: «Elige el sexo». |
 
 ## Ajustes del Sprint 1
 

@@ -47,7 +47,6 @@ const CAMPOS_IDENTIDAD: readonly CampoPersona[] = ["dni", "nombres", "apellidos"
 const PERFIL_DEL_CAMPO: Partial<Record<CampoPersona, Rol>> = {
   ocupacion: "APODERADO",
   especialidad: "DOCENTE",
-  sexo: "ALUMNO",
   colegioProcedencia: "ALUMNO",
 };
 
@@ -591,6 +590,17 @@ export function ModalPersona({
             onChange={cambiar("fechaNacimiento")}
             error={errores.fechaNacimiento}
           />
+          <Selector
+            id="sexo-persona"
+            etiqueta="Sexo"
+            valor={formulario.sexo}
+            onCambiar={(v) => setFormulario((f) => (f ? { ...f, sexo: v } : f))}
+            opciones={[
+              { valor: "", texto: "Sin registrar" },
+              { valor: "FEMENINO", texto: "Femenino" },
+              { valor: "MASCULINO", texto: "Masculino" },
+            ]}
+          />
           {detalle.perfilesRegistrados.includes("APODERADO") && (
             <Campo
               etiqueta="Ocupación (apoderado)"
@@ -610,26 +620,13 @@ export function ModalPersona({
             />
           )}
           {detalle.perfilesRegistrados.includes("ALUMNO") && (
-            <>
-              <Selector
-                id="sexo-persona"
-                etiqueta="Sexo (estudiante)"
-                valor={formulario.sexo}
-                onCambiar={(v) => setFormulario((f) => (f ? { ...f, sexo: v } : f))}
-                opciones={[
-                  { valor: "", texto: "Sin registrar" },
-                  { valor: "FEMENINO", texto: "Femenino" },
-                  { valor: "MASCULINO", texto: "Masculino" },
-                ]}
-              />
-              <Campo
-                etiqueta="Colegio de procedencia (estudiante)"
-                maxLength={150}
-                value={formulario.colegioProcedencia}
-                onChange={cambiar("colegioProcedencia")}
-                error={errores.colegioProcedencia}
-              />
-            </>
+            <Campo
+              etiqueta="Colegio de procedencia (estudiante)"
+              maxLength={150}
+              value={formulario.colegioProcedencia}
+              onChange={cambiar("colegioProcedencia")}
+              error={errores.colegioProcedencia}
+            />
           )}
           <div className="flex flex-col gap-1 border-t border-borde pt-4 sm:col-span-2">
             <h3 className="text-[14px] font-semibold leading-[1.4] text-texto">Identidad</h3>
