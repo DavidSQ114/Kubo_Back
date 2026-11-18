@@ -22,7 +22,7 @@ import {
   type SituacionAnual,
 } from "@/components/portal/asistencia";
 import { Alerta, Badge, Icono, Tarjeta } from "@/components/ui";
-import { mesLargo, nombreMes, sumarMeses } from "@/lib/formato";
+import { cantidad, mesLargo, nombreMes, sumarMeses } from "@/lib/formato";
 
 type EstadoCalendario = EstadoDia | "SIN_REGISTRO" | "VACACIONES" | "FUERA_DEL_ANIO";
 type Dia = "LUNES" | "MARTES" | "MIERCOLES" | "JUEVES" | "VIERNES";
@@ -261,9 +261,10 @@ function PantallaDelMes({
               : `${nombre} se acerca al límite de inasistencias del año`
           }
         >
-          En el año lleva {enPorcentaje(anual.porcentaje)} de inasistencias injustificadas ({anual.faltas} de{" "}
-          {anual.lectivos} días de clase). El colegio avisa al llegar al {enPorcentaje(anual.porcentajeAviso)} y el
-          límite institucional es {enPorcentaje(anual.porcentajeRiesgo)}.
+          En el año lleva {enPorcentaje(anual.porcentaje)} de inasistencias injustificadas (
+          {cantidad(anual.faltas, "falta", "faltas")} de {cantidad(anual.lectivos, "día de clase", "días de clase")}
+          {anual.desdeMatricula ? " desde su matrícula" : " del año"}). El colegio avisa al llegar al{" "}
+          {enPorcentaje(anual.porcentajeAviso)} y el límite institucional es {enPorcentaje(anual.porcentajeRiesgo)}.
         </Alerta>
       )}
 
@@ -307,8 +308,9 @@ function PantallaDelMes({
 
       {datos.alerta && (
         <Alerta tipo="aviso" icono="alerta-warn" titulo={datos.alerta.mensaje}>
-          {nombre} faltó el {fechasCortas(datos.alerta.fechas)} sin justificación. Si tienes una constancia, preséntala
-          al tutor de la sección.
+          {nombre} faltó {datos.alerta.fechas.length === 1 ? "el" : "los días"} {fechasCortas(datos.alerta.fechas)} sin
+          justificación. Si tienes {datos.alerta.fechas.length === 1 ? "una constancia" : "constancias"}, preséntala
+          {datos.alerta.fechas.length === 1 ? "" : "s"} al tutor de la sección.
         </Alerta>
       )}
 

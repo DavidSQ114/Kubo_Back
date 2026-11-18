@@ -18,6 +18,8 @@ export interface MatriculaDelAlumno {
   anio: number;
   /** null solo si la matrícula no tiene sección. */
   seccionId: string | null;
+  /** «AAAA-MM-DD»: desde aquí se cuentan sus días de clase (D-11). */
+  fechaMatricula: string;
 }
 
 /** Matrícula vigente del alumno en sesión; si no la tiene, 403 SIN_MATRICULA_VIGENTE. */
@@ -31,6 +33,7 @@ export async function matriculaVigenteDelAlumno(auth: Autenticado): Promise<Matr
     anioAcademicoId: m.anioAcademicoId,
     anio: m.anio,
     seccionId: m.seccionId,
+    fechaMatricula: m.fechaMatricula,
   };
 }
 

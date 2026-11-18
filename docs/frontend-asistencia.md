@@ -58,7 +58,7 @@ Menús: «Asistencia» del docente y del apoderado y «Mi asistencia» del alumn
 `/alumno/asistencia`.
 
 - **Cuatro indicadores:** faltas y tardanzas del bimestre («Bimestre IV») y del año («Desde el 02/03/2026»). Debajo, cuántos días justificados tiene (no cuentan para el límite).
-- **Nivel de riesgo:** insignia «Sin riesgo», «En aviso» o «En riesgo»; «7,5 % de inasistencias en el año», «Umbral institucional: 20 %», una barra con la marca del umbral, «9 faltas de 120 días de clase» y «Te quedan 15 faltas antes del umbral».
+- **Nivel de riesgo:** insignia «Sin riesgo», «En aviso» o «En riesgo»; «7,5 % de inasistencias en el año», «Umbral institucional: 20 %», una barra con la marca del umbral, «9 faltas de 120 días de clase del año» (o «1 falta de 28 días de clase desde tu matrícula» si se matriculó con el año empezado) y «Te quedan 14 faltas antes del umbral» («Te queda 1 falta…» en singular). Desde D-11 la base son los días de clase desde la matrícula y las faltas restantes son las que aún no llegan al umbral.
 - **Alertas:** «Te acercas al límite de inasistencias» (aviso) o «Estás en riesgo por inasistencias» (riesgo) con «Acumulas el 21 % de inasistencias. Conversa con tu tutor para evitar consecuencias académicas.», y la alerta del mes «Atención: N inasistencias injustificadas este mes».
 - **Detalle del bimestre:** Fecha, Clase («Día completo» o «Inglés · 07:45»), Tipo («Falta», «Tardanza», «Justificado») y Detalle.
 - **Sin faltas ni tardanzas:** «¡Felicidades! No registras inasistencias este periodo» en lugar de los contadores en cero.

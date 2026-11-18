@@ -26,6 +26,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 | `GET /horarios/mi-horario?anioId=` | Docente | — | `HorarioDeDocente` del docente en sesión (US34) |
 | `GET /horarios/apoderado/hijos/{id}/horario` | Apoderado | — | `HorarioDeEstudiante` del hijo, si está vinculado (US48) |
 | `GET /horarios/alumno/horario` | Alumno | — | `HorarioDeEstudiante` del alumno en sesión (US50) |
+| `GET /horarios/apoderado/hijos/{id}/horario/pdf` | Apoderado | — | PDF del horario publicado vigente del hijo (US66) |
 
 `{dia}` es `LUNES`, `MARTES`, `MIERCOLES`, `JUEVES` o `VIERNES`.
 
@@ -82,6 +83,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - **Nadie elige la sección.** El docente y el alumno salen de la sesión; el apoderado envía el `{id}` de su hijo y el servidor comprueba el vínculo. Ningún endpoint de portal recibe un id de sección ni de docente.
   - `GET /horarios/mi-horario` (US34): clases del docente en sesión en **todas sus secciones publicadas** del año, cada una con `curso`, `seccion` y `aula`. Sin clases publicadas responde `200` con `clases: []` y `resumen: { bloques: 0, secciones: [] }`; la pantalla muestra «Aún no tienes cursos asignados para este periodo».
   - `GET /horarios/apoderado/hijos/{id}/horario` (US48): horario de la sección del hijo, con `curso`, `aula` y `docente` en cada clase. El hijo debe estar entre los estudiantes vinculados a la persona en sesión, con la misma regla del portal de pagos (`403 ESTUDIANTE_NO_VINCULADO` si no; ver [matricula.md](matricula.md#portal-del-apoderado-us42-us43-us44)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado por la institución». Un hijo retirado se sigue viendo en el portal, pero sin sección: `seccion: null`.
+  - `GET /horarios/apoderado/hijos/{id}/horario/pdf` (US66, «Descargar PDF» de AP-05): la versión publicada vigente en una tabla con una fila por bloque y, por día, «Curso · Aula · Docente»; el recreo ocupa su fila. Mismo vínculo que el horario (`403 ESTUDIANTE_NO_VINCULADO`). Sin horario publicado no se genera: `422 HORARIO_NO_PUBLICADO` «El horario aún no ha sido publicado por la institución.». Usa el generador de PDF de los recibos (US25).
   - `GET /horarios/alumno/horario` (US50): horario de la sección de la **matrícula vigente** del alumno en sesión. Sin matrícula vigente: `403 SIN_MATRICULA_VIGENTE` (ver [matricula.md](matricula.md#portal-del-alumno-us49)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado».
 - `GET /horarios/secciones/{id}/publicado` quedó **solo para el Administrador**. En el bloque 3 también lo podía llamar cualquier docente con el id de cualquier sección; ahora cada perfil ve únicamente su horario por su propio endpoint.
 - Con otro perfil, cada endpoint responde `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.»; sin sesión, `401 NO_AUTENTICADO`.
@@ -166,7 +168,7 @@ Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistenci
   - `resumen`: `{ presentes, tardanzas, ausentes, justificados, diasConClases, porcentajeAsistencia }`, en días; el porcentaje es `null` sin registros.
   - `incidencias`: de la más reciente a la más antigua, `{ fecha, alcance: "DIA" | "CLASE", estado, clase: { curso, horaInicio, docente } | null, observacion }`.
   - `alerta`: `null` o `{ mensaje: "Atención: 3 inasistencias injustificadas este mes", faltas, fechas }`.
-  - `anual`: `SituacionAnual` `{ faltas, lectivos, porcentaje, nivel: "SIN_RIESGO" | "AVISO" | "RIESGO", porcentajeAviso, porcentajeRiesgo, faltasAntesDelRiesgo }`.
+  - `anual`: `SituacionAnual` `{ faltas, lectivos, desde, desdeMatricula, porcentaje, nivel: "SIN_RIESGO" | "AVISO" | "RIESGO", porcentajeAviso, porcentajeRiesgo, faltasAntesDelRiesgo }`. `lectivos` son los días de clase que le corresponden al alumno, contados desde `desde`; `desdeMatricula` es `true` si se matriculó después de que empezaron las clases. `faltasAntesDelRiesgo` son las faltas que todavía puede sumar sin alcanzar el umbral de riesgo.
   - `primerMes` y `ultimoMes`: entre qué meses se puede navegar (del inicio del año al mes actual, o al último del año si ya terminó).
 - `AsistenciaDelAlumno`: `{ estudiante, anio, bimestre: { numero, nombre, faltas, tardanzas, justificadas } | null, delAnio: { faltas, tardanzas, justificadas, desde }, riesgo: SituacionAnual, alertaDelMes, detalle, sinInasistencias }`. `detalle` son las faltas, tardanzas y justificaciones del bimestre. `sinInasistencias` es `true` si no tiene faltas, tardanzas ni justificaciones en el año: la pantalla muestra «¡Felicidades! No registras inasistencias este periodo».
 
@@ -195,7 +197,8 @@ Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistenci
 **Mi asistencia (US52) y avisos**
 
 - Las faltas cuentan **días Ausente** (sin justificar); las tardanzas, días con tardanza. Se acumulan en el bimestre que contiene hoy (en vacaciones, el último que empezó) y en el año.
-- El porcentaje es faltas del año / días de clase del año (lunes a viernes dentro de los bimestres; no descuenta feriados). Nivel `AVISO` al llegar a `UMBRAL_INASISTENCIA_AVISO` y `RIESGO` al llegar a `UMBRAL_INASISTENCIA`.
+- El porcentaje es faltas del año / **días de clase que le corresponden al alumno** (D-11): de lunes a viernes dentro de los bimestres, desde su `fecha_matricula` (o desde el inicio de clases si se matriculó antes) hasta el fin del último bimestre; no descuenta feriados. Ejemplo: matriculado el 06/11/2026 con el último bimestre hasta el 15/12/2026, la base son 28 días y con 20 % el riesgo llega en la 6.ª falta. Nivel `AVISO` al llegar a `UMBRAL_INASISTENCIA_AVISO` y `RIESGO` al llegar a `UMBRAL_INASISTENCIA`; los avisos por correo usan la misma base.
+- `faltasAntesDelRiesgo` cuenta las faltas que aún no llegan al umbral: con 187 días, 20 % y 1 falta, el umbral se alcanza en la falta 38 y le quedan 36.
 - **Aviso único:** cuando una falta registrada o corregida hace que el alumno alcance por primera vez un umbral, se deja constancia en `aviso_asistencia` y se envía un correo al alumno y a su apoderado principal: `FALTAS_MES` una vez por mes, `PORCENTAJE_AVISO` y `PORCENTAJE_RIESGO` una vez por año. Si se alcanzan los dos porcentajes a la vez, se escribe solo el de riesgo. El correo se envía **después** de confirmar la transacción y su falla no revierte la asistencia. La notificación dentro de la aplicación queda para US55.
 
 **Seguridad**

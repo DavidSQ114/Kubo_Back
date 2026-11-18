@@ -71,3 +71,44 @@ GET {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{otroBimestre}}
 ### 11. Curso de otro docente (asignación ajena) → 403 ACCESO_DENEGADO
 @asignacionAjena = 00000000-0000-0000-0000-000000000000
 GET {{base}}/evaluacion/registros/{{asignacionAjena}}/bimestres/{{bimestre}}
+
+### ---------- Publicación de notas (US39) · sesión de Administrador ----------
+
+### 12. Registros por publicar y publicados del año en curso (filtros opcionales)
+GET {{base}}/evaluacion/publicaciones
+
+### 13. Solo un bimestre y un grado
+@periodo = 00000000-0000-0000-0000-000000000000
+@grado = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/publicaciones?periodoId={{periodo}}&gradoId={{grado}}
+
+### 14. Ver un registro cerrado antes de publicarlo (uno abierto → 404 NO_ENCONTRADO)
+@cierre = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/publicaciones/{{cierre}}
+
+### 15. Publicar → 200 con publicados y aviso { apoderados, enviados }; otra vez → 409 REGISTRO_YA_PUBLICADO;
+### un registro abierto → 409 REGISTRO_NO_CERRADO
+POST {{base}}/evaluacion/publicaciones
+Content-Type: application/json
+
+{ "cierreIds": ["{{cierre}}"] }
+
+### ---------- Libreta (US46, US26, US66) · sesión de Apoderado ----------
+
+### 16. Libreta del hijo: restringido false con la libreta, o true con el mensaje y la deuda (sin notas)
+@hijo = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/apoderado/hijos/{{hijo}}/libreta
+
+### 17. Libreta en PDF de un bimestre (con deuda → 403 LIBRETA_RESTRINGIDA; sin publicados → 422 LIBRETA_SIN_PUBLICAR)
+GET {{base}}/evaluacion/apoderado/hijos/{{hijo}}/libreta/pdf?periodoId={{periodo}}
+
+### 18. Horario en PDF (sin publicar → 422 HORARIO_NO_PUBLICADO)
+GET {{base}}/horarios/apoderado/hijos/{{hijo}}/horario/pdf
+
+### ---------- Mis notas (US51, US66) · sesión de Alumno ----------
+
+### 19. Mis notas: todos los bimestres del año, solo cursos publicados con logros
+GET {{base}}/evaluacion/alumno/libreta
+
+### 20. Mi libreta en PDF
+GET {{base}}/evaluacion/alumno/libreta/pdf?periodoId={{periodo}}

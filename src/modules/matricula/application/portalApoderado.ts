@@ -89,8 +89,8 @@ export async function seccionDelHijo(auth: Autenticado, estudianteId: string) {
 }
 
 /**
- * Matrícula del hijo cuya asistencia consulta el apoderado (US45): la vigente y, si no tiene (por ejemplo, un hijo
- * retirado), la más reciente que puede ver. 403 ESTUDIANTE_NO_VINCULADO si no es su hijo.
+ * Matrícula del hijo cuya asistencia (US45) o libreta (US46) consulta el apoderado: la vigente y, si no tiene (por
+ * ejemplo, un hijo retirado), la más reciente que puede ver. 403 ESTUDIANTE_NO_VINCULADO si no es su hijo.
  */
 export async function matriculaDelHijo(auth: Autenticado, estudianteId: string) {
   const hijo = await hijoAutorizado(auth, estudianteId);
@@ -102,6 +102,10 @@ export async function matriculaDelHijo(auth: Autenticado, estudianteId: string) 
     matriculaId: m.id,
     anioAcademicoId: m.anioAcademicoId,
     anio: m.anio,
+    /** Base de los días de clase del alumno (D-11). */
+    fechaMatricula: m.fechaMatricula,
+    /** Sección de esa matrícula (cursos de la libreta, US46); null si no tiene. */
+    seccionId: m.seccionId,
   };
 }
 

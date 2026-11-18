@@ -8,10 +8,10 @@ import type { Autenticado } from "@/modules/identidad";
 import { matriculaDelHijo, matriculaVigenteDelAlumno } from "@/modules/matricula";
 import {
   alertaDelMes,
+  baseDeInasistencia,
   bimestreDeReferencia,
   calendarioDelMes,
   diasDeAsistencia,
-  diasLectivos,
   incidenciasDe,
   mesDe,
   resumenDeDias,
@@ -155,7 +155,11 @@ export async function asistenciaDelHijo(
     resumen: resumenDeDias(dias),
     incidencias: incidenciasDe(delMes),
     alerta: alertaDe(delMes, umbrales),
-    anual: situacionAnual(contarAusencias(registros).length, diasLectivos(anio.bimestres), umbrales),
+    anual: situacionAnual(
+      contarAusencias(registros).length,
+      baseDeInasistencia(anio.bimestres, m.fechaMatricula),
+      umbrales,
+    ),
     umbralFaltasMes: umbrales.faltasMes,
   };
 }
@@ -209,7 +213,7 @@ export async function asistenciaDelAlumno(auth: Autenticado, ahora: Date = new D
     anio: anio.anio,
     bimestre: bimestre && { numero: bimestre.numero, nombre: bimestre.nombre, ...acumuladoDe(delBimestre) },
     delAnio: { ...delAnio, desde: anio.fechaInicio },
-    riesgo: situacionAnual(delAnio.faltas, diasLectivos(anio.bimestres), umbrales),
+    riesgo: situacionAnual(delAnio.faltas, baseDeInasistencia(anio.bimestres, m.fechaMatricula), umbrales),
     alertaDelMes: alertaDe(
       registros.filter((r) => mesDe(r.fecha) === mesDe(hoy)),
       umbrales,

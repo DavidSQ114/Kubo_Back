@@ -9,6 +9,8 @@ export const PARAMETROS_POR_DEFECTO = {
   UMBRAL_FALTAS_MES: 3,
   UMBRAL_INASISTENCIA_AVISO: 0.15,
   UMBRAL_INASISTENCIA: 0.2,
+  // Restricción de la libreta por deuda (US26): pensiones vencidas a partir de las que el apoderado no la ve
+  PENSIONES_VENCIDAS_RESTRINGEN_LIBRETA: 2,
 } as const;
 
 type ClaveConocida = keyof typeof PARAMETROS_POR_DEFECTO;

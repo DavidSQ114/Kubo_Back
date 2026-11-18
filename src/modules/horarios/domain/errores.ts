@@ -37,6 +37,9 @@ export interface BloqueLibre {
 }
 
 export const erroresHorarios = {
+  /** No hay horario publicado que descargar en PDF (US66, criterio 2). */
+  horarioNoPublicado: () =>
+    new ErrorApp("HORARIO_NO_PUBLICADO", "El horario aún no ha sido publicado por la institución.", 422),
   seccionFueraDelAnioActivo: () =>
     new ErrorApp("SECCION_FUERA_DE_ANIO_ACTIVO", "Esta sección no pertenece al periodo académico activo", 422),
   seccionInactiva: () =>

@@ -62,7 +62,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
       { texto: "Horarios", icono: "nav-grid", href: "/admin/horarios" },
       { texto: "Asistencia de alumnos", icono: "nav-usercheck", href: "/admin/asistencia" },
       { texto: "Asistencia docente", icono: "nav-usercheck" },
-      { texto: "Notas y rectificaciones", icono: "nav-award" },
+      { texto: "Notas y rectificaciones", icono: "nav-award", href: "/admin/notas" },
     ],
   },
   { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield", href: "/admin/auditoria" }] },

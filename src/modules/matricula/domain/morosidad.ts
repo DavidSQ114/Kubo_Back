@@ -44,3 +44,24 @@ export function ordenarMorosidad<T extends FilaMorosidad>(lista: T[], orden: Ord
       clave(b) - clave(a) || b.deudaCentimos - a.deudaCentimos || a.nombreCompleto.localeCompare(b.nombreCompleto),
   );
 }
+
+// ---------- US26 · Restricción de la libreta por deuda ----------
+
+/** Mensaje del Product Backlog (US26, criterio 2): se muestra en lugar de la libreta, sin ninguna calificación. */
+export const MENSAJE_RESTRICCION_DEUDA =
+  "Existen pagos pendientes que impiden visualizar esta información. Por favor, regularice su situación con tesorería.";
+
+/**
+ * Pensiones vencidas de una matrícula, con el mismo criterio del panel de morosidad (US24): Pendiente con vencimiento
+ * anterior a hoy y de tipo pensión (la cuota de matrícula no cuenta como pensión).
+ */
+export const pensionesVencidas = <T extends { tipo: string; estado: string; fechaVencimiento: string }>(
+  cuotas: T[],
+  hoy: string,
+): T[] => cuotas.filter((c) => c.tipo === "PENSION" && estaVencida(c, hoy));
+
+/**
+ * ¿Se restringe la libreta? Con `minimo` (2) o más pensiones vencidas (US26, criterio 1). Se calcula en cada consulta:
+ * al registrarse el pago, la siguiente consulta ya no la restringe (criterio 3).
+ */
+export const restringeLibreta = (vencidas: number, minimo: number) => vencidas >= minimo;

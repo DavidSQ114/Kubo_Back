@@ -49,4 +49,22 @@ export const erroresEvaluacion = {
       422,
     ),
   bimestreAjeno: () => new ErrorApp("NO_ENCONTRADO", "El bimestre no existe en el año de este curso.", 404),
+  // ---------- Publicación (US39) y libreta (US46, US51, US66) ----------
+  registroNoCerrado: () =>
+    new ErrorApp(
+      "REGISTRO_NO_CERRADO",
+      "Solo se pueden publicar registros cerrados por el docente: este registro sigue abierto.",
+      409,
+    ),
+  yaPublicado: () => new ErrorApp("REGISTRO_YA_PUBLICADO", "Las notas de este registro ya están publicadas.", 409),
+  registroNoEncontrado: () => new ErrorApp("NO_ENCONTRADO", "El registro de notas no existe.", 404),
+  /** El mensaje es el de la restricción por deuda (US26, criterio 2), que define el módulo matricula. */
+  libretaRestringida: (mensaje: string) => new ErrorApp("LIBRETA_RESTRINGIDA", mensaje, 403),
+  sinNotasPublicadas: () =>
+    new ErrorApp(
+      "LIBRETA_SIN_PUBLICAR",
+      "Aún no hay notas publicadas en este bimestre: no hay libreta que descargar.",
+      422,
+    ),
+  bimestreDeLibretaAjeno: () => new ErrorApp("NO_ENCONTRADO", "El bimestre no pertenece al año de la libreta.", 404),
 };

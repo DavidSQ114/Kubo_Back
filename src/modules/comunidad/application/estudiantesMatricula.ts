@@ -108,6 +108,34 @@ export async function contactosDeAsistencia(ids: string[]): Promise<Record<strin
   );
 }
 
+export interface ApoderadosDeEstudiante {
+  nombres: string;
+  apellidos: string;
+  /** Apoderados activos vinculados, el principal primero en orden de registro; `email` null si no tiene. */
+  apoderados: { personaId: string; nombres: string; email: string | null }[];
+}
+
+/** Apoderados vinculados a cada estudiante, por id de estudiante (aviso de notas publicadas, US39). */
+export async function apoderadosDeEstudiantes(ids: string[]): Promise<Record<string, ApoderadosDeEstudiante>> {
+  const unicos = [...new Set(ids)];
+  if (!unicos.length) return {};
+  const filas = await estudiantesMatricula.apoderadosVinculados(unicos);
+  return Object.fromEntries(
+    filas.map((e) => [
+      e.id,
+      {
+        nombres: e.persona.nombres,
+        apellidos: e.persona.apellidos,
+        apoderados: e.vinculosApoderado.map((v) => ({
+          personaId: v.apoderado.personaId,
+          nombres: v.apoderado.persona.nombres,
+          email: v.apoderado.persona.email,
+        })),
+      },
+    ]),
+  );
+}
+
 /** Ids de los estudiantes que coinciden con «rojas 7845» (nombre, apellido o inicio del DNI). */
 export const idsEstudiantesPorBusqueda = (q: string) => estudiantesMatricula.idsPorBusqueda(q);
 
