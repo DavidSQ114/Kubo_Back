@@ -1,7 +1,14 @@
 // comunidad: interfaz pública (usuarios y administradores RF46, docentes US13, búsqueda de personas por DNI D-07,
 // apoderados US15, estudiantes US17 y sus vínculos, edición y baja de personas US69 y acceso del alumno al portal
-// US49).
-export { listarUsuarios, resumenUsuarios, registrarAdministrador, type UsuarioListado } from "./application/usuarios";
+// US49) y los correos de los administradores para el aviso del cierre de notas (US39).
+export {
+  listarUsuarios,
+  resumenUsuarios,
+  registrarAdministrador,
+  contactosDeAdministradores,
+  type UsuarioListado,
+  type ContactoAdministrador,
+} from "./application/usuarios";
 export { perfilesProviderComunidad } from "./infrastructure/perfilesProvider";
 export * as esquemasComunidad from "./schemas";
 export {
