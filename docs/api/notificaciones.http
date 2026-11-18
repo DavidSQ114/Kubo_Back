@@ -1,0 +1,40 @@
+# Pruebas manuales de la API de notificaciones internas (US55).
+# Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
+# Inicia sesión con cualquier perfil con identidad.http (las cookies de sesión se guardan solas entre solicitudes,
+# también entre archivos). Solo datos ficticios.
+
+@base = http://localhost:3000/api/v1
+
+### 1. Número de la campana → 200 { noLeidas }
+GET {{base}}/notificaciones/no-leidas
+
+### 2. Panel «Todas» (últimos 30 días, las más recientes primero) → 200 { noLeidas, items }
+# @name panel
+GET {{base}}/notificaciones
+
+### 3. Pestaña «No leídas» → 200
+GET {{base}}/notificaciones?estado=no-leidas
+
+### 4. Filtro no válido → 400 DATOS_INVALIDOS
+GET {{base}}/notificaciones?estado=archivadas
+
+### 5. Marcar una como leída (al abrirla) → 200 { marcadas: 1, noLeidas }
+POST {{base}}/notificaciones/marcar-leidas
+Content-Type: application/json
+
+{ "ids": ["{{panel.response.body.data.items[0].id}}"] }
+
+### 6. «Marcar como leídas»: todas las no leídas → 200 { marcadas, noLeidas: 0 }
+POST {{base}}/notificaciones/marcar-leidas
+Content-Type: application/json
+
+{}
+
+### 7. Id de una notificación de otro usuario (o inexistente) → 404 NOTIFICACION_NO_ENCONTRADA
+POST {{base}}/notificaciones/marcar-leidas
+Content-Type: application/json
+
+{ "ids": ["00000000-0000-4000-8000-000000000000"] }
+
+### 8. Sin sesión (después de cerrar sesión) → 401 NO_AUTENTICADO
+GET {{base}}/notificaciones/no-leidas

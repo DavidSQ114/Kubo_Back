@@ -43,6 +43,13 @@ export async function contactosDeDocentes(ids: string[]): Promise<ContactoDocent
   );
 }
 
+/** Persona de cada docente activo, por id de docente: destinatarios de las notificaciones internas (US55). */
+export async function personasDeDocentes(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {};
+  const filas = await docentes.personas([...new Set(ids)]);
+  return Object.fromEntries(filas.map((d) => [d.id, d.personaId]));
+}
+
 export interface DatosDocente {
   dni: string;
   nombres: string;

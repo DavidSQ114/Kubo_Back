@@ -1,6 +1,7 @@
 // Estructura común de los portales del Docente y del Alumno (DO-01, AL-01): barra lateral azul con el menú del
-// perfil, barra superior con el saludo y la insignia del año, y la guardia de sesión por perfil (RF04). En pantallas
-// angostas la barra lateral se oculta y se abre con el botón de menú (US50: el portal del alumno se usa en el celular).
+// perfil, barra superior con el saludo, la insignia del año y la campana de notificaciones (US55), y la guardia de
+// sesión por perfil (RF04). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú (US50: el
+// portal del alumno se usa en el celular).
 "use client";
 
 import Link from "next/link";
@@ -18,6 +19,7 @@ import {
   type Rol,
   type Sesion,
 } from "@/lib/api";
+import { CampanaNotificaciones } from "./notificaciones";
 
 export interface ItemNav {
   texto: string;
@@ -325,14 +327,7 @@ export function EstructuraPortal({
           <span className="hidden sm:block">
             <InsigniaAnio />
           </span>
-          <button
-            type="button"
-            aria-label="Notificaciones"
-            title="Notificaciones · disponible próximamente"
-            className="size-10 shrink-0"
-          >
-            <Icono nombre="btn-notificaciones" size={40} />
-          </button>
+          <CampanaNotificaciones />
         </header>
         <main className="flex flex-col gap-6 px-4 pt-6 pb-14 lg:px-10 lg:pt-8">
           <SesionContext.Provider value={sesion}>{children}</SesionContext.Provider>

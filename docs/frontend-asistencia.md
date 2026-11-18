@@ -89,6 +89,6 @@ Todas resuelven cargando (indicador), error (`Alerta` con el mensaje del servido
 
 ## Pendiente
 
-- Notificación dentro de la aplicación por los umbrales (US55): hoy el aviso es solo por correo.
+- ~~Notificación dentro de la aplicación por los umbrales (US55)~~: hecho en el bloque 9 para los avisos del 15 % y del 20 % ([frontend-notificaciones.md](frontend-notificaciones.md)).
 - Dibujar en el Figma la lista «Asistencia de alumnos» del administrador y las vistas del celular de DO-03 y AP-03.
 - Feriados: los días de clase del año son los de lunes a viernes dentro de los bimestres; no hay calendario de feriados.

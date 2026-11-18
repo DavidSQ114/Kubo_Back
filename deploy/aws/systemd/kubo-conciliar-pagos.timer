@@ -1,4 +1,5 @@
-# US71 · Ejecuta kubo-conciliar-pagos.service cada 15 minutos (y al arrancar, si se perdió una ejecución).
+# US71 y US55 · Ejecuta kubo-conciliar-pagos.service cada 15 minutos (y al arrancar, si se perdió una ejecución):
+# conciliación de pagos en línea y reintento de los correos de la bandeja de salida.
 # Lo instala y activa deploy/aws/instalar.sh; en un servidor ya instalado, ver docs/DESPLIEGUE-AWS.md.
 [Unit]
 Description=Kubo · conciliar pagos en línea cada 15 minutos

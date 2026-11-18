@@ -2,7 +2,7 @@
 // (US19), retiro (US57), ficha en PDF (US20), pagos y recibos (US22, US23, US04, US25), portal del apoderado (US42,
 // US43, US44), portal del alumno (US49: matrícula vigente, panel y «Mis cursos»), sección del hijo para su horario
 // (US48), su matrícula para la asistencia (US45) y la libreta (US46), la restricción de la libreta por deuda (US26),
-// pago en línea y conciliación (US70, US71), sección en una fecha,
+// pago en línea y conciliación (US70, US71), recordatorios de pago a apoderados morosos (US59), sección en una fecha,
 // datos de las matrículas de una lista de asistencia (US35) y los puertos
 // que usan académico (vacantes, US08) y comunidad (matrícula «En proceso» del registro de estudiantes, US17).
 export { matriculasProviderMatricula } from "./infrastructure/matriculasProvider";
@@ -49,6 +49,12 @@ export {
   type RestriccionPorDeuda,
 } from "./application/morosidad";
 export { MENSAJE_RESTRICCION_DEUDA } from "./domain/morosidad";
+export {
+  enviarRecordatoriosPago,
+  type RecordatoriosEnviados,
+  type ResultadoRecordatorio,
+} from "./application/recordatorios";
+export { NOMBRE_MOTIVO_OMISION, type MotivoOmision } from "./domain/recordatorios";
 export {
   hijosDelApoderado,
   elegirHijo,

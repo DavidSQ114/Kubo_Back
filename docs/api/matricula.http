@@ -318,3 +318,19 @@ GET {{base}}/matricula/alumno/panel
 ### 57. «Mis cursos» del alumno: cursos del plan de su sección con su docente (US49) → 200
 # Con sesión de otro perfil → 403 ACCESO_DENEGADO «No tiene permisos para acceder a este recurso.»
 GET {{base}}/matricula/alumno/cursos
+
+# ---------- Recordatorios de pago a apoderados morosos (US59) ----------
+@matriculaMorosa = 00000000-0000-0000-0000-000000000000
+@matriculaAlDia = 00000000-0000-0000-0000-000000000000
+
+### 58. Enviar recordatorios → 200 { enviados, omitidos, correos, resultados }; la que ya no debe se omite
+POST {{base}}/matricula/morosidad/recordatorios
+Content-Type: application/json
+
+{ "matriculaIds": ["{{matriculaMorosa}}", "{{matriculaAlDia}}"] }
+
+### 59. Sin estudiantes elegidos → 400 DATOS_INVALIDOS «Selecciona al menos un estudiante»
+POST {{base}}/matricula/morosidad/recordatorios
+Content-Type: application/json
+
+{ "matriculaIds": [] }

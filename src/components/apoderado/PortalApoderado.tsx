@@ -1,6 +1,6 @@
 // Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos», «Horario» (US48), «Notas» (US46) y
-// «Asistencia» (US45), barra superior con el estudiante consultado y «Cambiar de hijo» (AP-01, AP-02) y la selección
-// de hijo (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
+// «Asistencia» (US45), barra superior con el estudiante consultado, «Cambiar de hijo» (AP-01, AP-02) y la campana de
+// notificaciones (US55, M-13), y la selección de hijo (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
 // También es la guardia de las páginas /apoderado: exige sesión con perfil APODERADO (RF04). Lo que ve cada hijo lo
 // autoriza el servidor en cada consulta; aquí solo se recuerda cuál se eligió.
 "use client";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { PaginaCentrada, TarjetaAcceso } from "@/components/acceso";
+import { CampanaNotificaciones } from "@/components/portal/notificaciones";
 import { Alerta, Badge, Boton, Icono, Spinner } from "@/components/ui";
 import {
   api,
@@ -357,6 +358,7 @@ function BarraSuperior({
           Año {hijo.anio}
         </Badge>
       </span>
+      <CampanaNotificaciones />
     </header>
   );
 }

@@ -1,5 +1,6 @@
 // AD-12 · Panel de morosidad (US24): estudiantes con pensiones vencidas y no pagadas al día de hoy, con meses
-// adeudados, deuda total y apoderado responsable; filtros por año, grado, sección y meses con «Filtrar»
+// adeudados, deuda total y apoderado responsable; filtros por año, grado, sección y meses con «Filtrar». Selección de
+// uno o varios estudiantes y «Enviar recordatorios» (US59, M-24) con la fecha del último recordatorio de cada uno.
 "use client";
 
 import Link from "next/link";
@@ -9,9 +10,14 @@ import type { AnioAcademico } from "@/components/admin/anio";
 import { Selector, type Grado, type Seccion } from "@/components/admin/grados";
 import { soles } from "@/components/admin/matricula";
 import { alertaError } from "@/components/admin/PortalAdmin";
+import {
+  ModalRecordatorios,
+  ResultadoRecordatorios,
+  type RecordatoriosEnviados,
+} from "@/components/admin/recordatorios";
 import { Alerta, Badge, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fechaDia } from "@/lib/formato";
+import { fechaDia, fechaHora } from "@/lib/formato";
 
 interface FilaMorosidad {
   matriculaId: string;
@@ -25,6 +31,8 @@ interface FilaMorosidad {
   primerVencimiento: string;
   diasAtraso: number;
   responsable: { nombreCompleto: string; parentesco: string; telefono: string | null } | null;
+  /** Instante del último recordatorio de pago (US59); null si nunca se envió. */
+  ultimoRecordatorio: string | null;
 }
 
 interface PanelMorosidad {
@@ -91,6 +99,9 @@ export default function MorosidadPage() {
   const [panel, setPanel] = useState<PanelMorosidad | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [paraEnviar, setParaEnviar] = useState<string[] | null>(null);
+  const [resultado, setResultado] = useState<RecordatoriosEnviados | null>(null);
 
   useEffect(() => {
     async function cargar() {
@@ -157,6 +168,27 @@ export default function MorosidadPage() {
   );
   const cambiar = (c: Partial<Filtros>) => setBorrador((b) => b && { ...b, ...c });
 
+  // la selección vale solo para las filas que siguen en el listado consultado
+  const filas = panel?.items ?? [];
+  const seleccionados = filas.filter((f) => seleccion.has(f.matriculaId)).map((f) => f.matriculaId);
+  const todosMarcados = filas.length > 0 && seleccionados.length === filas.length;
+  function marcar(matriculaId: string, marcado: boolean) {
+    setSeleccion((s) => {
+      const nueva = new Set(s);
+      if (marcado) nueva.add(matriculaId);
+      else nueva.delete(matriculaId);
+      return nueva;
+    });
+  }
+
+  function enviados(r: RecordatoriosEnviados) {
+    setParaEnviar(null);
+    setResultado(r);
+    setSeleccion(new Set());
+    // se vuelve a consultar: la columna «Último recordatorio» y quien ya pagó se actualizan
+    setAplicados((a) => a && { ...a });
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -168,13 +200,27 @@ export default function MorosidadPage() {
           </p>
         </div>
         {panel && panel.items.length > 0 && (
-          <Boton variante="secundario" onClick={() => descargarCsv(panel)}>
-            Exportar CSV
-          </Boton>
+          <div className="flex flex-wrap gap-3">
+            <Boton variante="secundario" onClick={() => descargarCsv(panel)}>
+              Exportar CSV
+            </Boton>
+            <Boton
+              icono="icon-send"
+              disabled={!seleccionados.length}
+              title={seleccionados.length ? undefined : "Selecciona uno o varios estudiantes de la tabla"}
+              onClick={() => setParaEnviar(seleccionados)}
+            >
+              {seleccionados.length ? `Enviar recordatorios (${seleccionados.length})` : "Enviar recordatorios"}
+            </Boton>
+          </div>
         )}
       </div>
 
       {error && <Alerta tipo="error" titulo={error} />}
+      {resultado && <ResultadoRecordatorios r={resultado} />}
+      {paraEnviar && (
+        <ModalRecordatorios matriculaIds={paraEnviar} onCerrar={() => setParaEnviar(null)} onEnviados={enviados} />
+      )}
 
       {panel && (
         <Tarjeta className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-3">
@@ -284,9 +330,18 @@ export default function MorosidadPage() {
         )}
         {panel && panel.items.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-borde">
-            <table className="w-full min-w-[900px] text-left text-[13px]">
+            <table className="w-full min-w-[940px] text-left text-[13px]">
               <thead className="bg-fondo text-texto-2">
                 <tr>
+                  <th className="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      className="block size-[18px] cursor-pointer accent-kubo-azul"
+                      aria-label="Seleccionar a todos los estudiantes del listado"
+                      checked={todosMarcados}
+                      onChange={(e) => setSeleccion(new Set(e.target.checked ? filas.map((f) => f.matriculaId) : []))}
+                    />
+                  </th>
                   {[
                     "Estudiante",
                     "Sección",
@@ -295,6 +350,7 @@ export default function MorosidadPage() {
                     "Deuda total",
                     "Atraso",
                     "Apoderado responsable",
+                    "Último recordatorio",
                     "",
                   ].map((t) => (
                     <th key={t} className="px-3 py-2 font-semibold">
@@ -309,6 +365,15 @@ export default function MorosidadPage() {
                     key={f.matriculaId}
                     className={`border-t border-borde ${f.cuotasVencidas >= 2 ? "bg-[rgba(214,69,69,0.05)]" : ""}`}
                   >
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        className="block size-[18px] cursor-pointer accent-kubo-azul"
+                        aria-label={`Seleccionar a ${f.nombreCompleto}`}
+                        checked={seleccion.has(f.matriculaId)}
+                        onChange={(e) => marcar(f.matriculaId, e.target.checked)}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <Avatar nombre={f.nombreCompleto} />
@@ -340,14 +405,34 @@ export default function MorosidadPage() {
                         "—"
                       )}
                     </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-texto-2">
+                      {f.ultimoRecordatorio ? (
+                        <span title={fechaHora(new Date(f.ultimoRecordatorio))}>
+                          {fechaHora(new Date(f.ultimoRecordatorio)).split(" ")[0]}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">
-                      <Link
-                        href={`/admin/pagos?estudiante=${f.estudianteId}&anio=${panel.anio.id}`}
-                        aria-label={`Ver pensiones y pagos de ${f.nombreCompleto}`}
-                        className="inline-flex rounded p-1 hover:bg-fondo"
-                      >
-                        <Icono nombre="act-eye" size={18} />
-                      </Link>
+                      <span className="inline-flex items-center gap-1">
+                        <Link
+                          href={`/admin/pagos?estudiante=${f.estudianteId}&anio=${panel.anio.id}`}
+                          aria-label={`Ver pensiones y pagos de ${f.nombreCompleto}`}
+                          className="inline-flex rounded p-1 hover:bg-fondo"
+                        >
+                          <Icono nombre="act-eye" size={18} />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setParaEnviar([f.matriculaId])}
+                          aria-label={`Enviar recordatorio de pago por ${f.nombreCompleto}`}
+                          title="Enviar recordatorio"
+                          className="inline-flex rounded p-1 hover:bg-fondo"
+                        >
+                          <Icono nombre="icon-send-azul" size={18} />
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -357,7 +442,8 @@ export default function MorosidadPage() {
         )}
         <p className="text-[12px] text-texto-3">
           Una cuota está vencida si sigue «Pendiente» después de su fecha de vencimiento (hora de Lima). No se listan
-          matrículas retiradas ni anuladas.
+          matrículas retiradas ni anuladas. Selecciona a los estudiantes y presiona «Enviar recordatorios»: el sistema
+          no envía a quienes ya no tienen cuotas vencidas y guarda la fecha del último recordatorio de cada estudiante.
         </p>
       </Tarjeta>
     </div>

@@ -1,7 +1,7 @@
 // horarios/infrastructure: único lugar que consulta sesion_clase, asistencia_estudiante y aviso_asistencia (el módulo
 // es su dueño; US35, US36, US45, US52). Las columnas DATE y TIME se convierten aquí a texto «AAAA-MM-DD» y «HH:MM».
 import { prisma } from "@/platform/db/prisma";
-import { esDuplicado, type Tx } from "@/platform/db/tipos";
+import type { Tx } from "@/platform/db/tipos";
 import type { Aviso, EstadoAsistencia, Rango, TipoAviso } from "../domain/asistencia";
 import type { Dia } from "../domain/tipos";
 import type { ClaseFila } from "./repositorio";
@@ -276,14 +276,17 @@ export const avisos = {
    * Deja constancia del aviso antes de enviarlo. Devuelve su id, o null si ya existía: la clave única (matrícula,
    * tipo, periodo) garantiza que dos registros simultáneos no avisen dos veces (US52).
    */
+  /**
+   * Deja constancia del aviso; null si ya estaba (ON CONFLICT DO NOTHING: dentro de una transacción no la aborta,
+   * y de dos registros a la vez solo uno lo crea).
+   */
   async registrar(matriculaId: string, aviso: Aviso, db: Db = prisma): Promise<string | null> {
-    try {
-      const creado = await db.avisoAsistencia.create({ data: { matriculaId, ...aviso }, select: { id: true } });
-      return creado.id;
-    } catch (e) {
-      if (esDuplicado(e)) return null;
-      throw e;
-    }
+    const [creado] = await db.avisoAsistencia.createManyAndReturn({
+      data: [{ matriculaId, ...aviso }],
+      skipDuplicates: true,
+      select: { id: true },
+    });
+    return creado?.id ?? null;
   },
 
   marcarCorreos: (id: string, correosEnviados: number, db: Db = prisma) =>

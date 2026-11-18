@@ -8,6 +8,7 @@
     "db:reset": "prisma migrate reset --force && npm run db:seed",
     "db:deploy": "prisma migrate deploy",
     "db:seed:remoto": "prisma db execute --file prisma/seed.sql",
-    "conciliar-pagos": "tsx --env-file-if-exists=.env scripts/conciliarPagos.ts"
+    "conciliar-pagos": "tsx --env-file-if-exists=.env scripts/conciliarPagos.ts",
+    "reintentar-correos": "tsx --env-file-if-exists=.env scripts/reintentarCorreos.ts"
   }
 }

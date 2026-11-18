@@ -2,14 +2,14 @@
 // PUBLICADO (DO-04, M-08) y queda «Pendiente de aprobación»; el Administrador la aprueba o la rechaza en «Notas y
 // rectificaciones» (AD-15). Al aprobar, en una sola transacción: la nota cambia al valor pedido (el único camino que
 // deja pasar tg_nota_registro_cerrado), se recalcula el consolidado del curso del alumno con la versión de la regla
-// usada al cerrar y se registra en la bitácora de notas (US03) y en la auditoría general (RF03).
+// usada al cerrar y se registra en la bitácora de notas (US03) y en la auditoría general (RF03). La solicitud nueva
+// notifica a los administradores y su resolución, al docente, en la misma transacción (US55); el correo sale después.
 import { prisma } from "@/platform/db/prisma";
 import { esDuplicado, type Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
-import { enviarCorreo } from "@/platform/correo";
 import { errores } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
-import { logger } from "@/platform/logger";
+import { despacharCorreos, registrarAvisos } from "@/platform/notificaciones";
 import {
   asignacionesParaNotas,
   competenciasDelPlan,
@@ -18,15 +18,10 @@ import {
   type CompetenciaDelPlan,
   type ReglaDelBimestre,
 } from "@/modules/academico";
-import {
-  contactosDeAdministradores,
-  contactosDeDocentes,
-  docentesProviderComunidad,
-  nombresDeUsuarios,
-  resumenEstudiantes,
-} from "@/modules/comunidad";
+import { docentesProviderComunidad, nombresDeUsuarios, resumenEstudiantes } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
 import { datosDeMatriculas } from "@/modules/matricula";
+import { administradoresDestinatarios, avisosPara, docenteDestinatario, type Destinatarios } from "./avisos";
 import { erroresEvaluacion as E } from "../domain/errores";
 import type { EstadoRegistro, LogroNota } from "../domain/notas";
 import {
@@ -199,81 +194,53 @@ export interface AvisoRectificacion {
   enviados: number;
 }
 
-async function avisar(
-  contactos: { email: string; nombres: string }[],
-  mensaje: { asunto: string; cuerpo: string },
-  meta: MetaSolicitud,
-): Promise<AvisoRectificacion> {
-  const resultadosEnvio = await Promise.allSettled(
-    contactos.map((c) =>
-      enviarCorreo({
-        para: c.email,
-        asunto: mensaje.asunto,
-        texto: `Hola, ${c.nombres}:\n\n${mensaje.cuerpo}\n\nEste es un mensaje automático: no lo respondas.`,
-      }),
-    ),
-  );
-  const enviados = resultadosEnvio.filter((r) => r.status === "fulfilled" && r.value).length;
-  if (enviados < contactos.length) {
-    logger.warn("No se pudieron enviar todos los avisos de rectificación de nota", {
-      requestId: meta.requestId,
-      destinatarios: contactos.length,
-      enviados,
-    });
-  }
-  return { destinatarios: contactos.length, enviados };
+/** Notificación y correo a los administradores: hay una solicitud nueva (US41, criterio 1; US55). */
+function avisoDeSolicitud(s: SolicitudVista, administradores: Destinatarios) {
+  return avisosPara(administradores, {
+    tipo: "RECTIFICACION",
+    titulo: "Nueva solicitud de rectificación",
+    mensaje: `${s.docente.nombreCorto} · ${s.curso.nombre} ${s.seccion} · ${s.competencia.columna}`,
+    enlace: "/admin/notas",
+    asunto: `Kubo · Solicitud de rectificación de nota (${s.curso.nombre} ${s.seccion})`,
+    cuerpo:
+      `${s.solicitadoPor} solicitó rectificar una nota del registro cerrado de ${s.curso.nombre} ${s.seccion} ` +
+      `(${s.bimestre.nombre} ${s.anio}).\n\n` +
+      `Estudiante: ${s.estudiante}\nCompetencia: ${s.competencia.columna} · ${s.competencia.nombre}\n` +
+      `Cambio solicitado: ${s.valorAnterior} → ${s.valorSolicitado}\nMotivo: ${s.motivo}\n\n` +
+      "La solicitud está «Pendiente de aprobación» en Académico / Notas y rectificaciones.",
+  });
 }
 
-/** Correo a todos los administradores activos: hay una solicitud nueva (US41, criterio 1). */
-async function avisarSolicitud(s: SolicitudVista, meta: MetaSolicitud): Promise<AvisoRectificacion> {
-  try {
-    return await avisar(
-      await contactosDeAdministradores(),
-      {
-        asunto: `Kubo · Solicitud de rectificación de nota (${s.curso.nombre} ${s.seccion})`,
-        cuerpo:
-          `${s.solicitadoPor} solicitó rectificar una nota del registro cerrado de ${s.curso.nombre} ${s.seccion} ` +
-          `(${s.bimestre.nombre} ${s.anio}).\n\n` +
-          `Estudiante: ${s.estudiante}\nCompetencia: ${s.competencia.columna} · ${s.competencia.nombre}\n` +
-          `Cambio solicitado: ${s.valorAnterior} → ${s.valorSolicitado}\nMotivo: ${s.motivo}\n\n` +
-          "La solicitud está «Pendiente de aprobación» en Académico / Notas y rectificaciones.",
-      },
-      meta,
-    );
-  } catch (e) {
-    logger.warn("No se pudo avisar a los administradores de la solicitud de rectificación", {
-      requestId: meta.requestId,
-      error: (e as Error).message,
-    });
-    return { destinatarios: 0, enviados: 0 };
-  }
+interface Resolucion {
+  estado: "APROBADA" | "RECHAZADA";
+  valorAnterior: LogroNota;
+  valorSolicitado: LogroNota;
+  /** Valor que queda en la nota. */
+  valorActual: LogroNota;
+  motivoRechazo: string | null;
 }
 
-/** Correo al docente con el resultado: «Aprobada» o «Rechazada» con el motivo (US41, criterio 3). */
-async function avisarResolucion(s: SolicitudVista, meta: MetaSolicitud): Promise<AvisoRectificacion> {
-  try {
-    const detalle =
-      s.estado === "APROBADA"
-        ? `La nota cambió de ${s.valorAnterior} a ${s.valorSolicitado} y se recalculó el logro del curso.`
-        : `Motivo del rechazo: ${s.motivoRechazo}\n\nLa nota no se modificó: sigue en ${s.valorActual}.`;
-    return await avisar(
-      await contactosDeDocentes([s.docente.id]),
-      {
-        asunto: `Kubo · Solicitud de rectificación ${s.nombreEstado.toLowerCase()} (${s.curso.nombre} ${s.seccion})`,
-        cuerpo:
-          `Tu solicitud de rectificación de la nota de ${s.estudiante} en ${s.competencia.columna} · ` +
-          `${s.competencia.nombre} (${s.curso.nombre} ${s.seccion}, ${s.bimestre.nombre} ${s.anio}) está ` +
-          `«${s.nombreEstado}».\n\n${detalle}`,
-      },
-      meta,
-    );
-  } catch (e) {
-    logger.warn("No se pudo avisar al docente el resultado de la rectificación", {
-      requestId: meta.requestId,
-      error: (e as Error).message,
-    });
-    return { destinatarios: 0, enviados: 0 };
-  }
+/** Notificación y correo al docente con el resultado: «Aprobada» o «Rechazada» con el motivo (US41, criterio 3). */
+function avisoDeResolucion(c: ContextoDeNota, r: Resolucion, docente: Destinatarios) {
+  const estado = NOMBRE_ESTADO_SOLICITUD[r.estado];
+  const curso = `${c.asignacion.curso.nombre} ${etiquetaDe(c.asignacion.seccion)}`;
+  const detalle =
+    r.estado === "APROBADA"
+      ? `La nota cambió de ${r.valorAnterior} a ${r.valorSolicitado} y se recalculó el logro del curso.`
+      : `Motivo del rechazo: ${r.motivoRechazo}\n\nLa nota no se modificó: sigue en ${r.valorActual}.`;
+  return avisosPara(docente, {
+    tipo: "RECTIFICACION",
+    titulo: `Rectificación ${estado.toLowerCase()}`,
+    mensaje:
+      `${curso} · ${c.estudiante} · ${c.competencia.columna}: ${r.valorAnterior} → ${r.valorSolicitado}` +
+      (r.estado === "RECHAZADA" ? ` · Motivo: ${r.motivoRechazo}` : ""),
+    enlace: "/docente/notas",
+    asunto: `Kubo · Solicitud de rectificación ${estado.toLowerCase()} (${curso})`,
+    cuerpo:
+      `Tu solicitud de rectificación de la nota de ${c.estudiante} en ${c.competencia.columna} · ` +
+      `${c.competencia.nombre} (${curso}, ${c.bimestre.nombre} ${c.asignacion.anio.anio}) está «${estado}».` +
+      `\n\n${detalle}`,
+  });
 }
 
 // ---------- Docente: solicitar y ver sus solicitudes ----------
@@ -292,8 +259,8 @@ export interface SolicitudCreada {
 
 /**
  * Solicitud de rectificación de una nota de un registro CERRADO o PUBLICADO del docente en sesión (US41, criterio 1).
- * Un curso o una sección de otro docente responde 403 (como el registro de notas). Queda «Pendiente de aprobación» y
- * se avisa por correo a los administradores; si el correo falla, la solicitud se conserva.
+ * Un curso o una sección de otro docente responde 403 (como el registro de notas). Queda «Pendiente de aprobación» y,
+ * en la misma transacción, se notifica a los administradores (US55); si el correo falla, la solicitud se conserva.
  */
 export async function solicitarRectificacion(
   auth: Autenticado,
@@ -313,22 +280,34 @@ export async function solicitarRectificacion(
     valorCorrecto: datos.valorCorrecto,
     hayPendiente: nota ? await solicitudes.hayPendiente(nota.id) : false,
   });
-  let creada: SolicitudFila;
-  try {
-    creada = await solicitudes.crear({
-      notaId: nota!.id,
-      valorAnterior: nota!.logro,
-      valorSolicitado: datos.valorCorrecto,
-      motivo: datos.motivo,
-      solicitadoPorId: auth.usuarioId,
+  const administradores = await administradoresDestinatarios(meta);
+  const creada = await prisma.$transaction(async (tx) => {
+    let fila: SolicitudFila;
+    try {
+      fila = await solicitudes.crear(
+        {
+          notaId: nota!.id,
+          valorAnterior: nota!.logro,
+          valorSolicitado: datos.valorCorrecto,
+          motivo: datos.motivo,
+          solicitadoPorId: auth.usuarioId,
+        },
+        tx,
+      );
+    } catch (e) {
+      // dos solicitudes a la vez para la misma nota: el índice parcial deja pasar solo una
+      if (esDuplicado(e, "uq_solicitud_rectificacion_pendiente_por_nota")) throw E.rectificacionPendiente();
+      throw e;
+    }
+    const [vista] = await vistas([fila], auth.usuarioId);
+    const correoIds = await registrarAvisos(tx, {
+      ...avisoDeSolicitud(vista, administradores),
+      origen: { entidad: "solicitud_rectificacion", id: fila.id },
     });
-  } catch (e) {
-    // dos solicitudes a la vez para la misma nota: el índice parcial deja pasar solo una
-    if (esDuplicado(e, "uq_solicitud_rectificacion_pendiente_por_nota")) throw E.rectificacionPendiente();
-    throw e;
-  }
-  const [solicitud] = await vistas([creada], auth.usuarioId);
-  return { solicitud, aviso: await avisarSolicitud(solicitud, meta) };
+    return { solicitud: vista, correoIds };
+  });
+  const enviados = await despacharCorreos(creada.correoIds, meta.requestId);
+  return { solicitud: creada.solicitud, aviso: { destinatarios: administradores.contactos.length, enviados } };
 }
 
 /** Solicitudes que pidió el docente en sesión con su estado (DO-04), de la más reciente a la más antigua. */
@@ -397,7 +376,8 @@ export async function aprobarRectificacion(
   ahora: Date = new Date(),
 ): Promise<SolicitudResuelta> {
   const { c, admin } = await cargarParaResolver(auth, solicitudId);
-  const consolidado = await prisma.$transaction(async (tx) => {
+  const docente = await docenteDestinatario(c.docente.id, meta);
+  const resultado = await prisma.$transaction(async (tx) => {
     const s = await bloquearParaResolver(tx, auth, solicitudId);
     await cierres.bloquearFila(tx, c.cierre.id);
     const cierre = (await cierres.porId(c.cierre.id, tx))!;
@@ -491,10 +471,28 @@ export async function aprobarRectificacion(
       },
       meta,
     );
-    return { anterior: previo.logroConsolidado, nuevo: r.logro };
+    const correoIds = await registrarAvisos(tx, {
+      ...avisoDeResolucion(
+        c,
+        {
+          estado: "APROBADA",
+          valorAnterior: s.valorAnterior,
+          valorSolicitado: s.valorSolicitado,
+          valorActual: s.valorSolicitado,
+          motivoRechazo: null,
+        },
+        docente,
+      ),
+      origen: { entidad: "solicitud_rectificacion", id: s.id },
+    });
+    return { consolidado: { anterior: previo.logroConsolidado, nuevo: r.logro }, correoIds };
   });
+  const aviso = {
+    destinatarios: docente.contactos.length,
+    enviados: await despacharCorreos(resultado.correoIds, meta.requestId),
+  };
   const [solicitud] = await vistas([(await solicitudes.porId(solicitudId))!], auth.usuarioId);
-  return { solicitud, consolidado, aviso: await avisarResolucion(solicitud, meta) };
+  return { solicitud, consolidado: resultado.consolidado, aviso };
 }
 
 /**
@@ -509,7 +507,8 @@ export async function rechazarRectificacion(
   ahora: Date = new Date(),
 ): Promise<SolicitudResuelta> {
   const { c } = await cargarParaResolver(auth, solicitudId);
-  await prisma.$transaction(async (tx) => {
+  const docente = await docenteDestinatario(c.docente.id, meta);
+  const correoIds = await prisma.$transaction(async (tx) => {
     const s = await bloquearParaResolver(tx, auth, solicitudId);
     await solicitudes.resolver(tx, s.id, {
       estado: "RECHAZADA",
@@ -538,7 +537,26 @@ export async function rechazarRectificacion(
       },
       meta,
     );
+    const actual = await notas.porId(s.notaId, tx);
+    return registrarAvisos(tx, {
+      ...avisoDeResolucion(
+        c,
+        {
+          estado: "RECHAZADA",
+          valorAnterior: s.valorAnterior,
+          valorSolicitado: s.valorSolicitado,
+          valorActual: actual?.logro ?? s.valorAnterior,
+          motivoRechazo: datos.motivo,
+        },
+        docente,
+      ),
+      origen: { entidad: "solicitud_rectificacion", id: s.id },
+    });
   });
+  const aviso = {
+    destinatarios: docente.contactos.length,
+    enviados: await despacharCorreos(correoIds, meta.requestId),
+  };
   const [solicitud] = await vistas([(await solicitudes.porId(solicitudId))!], auth.usuarioId);
-  return { solicitud, consolidado: null, aviso: await avisarResolucion(solicitud, meta) };
+  return { solicitud, consolidado: null, aviso };
 }

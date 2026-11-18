@@ -46,6 +46,13 @@ export const usuarios = {
   porPersona: (personaId: string, db: Db = prisma) =>
     db.usuario.findUnique({ where: { personaId }, select: camposUsuario }) as Promise<UsuarioFila | null>,
 
+  /** Cuentas vigentes (no dadas de baja) de varias personas: destinatarios de las notificaciones (US55). */
+  vigentesDePersonas: (personaIds: string[], db: Db = prisma) =>
+    db.usuario.findMany({
+      where: { personaId: { in: personaIds }, estado: { not: "DADO_DE_BAJA" } },
+      select: { id: true, personaId: true },
+    }),
+
   /** Bloquea la fila del usuario hasta el fin de la transacción (evita carreras en intentos fallidos). */
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM usuario WHERE id = ${id}::uuid FOR UPDATE`;

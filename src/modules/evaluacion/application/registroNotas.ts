@@ -4,10 +4,9 @@
 // Cada nota guardada queda en la bitácora de notas (US03) en la misma transacción.
 import { prisma } from "@/platform/db/prisma";
 import { registrarAuditoria } from "@/platform/auditoria";
-import { enviarCorreo } from "@/platform/correo";
 import { errores } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
-import { logger } from "@/platform/logger";
+import { despacharCorreos, registrarAvisos } from "@/platform/notificaciones";
 import {
   asignacionParaNotas,
   competenciasDelPlan,
@@ -21,14 +20,10 @@ import {
   type AnioVista,
   type ReglaDelBimestre,
 } from "@/modules/academico";
-import {
-  contactosDeAdministradores,
-  docentesProviderComunidad,
-  nombresDeUsuarios,
-  resumenEstudiantes,
-} from "@/modules/comunidad";
+import { docentesProviderComunidad, nombresDeUsuarios, resumenEstudiantes } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
 import { datosDeMatriculas, matriculasDeSeccionEnFecha } from "@/modules/matricula";
+import { administradoresDestinatarios, avisosPara, type Destinatarios } from "./avisos";
 import { erroresEvaluacion as E, type Pendiente } from "../domain/errores";
 import {
   avanceDelRegistro,
@@ -494,40 +489,26 @@ interface Cierre {
   estudiantes: number;
 }
 
-/** Avisa a los administradores que el registro está consolidado (US39, criterio 3). Nunca lanza. */
-async function avisarAdministradores(c: Cierre, meta: MetaSolicitud): Promise<AvisoCierre> {
-  const aviso: AvisoCierre = { administradores: 0, enviados: 0 };
-  try {
-    const contactos = await contactosDeAdministradores();
-    aviso.administradores = contactos.length;
-    const resultadosEnvio = await Promise.allSettled(
-      contactos.map((a) =>
-        enviarCorreo({
-          para: a.email,
-          asunto: `Kubo · Notas consolidadas de ${c.curso} ${c.seccion} (${c.bimestre})`,
-          texto:
-            `Hola, ${a.nombres}:\n\n` +
-            `${c.docente} cerró el registro de notas de ${c.curso} ${c.seccion} del ${c.bimestre} ${c.anio}. ` +
-            `Se consolidó el logro del curso de ${c.estudiantes} estudiantes y el registro está listo para su ` +
-            "publicación a los apoderados.\n\n" +
-            "Este es un mensaje automático: no lo respondas.",
-        }),
-      ),
-    );
-    aviso.enviados = resultadosEnvio.filter((r) => r.status === "fulfilled" && r.value).length;
-  } catch (e) {
-    logger.warn("No se pudo avisar a los administradores del cierre de notas", {
-      requestId: meta.requestId,
-      error: (e as Error).message,
-    });
-  }
-  return aviso;
+/** Notificación y correo a los administradores: el registro está consolidado y listo para publicar (US39, US55). */
+function avisoDeCierre(c: Cierre, destinatarios: Destinatarios) {
+  return avisosPara(destinatarios, {
+    tipo: "NOTAS",
+    titulo: "Registro listo para publicar",
+    mensaje: `${c.docente} cerró ${c.curso} ${c.seccion} · ${c.bimestre}`,
+    enlace: "/admin/notas",
+    asunto: `Kubo · Notas consolidadas de ${c.curso} ${c.seccion} (${c.bimestre})`,
+    cuerpo:
+      `${c.docente} cerró el registro de notas de ${c.curso} ${c.seccion} del ${c.bimestre} ${c.anio}. ` +
+      `Se consolidó el logro del curso de ${c.estudiantes} estudiantes y el registro está listo para su ` +
+      "publicación a los apoderados.",
+  });
 }
 
 /**
  * Cierra el registro del bimestre (US39): exige todas las competencias de todos los alumnos; en una transacción
  * calcula el logro consolidado del curso de cada alumno con la versión de la regla que rige en el bimestre (US12),
- * guarda el resultado y la versión usada, y pasa el registro a CERRADO. Luego avisa a los administradores.
+ * guarda el resultado y la versión usada, y pasa el registro a CERRADO, y notifica a los administradores (US55).
+ * Luego intenta el correo: si falla, queda en la bandeja de salida sin revertir el cierre.
  */
 export async function cerrarRegistro(
   auth: Autenticado,
@@ -546,8 +527,9 @@ export async function cerrarRegistro(
   const regla = await reglaDelBimestre(asignacion.anio.id, bimestre.numero);
   if (!regla) throw E.sinReglaConsolidacion();
   const docente = (await nombresDeUsuarios([auth.usuarioId]))[auth.usuarioId]?.nombreCompleto ?? "El docente";
+  const administradores = await administradoresDestinatarios(meta);
 
-  const cierre = await prisma.$transaction(async (tx): Promise<Cierre> => {
+  const correoIds = await prisma.$transaction(async (tx) => {
     const fila = await cierres.de(asignacion.id, bimestre.id, tx);
     // sin notas no hay registro: si hay alumnos, todos están pendientes
     if (!fila) {
@@ -601,7 +583,7 @@ export async function cerrarRegistro(
       },
       meta,
     );
-    return {
+    const cierre: Cierre = {
       curso: asignacion.curso.nombre,
       seccion: etiquetaDe(asignacion.seccion),
       bimestre: bimestre.nombre,
@@ -609,7 +591,14 @@ export async function cerrarRegistro(
       docente,
       estudiantes: calculados.length,
     };
+    return registrarAvisos(tx, {
+      ...avisoDeCierre(cierre, administradores),
+      origen: { entidad: "cierre_calificacion", id: fila.id },
+    });
   });
-  const aviso = await avisarAdministradores(cierre, meta);
+  const aviso: AvisoCierre = {
+    administradores: administradores.contactos.length,
+    enviados: await despacharCorreos(correoIds, meta.requestId),
+  };
   return { ...(await armarRegistro(asignacion, bimestre, ahora)), aviso };
 }

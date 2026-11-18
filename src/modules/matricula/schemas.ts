@@ -1,9 +1,10 @@
 // matricula/schemas: validación de entradas (RNF16) de la matrícula en sección (US18), su anulación (M-19), el
-// traslado de sección (US19), el retiro (US57) y los pagos (US22, US23, US04).
+// traslado de sección (US19), el retiro (US57), los pagos (US22, US23, US04) y los recordatorios de pago (US59).
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
+import { MAXIMO_RECORDATORIOS } from "./domain/recordatorios";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
 
 const id = (mensaje: string) => z.string({ message: mensaje }).uuid(mensaje);
@@ -109,6 +110,14 @@ export const FiltroMorosidadSchema = z.object({
   seccionId: id("Sección no válida").optional(),
   mesesMinimos: z.coerce.number().int().min(1).max(MESES_MINIMOS_MAXIMO).optional(),
   orden: z.enum(ORDENES_MOROSIDAD).default("MONTO"),
+});
+
+/** «Enviar recordatorios» (US59, M-24): los estudiantes elegidos en el panel de morosidad, por su matrícula. */
+export const RecordatoriosSchema = z.object({
+  matriculaIds: z
+    .array(id("Estudiante no válido"), { message: "Selecciona al menos un estudiante" })
+    .min(1, "Selecciona al menos un estudiante")
+    .max(MAXIMO_RECORDATORIOS, `Puedes enviar hasta ${MAXIMO_RECORDATORIOS} recordatorios a la vez`),
 });
 
 // ---------- Portal del apoderado (US42, US43) ----------

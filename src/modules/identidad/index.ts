@@ -22,6 +22,7 @@ export { cambiarPassword, solicitarRecuperacion, validarEnlace, restablecerPassw
 export { suspenderUsuario, reactivarUsuario, asegurarCuenta, enviarBienvenida } from "./application/cuentas";
 export {
   cuentaDePersona,
+  usuariosDePersonas,
   cambiarCorreoDeCuenta,
   cerrarSesionesDePersona,
   eliminarCuentaSinUso,

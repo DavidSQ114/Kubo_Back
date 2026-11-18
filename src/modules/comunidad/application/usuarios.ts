@@ -151,6 +151,11 @@ export interface ContactoAdministrador {
 }
 
 /** Administradores activos con correo: a quién avisar que un registro de notas está consolidado (US39). */
+/** Personas de los administradores activos: destinatarios de las notificaciones internas (US55). */
+export async function personasDeAdministradores(): Promise<string[]> {
+  return (await administradores.personas()).map((a) => a.personaId);
+}
+
 export async function contactosDeAdministradores(): Promise<ContactoAdministrador[]> {
   const filas = await administradores.contactos();
   return filas.flatMap((a) =>

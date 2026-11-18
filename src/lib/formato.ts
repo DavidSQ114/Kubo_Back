@@ -122,3 +122,19 @@ export function fechaLarga(fecha: string): string {
 
 /** «1 falta», «2 faltas», «0 faltas»: la cantidad con el sustantivo en singular o plural. */
 export const cantidad = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
+
+/**
+ * Cuándo llegó una notificación (M-11 a M-14): «Hace un momento», «Hace 10 min», «Hace 2 h» (hoy), «Ayer, 09:58» o
+ * «30/08/2026».
+ */
+export function haceCuanto(iso: string, ahora: Date = new Date()): string {
+  const fecha = new Date(iso);
+  const minutos = Math.floor((ahora.getTime() - fecha.getTime()) / 60_000);
+  const clave = (p: ReturnType<typeof partes>) => `${p.anio}-${p.mes}-${p.dia}`;
+  const p = partes(fecha);
+  if (minutos < 1) return "Hace un momento";
+  if (minutos < 60) return `Hace ${minutos} min`;
+  if (clave(p) === clave(partes(ahora))) return `Hace ${Math.floor(minutos / 60)} h`;
+  if (clave(p) === clave(partes(new Date(ahora.getTime() - 86_400_000)))) return `Ayer, ${p.hora}`;
+  return `${p.dia}/${p.mes}/${p.anio}`;
+}
