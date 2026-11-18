@@ -1,4 +1,4 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), portal del apoderado (US42, US43, US44) y pago en línea (US70, US71)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), recordatorios de pago (US59), portal del apoderado (US42, US43, US44) y pago en línea (US70, US71)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)), y el aviso de la pasarela, que es público y va firmado ([pago en línea](#pago-en-línea-us70-y-devolución-us71)). Ejemplos en [matricula.http](matricula.http).
@@ -26,6 +26,7 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `GET /matricula/pagos/{id}/comprobante` | — | `application/pdf` (recibo) |
 | `POST /matricula/matriculas/{id}/pago-anual` | `{ monto, medioPago, numeroOperacion, fechaPago }` | `201 { operacion, aviso, correo }` (US58) |
 | `GET /matricula/morosidad` | `?anioId=&gradoId=&seccionId=&mesesMinimos=&orden=MONTO` | `PanelMorosidad` (US24) |
+| `POST /matricula/morosidad/recordatorios` | `{ matriculaIds }` (1 a 200) | `RecordatoriosEnviados` (US59) |
 | `GET /matricula/apoderado/hijos` | — | `{ hijos: HijoPortal[], seleccionadoId }` (US42, **Apoderado**) |
 | `PUT /matricula/apoderado/hijo-elegido` | `{ estudianteId }` | `{ estudianteId }` y la cookie `kubo_estudiante` (US42, **Apoderado**) |
 | `GET /matricula/apoderado/hijos/{id}/pagos` | `?anioId=` | `PagosDelHijo` (US43, **Apoderado**) |
@@ -212,7 +213,8 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   "items": [{ "matriculaId": "…", "estudianteId": "…", "nombreCompleto": "Valeria Quispe Rojas",
               "seccion": { "id": "…", "nombre": "3° B" }, "adeudado": ["Matr.", "Oct"], "mesesAdeudados": 1,
               "cuotasVencidas": 2, "deuda": "800.00", "primerVencimiento": "2026-10-01", "diasAtraso": 36,
-              "responsable": { "nombreCompleto": "Carmen Rojas Medina", "parentesco": "Madre", "telefono": "987654321" } }] }
+              "responsable": { "nombreCompleto": "Carmen Rojas Medina", "parentesco": "Madre", "telefono": "987654321" },
+              "ultimoRecordatorio": "2026-11-18T14:10:00.000Z" }] }
 ```
 
 - **Vencida:** cuota `PENDIENTE` con vencimiento **anterior** a hoy, según la fecha de Lima; el día del vencimiento todavía no es mora.
@@ -221,6 +223,28 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
 - **Una sola consulta agregada** (`GROUP BY` matrícula sobre `concepto_cobro` ⋈ `matricula`, con el índice `(estado, fecha_vencimiento)`). Después hay una consulta para las secciones, una para los estudiantes y una para los responsables con su teléfono: sin N+1.
 - Sin caché: quien paga sale del listado en la siguiente consulta.
 - El filtro por grado se resuelve con las secciones del grado (por el `index.ts` de académico). Matricula no lee tablas de otros módulos.
+- `ultimoRecordatorio`: instante del último recordatorio de pago enviado (US59), de `matricula.ultimo_recordatorio_en`; `null` si nunca se envió.
+
+## Recordatorios de pago a apoderados morosos (US59, AD-12, M-24)
+
+`POST /matricula/morosidad/recordatorios` con `{ "matriculaIds": ["…", "…"] }` (los estudiantes elegidos en el panel, por su matrícula; de 1 a 200). Responde:
+
+```jsonc
+{ "enviados": 1, "omitidos": 2,
+  "correos": { "registrados": 1, "enviados": 1 },
+  "resultados": [
+    { "matriculaId": "…", "estudiante": "Valeria Quispe Rojas", "enviado": true, "motivo": null,
+      "ultimoRecordatorio": "2026-11-18T14:10:00.000Z" },
+    { "matriculaId": "…", "estudiante": "Diego Quispe Rojas", "enviado": false, "motivo": "SIN_CUOTAS_VENCIDAS",
+      "ultimoRecordatorio": null },
+    { "matriculaId": "…", "estudiante": "Bruno Castillo Ramos", "enviado": false, "motivo": "SIN_DESTINATARIO",
+      "ultimoRecordatorio": null }] }
+```
+
+- En **una transacción**, con las matrículas bloqueadas (`FOR UPDATE`, en orden de id), se vuelven a leer las cuotas vencidas con el mismo criterio del panel. Quien ya no tiene cuotas vencidas se omite (`SIN_CUOTAS_VENCIDAS`, criterio 3). Si el apoderado responsable no tiene cuenta ni correo, también se omite (`SIN_DESTINATARIO`).
+- A cada uno de los demás: **notificación interna** al apoderado responsable del pago (`RECORDATORIO`, «Recordatorio de pago», «Valeria: 2 cuotas vencidas · S/ 800.00 · 42 días de atraso», enlace `/apoderado/pagos`) y **correo** «Kubo · Recordatorio de pago de Valeria Quispe Rojas» con cada cuota vencida, su vencimiento, su monto, sus días de atraso y el total. Se guarda `matricula.ultimo_recordatorio_en` y se registra `ENVIAR_RECORDATORIOS` en `registro_auditoria` por estudiante (valor anterior y nuevo de la fecha, cuotas, deuda, días de atraso y si hubo notificación y correo).
+- Los correos salen después de confirmar, por la bandeja de salida ([notificaciones.md](notificaciones.md#bandeja-de-salida-de-correos-us55-criterio-3)): `correos.enviados` cuenta los que ya salieron; un fallo no revierte el envío, que se reintenta.
+- `400 DATOS_INVALIDOS` si la lista está vacía, tiene ids no válidos o más de 200. `404 MATRICULA_NO_ENCONTRADA` si alguna matrícula no existe (no se envía ninguno). `401` sin sesión y `403 ACCESO_DENEGADO` con un perfil que no es Administrador.
 
 ## Portal del apoderado (US42, US43, US44)
 

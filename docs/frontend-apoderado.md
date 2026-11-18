@@ -60,7 +60,7 @@ El frontend solo oculta. Cada consulta lleva el id del hijo en la URL y el servi
 | «Cambiar estudiante» en la barra superior | «Cambiar de hijo» | Texto pedido en el encargo; el Backlog solo pide «un menú de cambio de perfil» |
 | AC-05: filas de asistencia del mes y libreta del bimestre | Filas «Pensiones» (vencidas o «Al día») y «Matrícula 2026» (estado) | Asistencia y notas aún no existen; no se muestran datos inventados |
 | AP-01: clases de hoy, libreta, asistencia del mes y tarjetas de resumen | Aviso de vencidas, «Estás al día», «Próximo vencimiento» y una tarjeta «Próximamente» | Solo hay datos de pagos; el resto llega con sus módulos |
-| Insignia «Año 2026 · Bimestre III en curso» y campana de notificaciones | Insignia «Año 2026» del año de la matrícula; sin campana | La insignia del bimestre vive en el portal del administrador; las notificaciones (M-13) no son de este bloque |
+| Insignia «Año 2026 · Bimestre III en curso» y campana de notificaciones | Insignia «Año 2026» del año de la matrícula; campana de notificaciones desde el sprint 3, bloque 9 | La insignia del bimestre vive en el portal del administrador; la campana y el panel M-13 se describen en [frontend-notificaciones.md](frontend-notificaciones.md) |
 | Resumen: «Pagado», «Vencido», «Por pagar» | «Pagado», «Vencido», «Pendiente» | El encargo y el Backlog usan «Pendiente» |
 | «Estás al día con tus pagos» en una tarjeta lateral de ejemplo («Cuando no hay deuda») | Tarjeta en el cuerpo, solo cuando no hay pendientes ni vencidas | Es el estado que pide US43, no un ejemplo |
 | Nombre de ejemplo «Recibo_Agosto2026_ValeriaQuispe.pdf» | El mismo formato; la matrícula usa «Matricula» y el pago anual, «Anual» | US44 y el encargo |

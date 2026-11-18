@@ -298,6 +298,12 @@ systemctl list-timers kubo-conciliar-pagos.timer
 
 Sin `PASARELA`, la conciliación termina enseguida sin hacer nada.
 
+Desde el sprint 3, bloque 9 (US55), el mismo `npm run conciliar-pagos` también **reintenta los correos pendientes de la bandeja de salida** (`outbox_evento`, tipo `CORREO`; máximo 5 intentos). Como el servicio ejecuta el script del release desplegado, el cambio llega con el despliegue normal: **no hay que instalar ni reiniciar ninguna unidad**. Sin `SMTP_HOST` en `kubo.env`, esos correos fallan y quedan `FALLIDO` tras 5 intentos; las notificaciones internas funcionan igual. Para ver la bandeja:
+
+```bash
+journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
+```
+
 ### 5. Comprobar
 
 1. En Mercado Pago, **Simular notificación** del webhook. Debe responder 200. El log de la app muestra «Aviso de una order sin intento en Kubo», porque la order simulada no existe en Kubo.
@@ -325,6 +331,7 @@ Sin `PASARELA`, la conciliación termina enseguida sin hacer nada.
 | Volver a mano al release anterior | `ls -t /opt/kubo/releases`, luego `ln -sfn /opt/kubo/releases/<sha> /opt/kubo/current && systemctl restart kubo.service` |
 | Ver el HTTPS | `systemctl status caddy` y `journalctl -u caddy -n 50` |
 | Conciliar pagos en línea ya (US71) | `systemctl start kubo-conciliar-pagos.service` y `journalctl -u kubo-conciliar-pagos.service -n 20` |
+| Reintentar ya los correos pendientes (US55) | `systemctl start kubo-conciliar-pagos.service` (concilia y luego procesa la bandeja de salida) |
 
 Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve al anterior, la base ya tiene la migración nueva: por eso las migraciones deben ser compatibles con la versión anterior (agregar columnas o tablas, no borrarlas en el mismo cambio).
 
