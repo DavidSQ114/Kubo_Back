@@ -91,6 +91,7 @@ export {
   quitarAsignacion,
   registrosDeDocente,
   asignacionParaNotas,
+  asignacionesParaNotas,
   type AsignacionVista,
   type AsignacionParaNotas,
 } from "./application/asignaciones";

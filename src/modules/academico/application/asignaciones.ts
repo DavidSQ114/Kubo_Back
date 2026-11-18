@@ -172,6 +172,27 @@ export interface AsignacionParaNotas {
   seccion: { id: string; nombre: string; grado: { id: string; numero: number; nombre: string } };
 }
 
+type FilaAsignacion = NonNullable<Awaited<ReturnType<typeof asignaciones.porId>>>;
+
+const paraNotas = (a: FilaAsignacion): AsignacionParaNotas => ({
+  id: a.id,
+  docenteId: a.docenteId,
+  activo: a.activo,
+  planEstudioId: a.planEstudio.id,
+  anio: a.planEstudio.anioAcademico,
+  curso: a.planEstudio.curso,
+  seccion: a.seccion,
+});
+
+/**
+ * Lo mismo que `asignacionParaNotas` para varias asignaciones (publicación de notas y libreta, US39, US46, US51); las
+ * que no existen no aparecen.
+ */
+export async function asignacionesParaNotas(ids: string[]): Promise<AsignacionParaNotas[]> {
+  if (ids.length === 0) return [];
+  return (await asignaciones.porIds([...new Set(ids)])).map(paraNotas);
+}
+
 /** Curso, sección, año y plan de una asignación docente, activa o no (registro de notas, US37 y US39). */
 export async function asignacionParaNotas(id: string): Promise<AsignacionParaNotas | null> {
   const a = await asignaciones.porId(id);

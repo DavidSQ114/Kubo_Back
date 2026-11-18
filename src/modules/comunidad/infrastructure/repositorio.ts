@@ -444,6 +444,21 @@ export const estudiantesMatricula = {
       },
     }),
 
+  /** Apoderados activos vinculados a varios estudiantes, con su correo (aviso de notas publicadas, US39). */
+  apoderadosVinculados: (ids: string[], db: Db = prisma) =>
+    db.estudiante.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        persona: { select: { nombres: true, apellidos: true } },
+        vinculosApoderado: {
+          where: { apoderado: { activo: true, persona: { activo: true } } },
+          orderBy: { createdAt: "asc" },
+          select: { apoderado: { select: { personaId: true, persona: { select: { nombres: true, email: true } } } } },
+        },
+      },
+    }),
+
   /** Apoderado de varios vínculos, con su teléfono (responsables del pago en el panel de morosidad, US24). */
   apoderadosDeVinculos: (ids: string[], db: Db = prisma) =>
     db.vinculoApoderado.findMany({

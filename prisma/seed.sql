@@ -98,6 +98,7 @@ SELECT v.clave, v.valor::jsonb, v.descripcion, u.id FROM (VALUES
   ('UMBRAL_INASISTENCIA_AVISO', '0.15', 'Porcentaje anual de faltas que activa el aviso previo (RF54)'),
   ('UMBRAL_FALTAS_MES', '3', 'Faltas injustificadas en un mes que activan la alerta mensual (RF54)'),
   ('PLAZO_CORRECCION_ASISTENCIA_H', '24', 'Horas que tiene el docente para corregir la asistencia'),
+  ('PENSIONES_VENCIDAS_RESTRINGEN_LIBRETA', '2', 'Pensiones vencidas a partir de las que el apoderado no ve la libreta de notas (US26)'),
   -- Jornada de secundaria de lunes a viernes (US27): con ella se crea el catálogo de bloques de cada año
   ('BLOQUES_HORARIO', '[
     {"orden": 1, "horaInicio": "07:45", "horaFin": "08:30", "tipo": "CLASE", "etiqueta": "1.ª hora"},
