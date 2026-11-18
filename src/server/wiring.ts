@@ -6,7 +6,8 @@
 // horarios publicados) · comunidad <- matricula (matrícula «En proceso» al registrar un estudiante, US17, y
 // matrículas y pagos de un estudiante antes de eliminarlo, US69, y matrícula vigente antes de crearle el acceso al
 // portal, US49). horarios está por encima de academico, de comunidad y de matricula: los usa directamente por su
-// index.ts (US27–US31; la sección del alumno y la del hijo del apoderado, US48 y US50).
+// index.ts (US27–US31; la sección del alumno y la del hijo del apoderado, US48 y US50). evaluacion también está por
+// encima de academico, comunidad y matricula y los usa por su index.ts (registro y cierre de notas, US37, US39).
 import { configurarPerfilesProvider } from "@/modules/identidad";
 import {
   configurarCierresProvider,

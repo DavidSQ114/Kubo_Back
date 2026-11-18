@@ -246,6 +246,15 @@ export const docentes = {
     }),
 };
 
+export const administradores = {
+  /** Nombre y correo de los administradores activos (aviso de un registro de notas consolidado, US39). */
+  contactos: (db: Db = prisma) =>
+    db.administrador.findMany({
+      where: { activo: true, persona: { activo: true } },
+      select: { id: true, persona: { select: { nombres: true, email: true } } },
+    }),
+};
+
 // ---------- Apoderados (US15) ----------
 
 export interface Pagina {

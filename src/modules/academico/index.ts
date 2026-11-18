@@ -1,6 +1,7 @@
 // academico: interfaz pública. Otros módulos y las rutas importan SOLO desde aquí
 // (US06 año, US07 periodos, US08 grados y secciones, US09 aulas, US10 cursos, US11 competencias,
-// US12 reglas de consolidación, US14 asignaciones, montos del año para US18 y US21, y la carga horaria de una
+// US12 reglas de consolidación y la versión que rige en cada bimestre para el cierre de notas (US39), US14
+// asignaciones, montos del año para US18 y US21, y la carga horaria de una
 // sección para los horarios, US27–US31).
 export { ESTADOS_ANIO, NOMBRE_ESTADO_ANIO, ESTADOS_PERIODO, type EstadoAnio, type EstadoPeriodo } from "./domain/tipos";
 export {
@@ -89,7 +90,9 @@ export {
   asignarCurso,
   quitarAsignacion,
   registrosDeDocente,
+  asignacionParaNotas,
   type AsignacionVista,
+  type AsignacionParaNotas,
 } from "./application/asignaciones";
 export {
   seccionParaHorario,
@@ -104,6 +107,8 @@ export {
   reglasDelAnio,
   guardarRegla,
   simularConsolidacion,
+  reglaDelBimestre,
+  type ReglaDelBimestre,
   type ReglasDelAnio,
   type VersionRegla,
 } from "./application/reglasConsolidacion";

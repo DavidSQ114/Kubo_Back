@@ -1,5 +1,5 @@
-// DO-01 · Inicio · Docente (US34, US14, US35): saludo, acceso a «Mi horario» y a «Asistencia», y los cursos y
-// secciones que tiene asignados. La clase en curso y las notas del Figma llegan con sus módulos.
+// DO-01 · Inicio · Docente (US34, US14, US35, US37): saludo, acceso a «Mi horario», a «Asistencia» y al «Registro de
+// notas», y los cursos y secciones que tiene asignados. La clase en curso del Figma llega con su módulo.
 "use client";
 
 import Link from "next/link";
@@ -109,6 +109,19 @@ export default function InicioDocentePage() {
             <span className="text-[14px] font-semibold text-kubo-azul">Tomar asistencia</span>
           </Link>
           <Link
+            href="/docente/notas"
+            className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta hover:border-kubo-azul"
+          >
+            <span className="flex size-12 items-center justify-center rounded-lg bg-kubo-azul/10">
+              <Icono nombre="nav-award-azul" size={24} />
+            </span>
+            <span className="text-[18px] font-semibold leading-[1.3] text-texto">Registro de notas</span>
+            <span className="text-[14px] leading-[1.5] text-texto-2">
+              Califica cada competencia con AD, A, B o C y cierra el registro del bimestre.
+            </span>
+            <span className="text-[14px] font-semibold text-kubo-azul">Registrar notas</span>
+          </Link>
+          <Link
             href="/docente/horario"
             className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta hover:border-kubo-azul"
           >
@@ -124,9 +137,6 @@ export default function InicioDocentePage() {
         </div>
         <MisCursos />
       </div>
-      <p className="text-[13px] leading-[1.5] text-texto-3">
-        El registro de notas estará disponible próximamente en este portal.
-      </p>
     </>
   );
 }

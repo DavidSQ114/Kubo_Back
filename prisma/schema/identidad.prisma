@@ -34,7 +34,8 @@ model Usuario {
   asistenciasDocente                 AsistenciaDocente[]
   cierresCalificacionCerradoPor      CierreCalificacion[]     @relation("CierreCalificacionCerradoPor")
   cierresCalificacionPublicadoPor    CierreCalificacion[]     @relation("CierreCalificacionPublicadoPor")
-  notas                              Nota[]
+  notasRegistradoPor                 Nota[]                   @relation("NotaRegistradoPor")
+  notasModificadoPor                 Nota[]                   @relation("NotaModificadoPor")
   evidenciasPedagogicas              EvidenciaPedagogica[]
   solicitudesRectificacion           SolicitudRectificacion[]
   materialesEstudio                  MaterialEstudio[]

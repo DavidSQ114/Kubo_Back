@@ -16,6 +16,7 @@ import {
   promedioPonderado,
   textoAlcance,
   verificarRigeDesde,
+  versionAplicable,
   type CriterioDesempate,
   type Logro,
   type MetodoConsolidacion,
@@ -186,4 +187,26 @@ export function simularConsolidacion(datos: {
     empatados: empatados.length > 1 ? empatados : [],
     promedio: datos.metodo === "PONDERADO" ? promedioPonderado(datos.logros, datos.pesos) : null,
   };
+}
+
+export interface ReglaDelBimestre {
+  id: string;
+  version: number;
+  nombre: string;
+  metodo: MetodoConsolidacion;
+  criterioDesempate: CriterioDesempate;
+}
+
+/**
+ * Versión de la regla que rige en un bimestre del año (US12): la más reciente cuyo «rige desde» es ese bimestre o
+ * uno anterior, aunque después haya quedado ARCHIVADA por otra que rige desde un bimestre posterior. La usa el
+ * cierre de notas (US39). null si el año no tiene reglas.
+ */
+export async function reglaDelBimestre(anioId: string, numeroBimestre: number): Promise<ReglaDelBimestre | null> {
+  const versiones = (await reglas.delAnio(anioId)).filter((r) => r.estado !== "BORRADOR");
+  const conNumero = versiones.map((r) => ({ ...r, rigeDesdeNumero: r.rigeDesde?.numero ?? null }));
+  const r = versionAplicable(conNumero, numeroBimestre);
+  return r
+    ? { id: r.id, version: r.version, nombre: r.nombre, metodo: r.metodo, criterioDesempate: r.criterioDesempate }
+    : null;
 }

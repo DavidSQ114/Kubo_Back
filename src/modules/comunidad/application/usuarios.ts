@@ -6,6 +6,7 @@ import { ErrorApp } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import { asegurarCuenta, enviarBienvenida, type Autenticado, type EstadoUsuario, type Rol } from "@/modules/identidad";
 import {
+  administradores,
   buscarUsuarios,
   contarUsuarios,
   personas,
@@ -141,4 +142,18 @@ export async function registrarAdministrador(
     // Se muestra una sola vez al administrador por si el correo no llega. No se guarda en ningún lugar.
     passwordTemporal: cuenta.passwordTemporal,
   };
+}
+
+export interface ContactoAdministrador {
+  administradorId: string;
+  nombres: string;
+  email: string;
+}
+
+/** Administradores activos con correo: a quién avisar que un registro de notas está consolidado (US39). */
+export async function contactosDeAdministradores(): Promise<ContactoAdministrador[]> {
+  const filas = await administradores.contactos();
+  return filas.flatMap((a) =>
+    a.persona.email ? [{ administradorId: a.id, nombres: a.persona.nombres, email: a.persona.email }] : [],
+  );
 }

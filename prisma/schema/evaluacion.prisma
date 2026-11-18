@@ -34,8 +34,13 @@ model Nota {
   competenciaPlanId        String                   @db.Uuid @map("competencia_plan_id")
   competenciaPlan          CompetenciaPlan          @relation(fields: [competenciaPlanId], references: [id], onDelete: Restrict)
   logro                    Logro
+  // Valor que tenía antes del último cambio, quién lo cambió y cuándo (US37); null si nunca se cambió
+  logroAnterior            Logro?                   @map("logro_anterior")
   registradoPorId          String                   @db.Uuid @map("registrado_por_id")
-  registradoPor            Usuario                  @relation(fields: [registradoPorId], references: [id], onDelete: Restrict)
+  registradoPor            Usuario                  @relation("NotaRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  modificadoPorId          String?                  @db.Uuid @map("modificado_por_id")
+  modificadoPor            Usuario?                 @relation("NotaModificadoPor", fields: [modificadoPorId], references: [id], onDelete: SetNull)
+  modificadoEn             DateTime?                @db.Timestamptz(3) @map("modificado_en")
   createdAt                DateTime                 @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   evidenciasPedagogicas    EvidenciaPedagogica[]

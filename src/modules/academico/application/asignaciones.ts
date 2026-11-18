@@ -160,3 +160,29 @@ export async function quitarAsignacion(admin: Autenticado, id: string, meta: Met
  * consulta antes de eliminar a una persona: con alguno, solo se desactiva su perfil (US69).
  */
 export const registrosDeDocente = (docenteId: string, tx?: Tx) => asignaciones.totalDelDocente(docenteId, tx);
+
+export interface AsignacionParaNotas {
+  id: string;
+  docenteId: string;
+  activo: boolean;
+  /** Plan de estudio (curso + grado del año): sus competencias son las columnas del registro de notas. */
+  planEstudioId: string;
+  anio: { id: string; anio: number; estado: string };
+  curso: { id: string; codigo: string; nombre: string };
+  seccion: { id: string; nombre: string; grado: { id: string; numero: number; nombre: string } };
+}
+
+/** Curso, sección, año y plan de una asignación docente, activa o no (registro de notas, US37 y US39). */
+export async function asignacionParaNotas(id: string): Promise<AsignacionParaNotas | null> {
+  const a = await asignaciones.porId(id);
+  if (!a) return null;
+  return {
+    id: a.id,
+    docenteId: a.docenteId,
+    activo: a.activo,
+    planEstudioId: a.planEstudio.id,
+    anio: a.planEstudio.anioAcademico,
+    curso: a.planEstudio.curso,
+    seccion: a.seccion,
+  };
+}
