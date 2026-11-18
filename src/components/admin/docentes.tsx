@@ -18,6 +18,7 @@ export interface DatosDocente {
   email: string;
   telefono: string;
   especialidad: string;
+  sexo: "" | "FEMENINO" | "MASCULINO";
 }
 
 export const DOCENTE_VACIO: DatosDocente = {
@@ -28,6 +29,7 @@ export const DOCENTE_VACIO: DatosDocente = {
   email: "",
   telefono: "",
   especialidad: "",
+  sexo: "",
 };
 
 export interface DocenteRegistrado {
@@ -87,6 +89,7 @@ export const cuerpoDocente = (d: DatosDocente, enviarCorreo: boolean) => ({
   especialidad: d.especialidad,
   telefono: d.telefono.trim() || null,
   fechaNacimiento: d.fechaNacimiento || null,
+  sexo: d.sexo || null,
   enviarCorreo,
 });
 
@@ -155,7 +158,7 @@ export function DatosPersonales({
   aviso?: ReactNode;
   onCambiar: (cambios: Partial<DatosDocente>) => void;
 }) {
-  const campo = (clave: keyof DatosDocente) => ({
+  const campo = (clave: Exclude<keyof DatosDocente, "sexo">) => ({
     value: datos[clave],
     disabled: bloqueado || camposBloqueados.includes(clave),
     error: errores[clave],
@@ -191,21 +194,34 @@ export function DatosPersonales({
           {...campo("telefono")}
         />
       </div>
-      <Selector
-        etiqueta="Especialidad"
-        obligatorio
-        valor={datos.especialidad}
-        deshabilitado={bloqueado}
-        error={errores.especialidad}
-        onCambiar={(especialidad) => onCambiar({ especialidad })}
-      >
-        <option value="">Elige la especialidad</option>
-        {especialidades.map((e) => (
-          <option key={e} value={e}>
-            {e}
-          </option>
-        ))}
-      </Selector>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Selector
+          etiqueta="Especialidad"
+          obligatorio
+          valor={datos.especialidad}
+          deshabilitado={bloqueado}
+          error={errores.especialidad}
+          onCambiar={(especialidad) => onCambiar({ especialidad })}
+        >
+          <option value="">Elige la especialidad</option>
+          {especialidades.map((e) => (
+            <option key={e} value={e}>
+              {e}
+            </option>
+          ))}
+        </Selector>
+        <Selector
+          etiqueta="Sexo (opcional)"
+          valor={datos.sexo}
+          deshabilitado={bloqueado}
+          error={errores.sexo}
+          onCambiar={(sexo) => onCambiar({ sexo: sexo as DatosDocente["sexo"] })}
+        >
+          <option value="">Sin indicar</option>
+          <option value="FEMENINO">Femenino</option>
+          <option value="MASCULINO">Masculino</option>
+        </Selector>
+      </div>
       {aviso}
     </Tarjeta>
   );

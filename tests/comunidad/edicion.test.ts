@@ -72,13 +72,22 @@ describe("validación de la edición (US69)", () => {
     }
   });
   it("rechaza un dato de un perfil que la persona no tiene", () => {
-    for (const enviados of [{ especialidad: "Matemática" }, { sexo: "FEMENINO" }, { colegioProcedencia: "I.E. 1" }]) {
+    for (const enviados of [{ especialidad: "Matemática" }, { colegioProcedencia: "I.E. 1" }]) {
       expect(() => verificarEdicion(cambiosDePersona(apoderada, enviados), contexto)).toThrowError(
         expect.objectContaining({ codigo: "PERFIL_NO_APLICA", estadoHttp: 422 }),
       );
     }
     const docente = { ...contexto, perfiles: ["DOCENTE" as const] };
     expect(() => verificarEdicion(cambiosDePersona(apoderada, { especialidad: "Matemática" }), docente)).not.toThrow();
+  });
+  it("acepta el sexo de cualquier persona, no solo de estudiantes, y lo deja en la auditoría", () => {
+    for (const perfiles of [["APODERADO"], ["DOCENTE"], ["ADMINISTRADOR"], ["ALUMNO"]] as const) {
+      const cambios = cambiosDePersona(apoderada, { sexo: "FEMENINO" });
+      expect(() => verificarEdicion(cambios, { perfiles: [...perfiles], tieneCuenta: true })).not.toThrow();
+    }
+    const cambios = cambiosDePersona({ ...apoderada, sexo: "FEMENINO" }, { sexo: null });
+    expect(() => verificarEdicion(cambios, contexto)).not.toThrow();
+    expect(valoresDeAuditoria(cambios)).toEqual({ anterior: { sexo: "FEMENINO" }, nuevo: { sexo: null } });
   });
   it("no deja vacío el correo de una persona con cuenta, pero sí el de una sin cuenta", () => {
     const cambios = cambiosDePersona(apoderada, { email: null });

@@ -123,6 +123,19 @@ describe.skipIf(!ACTIVA)("editar y dar de baja personas (US69)", () => {
     expect(items[0].responsable).toBeTruthy();
   });
 
+  it("edita el sexo de una apoderada (no solo de estudiantes) y lo deja en la auditoría", async () => {
+    const r = await editarPersona(admin, otraId, { sexo: "FEMENINO" }, meta);
+    expect(r).toMatchObject({ cambios: ["sexo"], sesionesCerradas: false });
+    expect((await prisma.persona.findUniqueOrThrow({ where: { id: otraId } })).sexo).toBe("FEMENINO");
+    const fila = await prisma.registroAuditoria.findFirstOrThrow({
+      where: { entidadAfectada: "persona", entidadId: otraId, accion: "EDITAR_PERSONA" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(fila.valorAnterior).toEqual({ sexo: null });
+    expect(fila.valorNuevo).toEqual({ sexo: "FEMENINO" });
+    expect((await detallePersona(otraId)).sexo).toBe("FEMENINO");
+  });
+
   it("rechaza un correo que ya es de otra cuenta sin cambiar nada (409 EMAIL_EN_USO)", async () => {
     const antes = await prisma.usuario.findUniqueOrThrow({ where: { personaId: rosaId } });
     await expect(editarPersona(admin, rosaId, { email: CORREO_OTRA }, meta)).rejects.toMatchObject({

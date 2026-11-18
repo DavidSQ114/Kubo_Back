@@ -18,7 +18,7 @@ import {
   type VinculoEnPantalla,
 } from "@/components/admin/apoderados";
 import type { PersonaEncontrada } from "@/components/admin/docentes";
-import { separarErrores } from "@/components/admin/grados";
+import { Selector, separarErrores } from "@/components/admin/grados";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Campo, Casilla, Icono, Tarjeta } from "@/components/ui";
 import { api, ApiError, NOMBRE_ROL } from "@/lib/api";
@@ -32,6 +32,7 @@ interface DatosApoderado {
   telefono: string;
   direccion: string;
   ocupacion: string;
+  sexo: "" | "FEMENINO" | "MASCULINO";
 }
 
 const VACIO: DatosApoderado = {
@@ -43,6 +44,7 @@ const VACIO: DatosApoderado = {
   telefono: "",
   direccion: "",
   ocupacion: "",
+  sexo: "",
 };
 
 interface ApoderadoRegistrado {
@@ -209,7 +211,7 @@ export default function RegistrarApoderadoPage() {
     try {
       const r = await api<ApoderadoRegistrado>("/comunidad/apoderados", {
         method: "POST",
-        body: { ...datos, vinculos: estudiantes.map(cuerpoVinculo), enviarCorreo },
+        body: { ...datos, sexo: datos.sexo || null, vinculos: estudiantes.map(cuerpoVinculo), enviarCorreo },
       });
       setRegistrado(r);
       setEstudiantes((lista) => lista.map((x) => ({ ...x, vinculado: true })));
@@ -246,9 +248,11 @@ export default function RegistrarApoderadoPage() {
     setVinculadosAhora(hechos);
   }
 
-  const campo = (clave: keyof DatosApoderado) => ({
+  const bloqueado = (clave: keyof DatosApoderado) =>
+    terminado || bloqueados.includes(clave) || (Boolean(yaApoderado) && clave !== "dni");
+  const campo = (clave: Exclude<keyof DatosApoderado, "sexo">) => ({
     value: datos[clave],
-    disabled: terminado || bloqueados.includes(clave) || (Boolean(yaApoderado) && clave !== "dni"),
+    disabled: bloqueado(clave),
     error: errores[clave] || undefined,
     onChange: (e: { target: { value: string } }) => cambiar({ [clave]: e.target.value }),
   });
@@ -348,6 +352,17 @@ export default function RegistrarApoderadoPage() {
                 icono="icon-calendar-gris"
                 {...campo("fechaNacimiento")}
               />
+              <Selector
+                etiqueta="Sexo (opcional)"
+                valor={datos.sexo}
+                deshabilitado={bloqueado("sexo")}
+                error={errores.sexo || undefined}
+                onCambiar={(sexo) => cambiar({ sexo: sexo as DatosApoderado["sexo"] })}
+              >
+                <option value="">Sin indicar</option>
+                <option value="FEMENINO">Femenino</option>
+                <option value="MASCULINO">Masculino</option>
+              </Selector>
               <Campo etiqueta="Ocupación" obligatorio maxLength={100} placeholder="Contadora" {...campo("ocupacion")} />
               <Campo
                 etiqueta="Correo electrónico"

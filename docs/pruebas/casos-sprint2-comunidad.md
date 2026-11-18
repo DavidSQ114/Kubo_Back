@@ -26,6 +26,10 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 | CP-US15-14 | US15 | excepción | PC | 1. Vincular un estudiante sin elegir el parentesco. 2. Guardar. | — | Bajo la fila: «Elige el parentesco». |
 | CP-US15-15 | US15 | básico | Varios apoderados registrados | 1. Buscar por apellido y por inicio del DNI en AD-09 o con la API. | `GET /comunidad/apoderados?q=quispe` · `?q=4123` | `200 { items, paginacion }` con DNI, nombre, teléfono, ocupación y número de estudiantes. |
 | CP-US15-16 | US15 | excepción | Sesión de un perfil que no es Administrador | 1. Llamar a `POST /comunidad/apoderados` o `GET /comunidad/apoderados`. | — | `403 ACCESO_DENEGADO`. |
+| CP-US15-17 | US15 | básico | PC | 1. En AD-08, llenar los datos del paso 1 y elegir «Sexo (opcional)». 2. «Guardar apoderado». | DNI 40125590 · Masculino | Se registra. El selector ofrece «Sin indicar», «Femenino» y «Masculino», como el registro de estudiantes. «Ver detalle» en «Usuarios» muestra «Sexo: Masculino». La auditoría `REGISTRAR_APODERADO` incluye `sexo: "MASCULINO"`. |
+| CP-US15-18 | US15 | alterno | PC | 1. Registrar un apoderado dejando «Sin indicar». | DNI 40125591 | Se registra con `persona.sexo = null`. |
+| CP-US15-19 | US15 | alterno | CP-US15-06 (la docente sin sexo registrado) | 1. Elegir «Femenino» y guardar. | — | Se agrega el perfil Apoderado y se completa su sexo; si ya lo tenía, se conserva el registrado. |
+| CP-US15-20 | US15 | excepción | PC | 1. `POST /comunidad/apoderados` con un sexo no válido. | `"sexo": "F"` | `400 DATOS_INVALIDOS`: «Elige el sexo». |
 
 ## US17 · Registro de datos del estudiante
 

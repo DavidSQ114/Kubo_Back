@@ -52,7 +52,6 @@ export const CAMPOS_IDENTIDAD: readonly CampoEditable[] = ["dni", "nombres", "ap
 export const PERFIL_DEL_CAMPO: Partial<Record<CampoEditable, Perfil>> = {
   ocupacion: "APODERADO",
   especialidad: "DOCENTE",
-  sexo: "ALUMNO",
   colegioProcedencia: "ALUMNO",
 };
 
@@ -95,7 +94,7 @@ export interface ContextoEdicion {
 
 /**
  * Valida los cambios antes de guardarlos:
- * - un dato de perfil (ocupación, especialidad, sexo, colegio de procedencia) exige que la persona tenga ese perfil;
+ * - un dato de perfil (ocupación, especialidad, colegio de procedencia) exige que la persona tenga ese perfil;
  * - el correo de una persona con cuenta y los datos obligatorios de su perfil no pueden quedar vacíos;
  * - el DNI, los nombres y los apellidos solo cambian con un motivo (queda en la bitácora).
  */

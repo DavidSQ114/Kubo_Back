@@ -60,6 +60,7 @@ export interface DatosApoderado {
   telefono: string;
   direccion: string;
   ocupacion: string;
+  sexo?: "FEMENINO" | "MASCULINO" | null;
   /** Estudiantes ya registrados que se vinculan en el mismo guardado. */
   vinculos: { estudianteId: string; parentesco: Parentesco; esPrincipal: boolean; autorizado: boolean }[];
   /** Correo de bienvenida con la contraseña temporal (por defecto, sí). */
@@ -98,6 +99,7 @@ export async function registrarApoderado(
         telefono: datos.telefono,
         direccion: datos.direccion,
         fechaNacimiento: fechaSinHora(datos.fechaNacimiento),
+        sexo: datos.sexo ?? null,
       };
       let personaId: string;
       if (existente) {
@@ -132,6 +134,7 @@ export async function registrarApoderado(
           nuevo: {
             personaId: persona.id,
             ocupacion: datos.ocupacion,
+            sexo: datos.sexo ?? null,
             personaExistia: Boolean(existente),
             perfilReactivado: accion === "REACTIVAR",
             cuentaCreada: cuenta.creada,
