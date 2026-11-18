@@ -1,8 +1,10 @@
-// evaluacion/schemas: validación de las entradas de la API del registro de notas (US37, US39, US40), RNF16.
+// evaluacion/schemas: validación de las entradas de la API del registro de notas (US37, US39, US40), de la
+// rectificación de nota (US41) y de la bitácora de notas (US03), RNF16.
 // Mensajes en español; un logro fuera de la escala responde con el mensaje del backlog (US37, criterio 2).
 import { z } from "zod";
 import { erroresEvaluacion as E, MENSAJE_VALOR_NO_PERMITIDO } from "./domain/errores";
 import { LOGROS_NOTA, type NotaPedida } from "./domain/notas";
+import { LARGO_MAXIMO_MOTIVO } from "./domain/rectificacion";
 
 export const IdSchema = z.string().uuid("Identificador no válido");
 
@@ -89,3 +91,50 @@ export const PublicarNotasSchema = z.object({
 
 /** Query de la libreta en PDF: el bimestre que se descarga. */
 export const LibretaPdfSchema = z.object({ periodoId: IdSchema });
+
+// ---------- Rectificación de nota (US41) y bitácora de notas (US03) ----------
+
+const MotivoSchema = (vacio: string) =>
+  z
+    .string({ message: vacio })
+    .trim()
+    .min(1, vacio)
+    .max(LARGO_MAXIMO_MOTIVO, `El motivo admite como máximo ${LARGO_MAXIMO_MOTIVO} caracteres`);
+
+/** Cuerpo de POST …/rectificaciones (M-08): estudiante, competencia, valor correcto y motivo, todos obligatorios. */
+export const SolicitarRectificacionSchema = z.object({
+  matriculaId: IdSchema,
+  competenciaPlanId: IdSchema,
+  valorCorrecto: LogroSchema,
+  motivo: MotivoSchema("Escribe el motivo del error"),
+});
+
+/** Cuerpo de POST /rectificaciones/{id}/rechazar: el motivo del rechazo es obligatorio (US41, criterio 3). */
+export const RechazarRectificacionSchema = z.object({ motivo: MotivoSchema("Escribe el motivo del rechazo") });
+
+/** Query de GET /rectificaciones (bandeja de AD-15). */
+export const BandejaRectificacionesSchema = z.object({
+  estado: z.enum(["PENDIENTES", "RESUELTAS"], { message: "Estado no válido" }).default("PENDIENTES"),
+  pagina: z.coerce.number().int().min(1).default(1),
+  tamano: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const FechaDiaSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida")
+  .refine((v) => new Date(`${v}T00:00:00.000Z`).toISOString().startsWith(v), "Fecha no válida");
+
+const FechaOpcional = z
+  .string()
+  .optional()
+  .transform((v) => (v ? v : undefined))
+  .pipe(FechaDiaSchema.optional());
+
+/** Query de GET /bitacora (AD-16 «Cambios de notas»): fechas «AAAA-MM-DD» de Lima, docente y página. */
+export const FiltroBitacoraSchema = z.object({
+  desde: FechaOpcional,
+  hasta: FechaOpcional,
+  docenteId: IdOpcional,
+  pagina: z.coerce.number().int().min(1).default(1),
+  tamano: z.coerce.number().int().min(1).max(100).default(20),
+});

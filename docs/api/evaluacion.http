@@ -112,3 +112,44 @@ GET {{base}}/evaluacion/alumno/libreta
 
 ### 20. Mi libreta en PDF
 GET {{base}}/evaluacion/alumno/libreta/pdf?periodoId={{periodo}}
+
+### ---------- Rectificación de nota (US41) · sesión de Docente ----------
+
+### 21. Solicitar rectificación en un registro cerrado o publicado → 201 «Pendiente de aprobación»;
+### otra para la misma nota → 409 RECTIFICACION_PENDIENTE; mismo valor → 422 VALOR_IGUAL_AL_ACTUAL;
+### registro abierto → 409 REGISTRO_ABIERTO; curso ajeno → 403 ACCESO_DENEGADO (usa el registro ya cerrado de los pasos 1–8)
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/rectificaciones
+Content-Type: application/json
+
+{ "matriculaId": "{{alumno1}}", "competenciaPlanId": "{{c1}}", "valorCorrecto": "A", "motivo": "Al digitar se registró B, pero la rúbrica indica logro esperado (A)." }
+
+### 22. Mis solicitudes con su estado
+GET {{base}}/evaluacion/docente/rectificaciones
+
+### ---------- Rectificación de nota (US41) · sesión de Administrador ----------
+
+### 23. Bandeja: pendientes (por defecto) o resueltas
+GET {{base}}/evaluacion/rectificaciones?estado=PENDIENTES
+
+### 24. Aprobar → nota cambiada, consolidado recalculado, bitácora y auditoría; otra vez → 409 SOLICITUD_YA_RESUELTA;
+### la propia → 403 SOLICITUD_PROPIA
+@solicitud = 00000000-0000-0000-0000-000000000000
+POST {{base}}/evaluacion/rectificaciones/{{solicitud}}/aprobar
+
+### 25. Rechazar con motivo (sin motivo → 400 DATOS_INVALIDOS)
+POST {{base}}/evaluacion/rectificaciones/{{solicitud}}/rechazar
+Content-Type: application/json
+
+{ "motivo": "La evidencia adjunta no sustenta el cambio de logro." }
+
+### ---------- Bitácora de notas (US03) · sesión de Administrador ----------
+
+### 26. Cambios de notas de un docente en un rango de fechas (se cumplen los dos), del más reciente al más antiguo
+@docente = 00000000-0000-0000-0000-000000000000
+GET {{base}}/evaluacion/bitacora?desde=2026-09-01&hasta=2026-09-16&docenteId={{docente}}&pagina=1&tamano=20
+
+### 27. Rango al revés → 400 RANGO_FECHAS_INVALIDO
+GET {{base}}/evaluacion/bitacora?desde=2026-09-16&hasta=2026-09-01
+
+### 28. Docentes con cambios en la bitácora (filtro «Docente»)
+GET {{base}}/evaluacion/bitacora/docentes

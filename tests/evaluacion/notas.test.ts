@@ -307,7 +307,7 @@ describe("bloqueo del registro cerrado (US40)", () => {
       const e = errorDe(() => verificarEditable(s));
       expect(e).toMatchObject({ codigo: "REGISTRO_CERRADO", estadoHttp: 409 });
     }
-    expect(MENSAJE_CORRECCION).toContain("Administrador por el canal de soporte institucional");
+    expect(MENSAJE_CORRECCION).toContain("envía una solicitud de rectificación a la administración");
   });
 
   it("si la escritura llega directo a la base, el trigger responde 409 con el mismo mensaje", () => {

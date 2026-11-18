@@ -1,6 +1,7 @@
 // evaluacion: interfaz pública. Registro de notas cualitativas del docente (US37), cierre, consolidación y publicación
 // del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado y del alumno con su PDF (US46, US51,
-// US66; con la restricción por deuda de US26) y el puerto que usa académico (cierres del año y notas por competencia).
+// US66; con la restricción por deuda de US26), solicitud de rectificación de nota (US41), bitácora de notas (US03) y
+// el puerto que usa académico (cierres del año y notas por competencia).
 export { cierresProviderEvaluacion } from "./infrastructure/cierresProvider";
 export { LOGROS_NOTA, ESTADOS_REGISTRO, MENSAJE_CORRECCION, type LogroNota, type EstadoRegistro } from "./domain/notas";
 export {
@@ -39,4 +40,22 @@ export {
   type LibretaDelHijo,
   type BimestreDeLibreta,
 } from "./application/libreta";
+export {
+  NOMBRE_ESTADO_SOLICITUD,
+  NOMBRE_ORIGEN,
+  type EstadoSolicitud,
+  type OrigenCambio,
+} from "./domain/rectificacion";
+export {
+  solicitarRectificacion,
+  misRectificaciones,
+  bandejaRectificaciones,
+  aprobarRectificacion,
+  rechazarRectificacion,
+  type SolicitudVista,
+  type SolicitudCreada,
+  type SolicitudResuelta,
+  type AvisoRectificacion,
+} from "./application/rectificaciones";
+export { listarBitacoraNotas, docentesDeBitacora, type CambioRegistrado } from "./application/bitacora";
 export * as esquemasEvaluacion from "./schemas";

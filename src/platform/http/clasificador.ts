@@ -42,6 +42,8 @@ const MENSAJES_BD: Record<string, string> = {
   RESPONSABLE_NO_VINCULADO: "El apoderado responsable no está vinculado a este estudiante.",
   DETALLE_INCOHERENTE: "La sección o el docente no coinciden con la asignación.",
   REGISTRO_AUDITORIA_INMUTABLE: "La bitácora de auditoría no se puede modificar.",
+  // tg_bitacora_nota_inmutable (US03)
+  BITACORA_NOTA_INMUTABLE: "La bitácora de notas no se puede modificar.",
   // tg_nota_registro_cerrado (US40)
   REGISTRO_CERRADO: "Este registro está cerrado y no puede modificarse directamente.",
 };
@@ -53,7 +55,7 @@ const ESTADO_BD: Record<string, number> = { REGISTRO_CERRADO: 409 };
 export function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
   const texto = String((e as { message?: string })?.message ?? "");
   const m = texto.match(
-    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE|REGISTRO_CERRADO)\b/,
+    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE|BITACORA_NOTA_INMUTABLE|REGISTRO_CERRADO)\b/,
   );
   if (!m) return null;
   // El trigger de aforo informa ambos números: «el aforo de la sección (32) supera el del aula (28)».

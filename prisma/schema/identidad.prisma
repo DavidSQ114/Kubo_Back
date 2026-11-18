@@ -37,7 +37,8 @@ model Usuario {
   notasRegistradoPor                 Nota[]                   @relation("NotaRegistradoPor")
   notasModificadoPor                 Nota[]                   @relation("NotaModificadoPor")
   evidenciasPedagogicas              EvidenciaPedagogica[]
-  solicitudesRectificacion           SolicitudRectificacion[]
+  solicitudesRectificacion           SolicitudRectificacion[] @relation("SolicitudRectificacionResueltoPor")
+  solicitudesRectificacionPedidas    SolicitudRectificacion[] @relation("SolicitudRectificacionSolicitadoPor")
   materialesEstudio                  MaterialEstudio[]
   trabajos                           Trabajo[]
   entregasTrabajo                    EntregaTrabajo[]

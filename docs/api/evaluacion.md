@@ -1,16 +1,18 @@
-# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51) y libreta en PDF (US66)
+# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51), libreta en PDF (US66), rectificación de nota (US41) y bitácora de notas (US03)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md) y [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md); ejemplos en [evaluacion.http](evaluacion.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)); M-08, la bandeja de AD-15 y AD-16 «Cambios de notas» ([frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md), [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md) y [pruebas/casos-sprint3-rectificacion.md](../pruebas/casos-sprint3-rectificacion.md); ejemplos en [evaluacion.http](evaluacion.http).
 
 La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
 ## Modelo
 
 - **Registro de notas** (`cierre_calificacion`): el de un curso y sección (asignación docente, US14) en un bimestre. Se crea `ABIERTO` con la primera nota guardada y pasa a `CERRADO` al cerrarlo (US39). El Administrador lo pasa a `PUBLICADO` al publicarlo (US39, criterio 4; ver [Publicación de notas](#publicación-de-notas-us39-criterio-4)): solo entonces lo ven el apoderado y el alumno. Guarda la versión de la regla de consolidación (`regla_consolidacion_id`) con la que se cerró, quién lo cerró y cuándo. Uno por asignación y bimestre (`@@unique`).
-- **Nota** (`nota`): logro `AD`, `A`, `B` o `C` de un alumno (matrícula) en una competencia del plan (`competencia_plan`) dentro de un registro. Guarda quién la registró y cuándo (`registrado_por_id`, `created_at`) y, si se cambió, el **valor anterior**, quién lo cambió y cuándo (`logro_anterior`, `modificado_por_id`, `modificado_en`). La bitácora completa de cambios de notas es US03, que no es de esta entrega.
+- **Nota** (`nota`): logro `AD`, `A`, `B` o `C` de un alumno (matrícula) en una competencia del plan (`competencia_plan`) dentro de un registro. Guarda quién la registró y cuándo (`registrado_por_id`, `created_at`) y, si se cambió, el **valor anterior**, quién lo cambió y cuándo (`logro_anterior`, `modificado_por_id`, `modificado_en`). Cada creación o cambio queda además en la bitácora de notas (US03, ver [Bitácora de notas](#bitácora-de-notas-us03)).
 - **Resultado consolidado** (`resultado_consolidado`): logro del curso de cada alumno al cerrar, con `detalle_calculo` (la versión de la regla, el método, el criterio de desempate y los logros con sus pesos).
-- **Trigger `tg_nota_registro_cerrado`** (migración `notas_cambios_y_bloqueo`): ninguna nota se crea ni se cambia en un registro `CERRADO` o `PUBLICADO`, aunque la escritura no pase por la aplicación (US40). La aplicación lo traduce a `409 REGISTRO_CERRADO`.
+- **Trigger `tg_nota_registro_cerrado`** (migración `notas_cambios_y_bloqueo`, ampliado en `bitacora_y_rectificacion_notas`): ninguna nota se crea ni se cambia en un registro `CERRADO` o `PUBLICADO`, aunque la escritura no pase por la aplicación (US40). La única excepción es el cambio de una rectificación aprobada (US41). La aplicación lo traduce a `409 REGISTRO_CERRADO`.
+- **Solicitud de rectificación** (`solicitud_rectificacion`): pedido del docente para corregir una nota de un registro cerrado o publicado (US41), con el valor anterior, el solicitado, el motivo, quién la pidió y, al resolverla, quién, cuándo y el motivo del rechazo.
+- **Bitácora de notas** (`bitacora_nota`): una fila inmutable por cada nota registrada o cambiada (US03).
 
 ## Endpoints del docente
 
@@ -58,7 +60,7 @@ Todos son **solo del Docente** y solo para sus propios cursos y secciones (asign
 
 **Registro cerrado (US40)**
 
-- Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si necesitas corregir una nota, solicítalo al Administrador por el canal de soporte institucional.» (la rectificación, US41, no forma parte de esta entrega).
+- Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si detectas un error, envía una solicitud de rectificación a la administración.» (ver [Rectificación de nota](#rectificación-de-nota-us41)).
 - Toda escritura sobre él responde `409 REGISTRO_CERRADO`, venga de la pantalla o directo por la API. En la base, el trigger `tg_nota_registro_cerrado` rechaza crear o cambiar notas aunque se intente fuera de la aplicación.
 
 ## Publicación de notas (US39, criterio 4)
@@ -110,21 +112,85 @@ Pantalla AD-15 «Notas y rectificaciones» (`/admin/notas`). **Solo Administrado
 - `periodoId` es obligatorio. Sin ningún curso publicado en el bimestre: `422 LIBRETA_SIN_PUBLICAR`. Un bimestre de otro año: `404 NO_ENCONTRADO`.
 - Con restricción por deuda **no se genera**: `403 LIBRETA_RESTRINGIDA` con el mensaje de US26.
 
+## Rectificación de nota (US41)
+
+Pantallas: DO-04 con el modal M-08 «Solicitud de rectificación de nota» (docente) y la pestaña «Solicitudes de rectificación» de AD-15 (administrador). Ver [frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md).
+
+| Método y ruta | Quién | Cuerpo | Respuesta `data` |
+|---|---|---|---|
+| `POST /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/rectificaciones` | Docente (solo sus cursos) | `{ matriculaId, competenciaPlanId, valorCorrecto, motivo }` | `201` `{ solicitud: SolicitudVista, aviso: { destinatarios, enviados } }` |
+| `GET /evaluacion/docente/rectificaciones` | Docente | — | `SolicitudVista[]` (las que pidió, de la más reciente a la más antigua; hasta 200) |
+| `GET /evaluacion/rectificaciones?estado=PENDIENTES\|RESUELTAS&pagina=&tamano=` | Administrador | — | `{ items: SolicitudVista[], pendientes, paginacion }` |
+| `POST /evaluacion/rectificaciones/{id}/aprobar` | Administrador | — | `{ solicitud, consolidado: { anterior, nuevo }, aviso }` |
+| `POST /evaluacion/rectificaciones/{id}/rechazar` | Administrador | `{ motivo }` | `{ solicitud, consolidado: null, aviso }` |
+
+- `SolicitudVista`: `{ id, estado, nombreEstado, pendiente, asignacionId, periodoId, estadoRegistro, docente: { id, nombre, nombreCorto }, anio, curso: { codigo, nombre }, seccion («3° B»), bimestre: { numero, nombre }, matriculaId, estudiante («Apellidos, Nombres»), competencia: { competenciaPlanId, columna («C2»), codigo, nombre }, valorAnterior, valorSolicitado, valorActual, motivo, motivoRechazo, solicitadoPor, solicitadoEn, resueltoPor, resueltoEn, esPropia }`.
+- `estado`: `PENDIENTE` («Pendiente de aprobación»), `APROBADA` («Aprobada») o `RECHAZADA` («Rechazada»). La enumeración también tiene `EN_REVISION` y `CANCELADA` (diagrama de clases), que esta entrega no usa; `EN_REVISION` cuenta como pendiente.
+- `esPropia`: la pidió el usuario en sesión. La bandeja la muestra, pero no se puede aprobar ni rechazar.
+- `bandeja.pendientes`: total de solicitudes pendientes (número de la pestaña de AD-15). Pendientes de la más antigua a la más reciente; resueltas, de la más reciente a la más antigua.
+
+**Solicitar (criterio 1)**
+
+- Solo en un registro `CERRADO` o `PUBLICADO` del docente en sesión. Un curso o una sección de otro docente responde `403 ACCESO_DENEGADO`, igual que el registro de notas. En un registro abierto, `409 REGISTRO_ABIERTO`: la nota se corrige directamente.
+- `valorCorrecto` es `AD`, `A`, `B` o `C` (si no, `400 DATOS_INVALIDOS` con «Solo se permiten los valores AD, A, B o C») y **distinto del registrado** (`422 VALOR_IGUAL_AL_ACTUAL`). `motivo` es obligatorio, de 1 a 500 caracteres.
+- El alumno o la competencia deben tener nota en ese registro (`422 NOTA_FUERA_DEL_REGISTRO`).
+- **Una sola solicitud pendiente por nota:** `409 RECTIFICACION_PENDIENTE`. En la base, el índice único parcial `uq_solicitud_rectificacion_pendiente_por_nota` lo garantiza también ante dos pedidos a la vez.
+- La solicitud guarda la nota, el valor anterior, el solicitado, el motivo y quién la pidió (`solicitado_por_id`). Después se avisa por correo a los administradores activos (`aviso`); si el correo falla, la solicitud se conserva.
+
+**Aprobar (criterio 2)**
+
+- En **una sola transacción**: bloquea la solicitud (`FOR UPDATE`) y el registro; vuelve a comprobar que siga pendiente y que la nota tenga todavía el valor anterior (`409 NOTA_CAMBIO` si no); pasa la solicitud a `APROBADA`; cambia la nota al valor solicitado (guarda el anterior, quién y cuándo); **recalcula el logro consolidado del curso** de ese alumno con la **versión de la regla y los pesos que se usaron al cerrar** (los del `detalle_calculo` de su resultado, aunque después se haya publicado otra versión); escribe la bitácora de notas con origen `RECTIFICACION` y el id de la solicitud, y registra `APROBAR_RECTIFICACION_NOTA` en la auditoría general.
+- **Trigger de US40:** la nota de un registro cerrado o publicado solo cambia por este camino. La transacción declara la solicitud con `set_config('kubo.rectificacion_id', <id>, true)` (local a la transacción) y `tg_nota_registro_cerrado` solo deja pasar el `UPDATE` si esa solicitud está `APROBADA`, es de esa nota y el cambio es exactamente de `valor_anterior` a `valor_solicitado`. Cualquier otra escritura sigue respondiendo `REGISTRO_CERRADO`, aunque declare la variable (ver [AD-16](../arquitectura/AD-16-bitacora-notas.md)).
+- Si el registro está `PUBLICADO`, el apoderado y el alumno ven el valor corregido y el nuevo consolidado en la libreta desde ese momento (la libreta lee la nota y el resultado de la base).
+- **Dos aprobaciones a la vez** de la misma solicitud: la segunda espera el bloqueo, la encuentra `APROBADA` y responde `409 SOLICITUD_YA_RESUELTA`. Solo una cambia la nota y escribe la bitácora.
+- Después se avisa por correo al docente del curso con el estado «Aprobada».
+
+**Rechazar (criterio 3)**
+
+- `motivo` obligatorio (1 a 500 caracteres; `400 DATOS_INVALIDOS` «Escribe el motivo del rechazo»). La solicitud pasa a `RECHAZADA` con el motivo y **la nota no cambia**. Registra `RECHAZAR_RECTIFICACION_NOTA` en la auditoría.
+- Después se avisa por correo al docente con el estado «Rechazada» y el motivo. Un fallo del correo no revierte el rechazo.
+
+**Quién resuelve**
+
+- Solo el Administrador, y **nunca su propia solicitud**: un usuario con perfil de Docente y de Administrador que pidió una rectificación no puede aprobarla ni rechazarla (`403 SOLICITUD_PROPIA`). Una solicitud ya resuelta responde `409 SOLICITUD_YA_RESUELTA`.
+
+## Bitácora de notas (US03)
+
+Pantalla AD-16 «Auditoría», pestaña «Cambios de notas» (`/admin/auditoria`). **Solo Administrador.** Decisión de diseño en [AD-16](../arquitectura/AD-16-bitacora-notas.md).
+
+| Método y ruta | Respuesta `data` |
+|---|---|
+| `GET /evaluacion/bitacora?desde=&hasta=&docenteId=&pagina=&tamano=` | `{ items: CambioRegistrado[], paginacion }` |
+| `GET /evaluacion/bitacora/docentes` | `[{ id, nombre }]` (docentes con cambios en la bitácora, por nombre) |
+
+- `CambioRegistrado`: `{ id, fecha, origen, nombreOrigen, solicitudId, docente: { id, nombre }, realizadoPor: { id, nombre }, anio, curso: { codigo, nombre }, seccion, bimestre: { numero, nombre }, estudiante, competencia: { columna, codigo, nombre }, valorAnterior, valorNuevo }`.
+- `origen`: `REGISTRO` («Registro docente»: nota nueva o cambiada por el docente en el registro abierto) o `RECTIFICACION` («Rectificación aprobada», con `solicitudId`). `valorAnterior` es `null` en el primer registro de la nota.
+- `docente` es el del curso y la sección (por quien se filtra); `realizadoPor`, quien hizo el cambio: el mismo docente o el Administrador que aprobó la rectificación.
+- **Filtros (criterio 2):** `desde` y `hasta` son fechas `AAAA-MM-DD` de Lima, ambas incluidas; `docenteId` es el id del docente. Si se indican el rango y el docente, solo salen las filas que **cumplen los dos**. Un rango al revés responde `400 RANGO_FECHAS_INVALIDO`. Orden: del más reciente al más antiguo. Página de 20 por defecto (máximo 100).
+- **Escritura (criterio 1):** cada nota creada o cambiada deja una fila en la **misma transacción** que la nota: `PUT …/notas` (una por cada nota nueva y cada cambio; las que llegan con el mismo valor no) y la aprobación de una rectificación. Guarda los ids (nota, registro, matrícula, competencia, usuario, docente, solicitud) y una copia de los nombres al momento del cambio.
+- **Inmutable (criterio 3):** `tg_bitacora_nota_inmutable` rechaza `UPDATE` y `DELETE` y `tg_bitacora_nota_sin_vaciar`, `TRUNCATE`, aunque se intente fuera de la aplicación. La aplicación lo traduce a `422 BITACORA_NOTA_INMUTABLE` «La bitácora de notas no se puede modificar.». No hay ningún endpoint que la cambie.
+
 ## Códigos de error
 
 | Estado | Código | Cuándo |
 |---|---|---|
 | 400 | `VALOR_NO_PERMITIDO` | Un logro que no es `AD`, `A`, `B` o `C` («Solo se permiten los valores AD, A, B o C») |
-| 400 | `DATOS_INVALIDOS` | Ids no válidos, lista vacía, más de 500 notas o la misma celda dos veces |
+| 400 | `DATOS_INVALIDOS` | Ids no válidos, lista vacía, más de 500 notas o la misma celda dos veces; solicitud o rechazo sin motivo |
+| 400 | `RANGO_FECHAS_INVALIDO` | Bitácora con «Desde» posterior a «Hasta» |
 | 401 | `NO_AUTENTICADO` | Sin sesión |
 | 403 | `ACCESO_DENEGADO` | Otro perfil, o un curso o sección que no es del docente (o una asignación ya desactivada) |
 | 403 | `ESTUDIANTE_NO_VINCULADO` | Libreta, PDF u horario de un estudiante que no es hijo del apoderado en sesión |
 | 403 | `SIN_MATRICULA_VIGENTE` | «Mis notas» de un alumno sin matrícula vigente |
 | 403 | `LIBRETA_RESTRINGIDA` | PDF de la libreta con 2 o más pensiones vencidas (mensaje de US26) |
+| 403 | `SOLICITUD_PROPIA` | Aprobar o rechazar una solicitud de rectificación que pidió el mismo usuario |
 | 404 | `NO_ENCONTRADO` | La asignación no existe, el bimestre no es del año del curso o de la libreta, o el registro no existe o está abierto |
 | 409 | `REGISTRO_NO_CERRADO` | Publicar un registro abierto |
 | 409 | `REGISTRO_YA_PUBLICADO` | Publicar un registro ya publicado (también el segundo de dos clics a la vez) |
 | 409 | `REGISTRO_CERRADO` | Escritura o cierre sobre un registro cerrado (también el segundo de dos cierres simultáneos) |
+| 409 | `REGISTRO_ABIERTO` | Solicitar rectificación en un registro abierto |
+| 409 | `RECTIFICACION_PENDIENTE` | La nota ya tiene una solicitud pendiente de aprobación |
+| 409 | `SOLICITUD_YA_RESUELTA` | Aprobar o rechazar una solicitud ya resuelta (también la segunda de dos aprobaciones a la vez) |
+| 409 | `NOTA_CAMBIO` | Al aprobar, la nota ya no tiene el valor con el que se pidió |
 | 422 | `PERIODO_NO_ACTIVO` | Escritura fuera del bimestre activo («Este periodo de evaluación no está activo.») |
 | 422 | `NOTA_FUERA_DEL_REGISTRO` | Un alumno que no está en la lista o una competencia que no es del curso |
 | 422 | `NOTAS_INCOMPLETAS` | Cierre con competencias sin calificar; `details.pendientes` |
@@ -132,6 +198,8 @@ Pantalla AD-15 «Notas y rectificaciones» (`/admin/notas`). **Solo Administrado
 | 422 | `SIN_REGLA_CONSOLIDACION` | El año no tiene una regla de consolidación para el bimestre |
 | 422 | `CURSO_SIN_COMPETENCIAS` | El plan del curso no tiene competencias (académico, US11) |
 | 422 | `LIBRETA_SIN_PUBLICAR` | PDF de un bimestre sin cursos publicados |
+| 422 | `VALOR_IGUAL_AL_ACTUAL` | Rectificación con el mismo valor que ya tiene la nota |
+| 422 | `BITACORA_NOTA_INMUTABLE` | Intento de cambiar o borrar la bitácora de notas directo en la base |
 
 ## Auditoría (RF03)
 
@@ -139,15 +207,17 @@ Pantalla AD-15 «Notas y rectificaciones» (`/admin/notas`). **Solo Administrado
 |---|---|---|---|
 | `CERRAR_REGISTRO_NOTAS` | `cierre_calificacion` | `{ estado }` | `{ estado: "CERRADO", anio, curso, seccion, bimestre, regla: { version, metodo, criterioDesempate }, estudiantes, competencias, notas, consolidados: { AD, A, B, C } }` |
 | `PUBLICAR_NOTAS` | `cierre_calificacion` | `{ estado: "CERRADO" }` | `{ estado: "PUBLICADO", anio, curso, seccion, bimestre, estudiantes }` |
+| `APROBAR_RECTIFICACION_NOTA` | `nota` | `{ logro, consolidado }` | `{ logro, consolidado, solicitudId, anio, curso, seccion, bimestre, competencia, estadoRegistro }`; `motivo`: el del docente |
+| `RECHAZAR_RECTIFICACION_NOTA` | `solicitud_rectificacion` | `{ estado }` | `{ estado: "RECHAZADA", notaId, valorAnterior, valorSolicitado, curso, seccion, bimestre }`; `motivo`: el del rechazo |
 
-Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo; la bitácora de cada cambio con filtros es US03.
+Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo, y una fila en la bitácora de notas (US03). Pedir una rectificación no se audita aparte: la solicitud misma guarda quién, cuándo y el motivo.
 
 ## Dependencias entre módulos
 
 `evaluacion` está por encima de `academico`, `comunidad` y `matricula` y los usa por su `index.ts`:
 
 - `academico`: `asignacionParaNotas` y `asignacionesParaNotas` (curso, sección, año y plan de una o varias asignaciones), `listarSecciones`, `listarGrados`, `planDeSeccion` (cursos de la sección para la libreta), `competenciasDelPlan`, `listarAsignaciones`, `listarAnios`, `reglaDelBimestre` (versión de la regla que rige en un bimestre, nueva en este bloque) y `consolidarLogro` (US12).
-- `comunidad`: `docentesProviderComunidad` (docente en sesión y nombres de docentes), `resumenEstudiantes`, `nombresDeUsuarios`, `contactosDeAdministradores` y `apoderadosDeEstudiantes` (correo de notas publicadas).
+- `comunidad`: `docentesProviderComunidad` (docente en sesión y nombres de docentes), `resumenEstudiantes`, `nombresDeUsuarios`, `contactosDeAdministradores` (cierre y solicitud de rectificación), `contactosDeDocentes` (resultado de la rectificación) y `apoderadosDeEstudiantes` (correo de notas publicadas).
 - `matricula`: `matriculasDeSeccionEnFecha`, `datosDeMatriculas`, `matriculaDelHijo` (vínculo del apoderado), `matriculaVigenteDelAlumno` y `restriccionPorDeuda` (US26).
 
 Académico sigue consultando los cierres y las notas por su puerto `CierresProvider`, que implementa evaluación.

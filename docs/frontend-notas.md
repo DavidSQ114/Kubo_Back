@@ -39,14 +39,14 @@ Modal con el ícono de candado, «Cerrar registro del bimestre» y «Matemática
 
 ## Registro cerrado (US40)
 
-- Insignia «Cerrado» junto al título, celdas de solo lectura y alerta azul «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el 17/11 a las 22:57 por J. Pérez. Si necesitas corregir una nota, solicítalo al Administrador por el canal de soporte institucional.».
+- Insignia «Cerrado» junto al título, celdas de solo lectura y alerta azul «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el 17/11 a las 22:57 por J. Pérez. Si detectas un error, envía una solicitud de rectificación a la administración.» y el botón «Solicitar rectificación» (bloque 8, US41: ver [frontend-rectificacion-notas.md](frontend-rectificacion-notas.md)).
 - Si una escritura choca con un cierre hecho en otra pestaña (`409 REGISTRO_CERRADO`), se muestra el mensaje y el registro se vuelve a cargar en solo lectura.
 
 ## Diferencias con el Figma
 
 - **Pestañas:** el Figma muestra el bimestre activo y, debajo, el bimestre anterior cerrado. Aquí cada bimestre se ve en su pestaña (el Figma ya las tiene); el anterior no se repite debajo para no duplicar la grilla.
 - **Evidencia:** la columna «Evidencia» («Adjuntar», «1 archivo», «Comentario») y el ícono de evidencia en la leyenda son de US38, que no es de esta entrega. No se muestran.
-- **Solicitar rectificación:** el botón del registro cerrado es de US41 (Could), que no está en esta entrega. En su lugar, el mensaje indica que la corrección se pide al Administrador por el canal de soporte institucional (US40, criterio 3).
+- **Solicitar rectificación:** el botón del registro cerrado (US41) se agregó en el bloque 8; ver [frontend-rectificacion-notas.md](frontend-rectificacion-notas.md).
 - **Valor no válido en el modal:** el Figma lista «C2 · valor no válido». Aquí un valor no válido no llega a guardarse (se rechaza al pulsar «Guardar cambios»), así que el modal solo lista competencias «sin calificar» de lo guardado y avisa si hay cambios sin guardar.
 - **Encabezado:** el título del Figma es «Registro de notas · Matemática 3° B» en una línea; aquí «Registro de notas» es el título de la página y «Matemática 3° B», el de la sección, para que el selector de curso quede antes de la grilla y el título no cambie al elegir otro curso.
 - **Barra lateral:** el menú del Figma incluye «Mis cursos», que es del módulo de aula virtual (DO-05) y aún no existe; no se agregó.

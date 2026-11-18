@@ -1,5 +1,6 @@
-// evaluacion/domain: errores del registro de notas (US37), del cierre de bimestre (US39) y del bloqueo del registro
-// cerrado (US40). Los mensajes entre comillas son los del Product Backlog v3.3.
+// evaluacion/domain: errores del registro de notas (US37), del cierre de bimestre (US39), del bloqueo del registro
+// cerrado (US40), de la rectificación de nota (US41) y de la bitácora de notas (US03). Los mensajes entre comillas son
+// los del Product Backlog v3.3.
 import { ErrorApp } from "@/platform/http/errores";
 
 /** Estudiante con competencias sin calificar: impide cerrar el registro (US39, criterio 2). */
@@ -67,4 +68,32 @@ export const erroresEvaluacion = {
       422,
     ),
   bimestreDeLibretaAjeno: () => new ErrorApp("NO_ENCONTRADO", "El bimestre no pertenece al año de la libreta.", 404),
+  // ---------- Rectificación de nota (US41) y bitácora de notas (US03) ----------
+  registroAbierto: () =>
+    new ErrorApp(
+      "REGISTRO_ABIERTO",
+      "Este registro sigue abierto: corrige la nota directamente en el registro de notas.",
+      409,
+    ),
+  valorIgualAlActual: (actual: string) =>
+    new ErrorApp("VALOR_IGUAL_AL_ACTUAL", `El valor correcto debe ser distinto del registrado (${actual}).`, 422),
+  rectificacionPendiente: () =>
+    new ErrorApp(
+      "RECTIFICACION_PENDIENTE",
+      "Ya hay una solicitud de rectificación pendiente de aprobación para esta nota.",
+      409,
+    ),
+  solicitudNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La solicitud de rectificación no existe.", 404),
+  solicitudPropia: () =>
+    new ErrorApp("SOLICITUD_PROPIA", "No puedes aprobar ni rechazar tu propia solicitud de rectificación.", 403),
+  solicitudYaResuelta: (estado: string) =>
+    new ErrorApp("SOLICITUD_YA_RESUELTA", `Esta solicitud ya fue atendida: está «${estado}».`, 409),
+  notaCambio: () =>
+    new ErrorApp(
+      "NOTA_CAMBIO",
+      "La nota ya no tiene el valor con el que se pidió la rectificación. Pide al docente una nueva solicitud.",
+      409,
+    ),
+  rangoFechasInvalido: () =>
+    new ErrorApp("RANGO_FECHAS_INVALIDO", "La fecha «Desde» no puede ser posterior a la fecha «Hasta».", 400),
 };

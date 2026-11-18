@@ -1,10 +1,12 @@
-// evaluacion/infrastructure: consultas de cierre_calificacion, nota y resultado_consolidado (dueño: evaluacion) para
-// el registro de notas (US37), el cierre y la publicación del bimestre (US39), su bloqueo (US40) y la libreta del
-// apoderado y del alumno (US46, US51), que solo lee notas de registros PUBLICADOS.
+// evaluacion/infrastructure: consultas de cierre_calificacion, nota, resultado_consolidado, solicitud_rectificacion y
+// bitacora_nota (dueño: evaluacion) para el registro de notas (US37), el cierre y la publicación del bimestre (US39),
+// su bloqueo (US40), la libreta del apoderado y del alumno (US46, US51), que solo lee notas de registros PUBLICADOS,
+// la rectificación de nota (US41) y la bitácora de notas (US03).
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import type { EstadoRegistro, LogroNota } from "../domain/notas";
+import type { EstadoSolicitud, OrigenCambio } from "../domain/rectificacion";
 
 type Db = typeof prisma | Tx;
 
@@ -122,12 +124,36 @@ export const notas = {
       },
     }),
 
+  /** Crea las notas y devuelve sus ids: la bitácora guarda el id de cada nota (US03). */
   crear: (
     tx: Tx,
     cierreId: string,
     filas: { matriculaId: string; competenciaPlanId: string; logro: LogroNota }[],
     registradoPorId: string,
-  ) => tx.nota.createMany({ data: filas.map((f) => ({ ...f, cierreId, registradoPorId })) }),
+  ) =>
+    tx.nota.createManyAndReturn({
+      data: filas.map((f) => ({ ...f, cierreId, registradoPorId })),
+      select: { id: true, matriculaId: true, competenciaPlanId: true, logro: true },
+    }),
+
+  porId: (id: string, db: Db = prisma) =>
+    db.nota.findUnique({
+      where: { id },
+      select: { id: true, cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
+    }),
+
+  porIds: (ids: string[], db: Db = prisma) =>
+    db.nota.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
+    }),
+
+  /** Nota de un alumno en una competencia del registro; null si aún no se calificó. */
+  deCelda: (cierreId: string, matriculaId: string, competenciaPlanId: string, db: Db = prisma) =>
+    db.nota.findUnique({
+      where: { cierreId_matriculaId_competenciaPlanId: { cierreId, matriculaId, competenciaPlanId } },
+      select: { id: true, cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
+    }),
 
   /** Cambia el logro y guarda el anterior, quién lo cambió y cuándo (US37). */
   cambiar: (tx: Tx, id: string, datos: { logro: LogroNota; logroAnterior: LogroNota; modificadoPorId: string }) =>
@@ -152,6 +178,24 @@ export const resultados = {
     cierreId: string,
     filas: { matriculaId: string; logroConsolidado: LogroNota; detalleCalculo: Prisma.InputJsonValue }[],
   ) => tx.resultadoConsolidado.createMany({ data: filas.map((f) => ({ ...f, cierreId })) }),
+
+  deMatricula: (cierreId: string, matriculaId: string, db: Db = prisma): Promise<ResultadoFila | null> =>
+    db.resultadoConsolidado.findUnique({
+      where: { cierreId_matriculaId: { cierreId, matriculaId } },
+      select: { matriculaId: true, logroConsolidado: true, detalleCalculo: true },
+    }),
+
+  /** Consolidado del alumno recalculado tras una rectificación aprobada (US41). */
+  actualizar: (
+    tx: Tx,
+    cierreId: string,
+    matriculaId: string,
+    datos: { logroConsolidado: LogroNota; detalleCalculo: Prisma.InputJsonValue },
+  ) =>
+    tx.resultadoConsolidado.update({
+      where: { cierreId_matriculaId: { cierreId, matriculaId } },
+      data: { ...datos, calculadoEn: new Date() },
+    }),
 
   /** Estudiantes consolidados por registro (columna «Estudiantes» de AD-15). */
   async conteoPorCierre(cierreIds: string[], db: Db = prisma): Promise<Record<string, number>> {
@@ -216,5 +260,187 @@ export const publicados = {
     db.nota.findMany({
       where: { matriculaId, cierre: { estado: "PUBLICADO" } },
       select: { cierreId: true, competenciaPlanId: true, logro: true },
+    }),
+};
+
+// ---------- Solicitudes de rectificación (US41) ----------
+
+export interface SolicitudFila {
+  id: string;
+  notaId: string;
+  valorAnterior: LogroNota;
+  valorSolicitado: LogroNota;
+  motivo: string;
+  estado: EstadoSolicitud;
+  solicitadoPorId: string;
+  motivoRechazo: string | null;
+  resueltoPorId: string | null;
+  resueltoEn: Date | null;
+  createdAt: Date;
+}
+
+const selectSolicitud = {
+  id: true,
+  notaId: true,
+  valorAnterior: true,
+  valorSolicitado: true,
+  motivo: true,
+  estado: true,
+  solicitadoPorId: true,
+  motivoRechazo: true,
+  resueltoPorId: true,
+  resueltoEn: true,
+  createdAt: true,
+} as const;
+
+const PENDIENTES: EstadoSolicitud[] = ["PENDIENTE", "EN_REVISION"];
+
+export interface FiltroSolicitudes {
+  /** Pendientes o ya resueltas (aprobadas, rechazadas o canceladas). */
+  pendientes: boolean;
+  pagina: number;
+  tamano: number;
+}
+
+export const solicitudes = {
+  crear: (
+    datos: {
+      notaId: string;
+      valorAnterior: LogroNota;
+      valorSolicitado: LogroNota;
+      motivo: string;
+      solicitadoPorId: string;
+    },
+    db: Db = prisma,
+  ): Promise<SolicitudFila> => db.solicitudRectificacion.create({ data: datos, select: selectSolicitud }),
+
+  porId: (id: string, db: Db = prisma): Promise<SolicitudFila | null> =>
+    db.solicitudRectificacion.findUnique({ where: { id }, select: selectSolicitud }),
+
+  /** ¿La nota ya tiene una solicitud sin resolver? Una sola pendiente por nota (uq_solicitud_rectificacion_…). */
+  async hayPendiente(notaId: string, db: Db = prisma): Promise<boolean> {
+    return (await db.solicitudRectificacion.count({ where: { notaId, estado: { in: PENDIENTES } } })) > 0;
+  },
+
+  /** Dos administradores resolviendo la misma solicitud se esperan: el segundo la encuentra ya resuelta. */
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM solicitud_rectificacion WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+
+  resolver: (
+    tx: Tx,
+    id: string,
+    datos: { estado: "APROBADA" | "RECHAZADA"; motivoRechazo: string | null; resueltoPorId: string; resueltoEn: Date },
+  ): Promise<SolicitudFila> =>
+    tx.solicitudRectificacion.update({ where: { id }, data: datos, select: selectSolicitud }),
+
+  /** Bandeja de AD-15: pendientes de la más antigua a la más reciente; resueltas, de la más reciente a la más antigua. */
+  async listar(f: FiltroSolicitudes, db: Db = prisma): Promise<{ items: SolicitudFila[]; total: number }> {
+    const where: Prisma.SolicitudRectificacionWhereInput = {
+      estado: f.pendientes ? { in: PENDIENTES } : { notIn: PENDIENTES },
+    };
+    const [items, total] = await Promise.all([
+      db.solicitudRectificacion.findMany({
+        where,
+        orderBy: f.pendientes ? [{ createdAt: "asc" }] : [{ resueltoEn: "desc" }, { createdAt: "desc" }],
+        skip: (f.pagina - 1) * f.tamano,
+        take: f.tamano,
+        select: selectSolicitud,
+      }),
+      db.solicitudRectificacion.count({ where }),
+    ]);
+    return { items, total };
+  },
+
+  /** Solicitudes de un docente (DO-04), de la más reciente a la más antigua. */
+  delSolicitante: (solicitadoPorId: string, limite: number, db: Db = prisma): Promise<SolicitudFila[]> =>
+    db.solicitudRectificacion.findMany({
+      where: { solicitadoPorId },
+      orderBy: { createdAt: "desc" },
+      take: limite,
+      select: selectSolicitud,
+    }),
+
+  contarPendientes: (db: Db = prisma) => db.solicitudRectificacion.count({ where: { estado: { in: PENDIENTES } } }),
+};
+
+/**
+ * Habilita, solo dentro de esta transacción, el cambio de la nota de una rectificación ya APROBADA: el trigger
+ * tg_nota_registro_cerrado (US40) lo comprueba contra la solicitud y rechaza cualquier otra escritura. Con null se
+ * deshabilita de nuevo.
+ */
+export async function habilitarRectificacion(tx: Tx, solicitudId: string | null) {
+  await tx.$queryRaw`SELECT set_config('kubo.rectificacion_id', ${solicitudId ?? ""}, true)`;
+}
+
+// ---------- Bitácora de notas (US03): solo se inserta y se lee ----------
+
+export interface EntradaBitacora {
+  notaId: string;
+  cierreId: string;
+  matriculaId: string;
+  competenciaPlanId: string;
+  origen: OrigenCambio;
+  solicitudId: string | null;
+  logroAnterior: LogroNota | null;
+  logroNuevo: LogroNota;
+  usuarioId: string;
+  usuarioNombre: string;
+  docenteId: string;
+  docenteNombre: string;
+  anio: number;
+  cursoCodigo: string;
+  cursoNombre: string;
+  seccion: string;
+  bimestreNumero: number;
+  bimestreNombre: string;
+  estudianteNombre: string;
+  competenciaColumna: number;
+  competenciaCodigo: string;
+  competenciaNombre: string;
+}
+
+export interface FilaBitacora extends EntradaBitacora {
+  id: string;
+  createdAt: Date;
+}
+
+export interface FiltroBitacora {
+  desde?: Date;
+  /** Exclusivo: el inicio del día siguiente al último día pedido. */
+  hasta?: Date;
+  docenteId?: string;
+  pagina: number;
+  tamano: number;
+}
+
+export const bitacora = {
+  /** Se llama dentro de la transacción que crea o cambia las notas (US03). */
+  async registrar(tx: Tx, entradas: EntradaBitacora[]) {
+    if (entradas.length) await tx.bitacoraNota.createMany({ data: entradas });
+  },
+
+  /** Del más reciente al más antiguo; el rango y el docente se cumplen a la vez (US03, criterio 2). */
+  async listar(f: FiltroBitacora, db: Db = prisma): Promise<{ items: FilaBitacora[]; total: number }> {
+    const fecha = f.desde || f.hasta ? { createdAt: { gte: f.desde, lt: f.hasta } } : {};
+    const where: Prisma.BitacoraNotaWhereInput = { ...fecha, ...(f.docenteId ? { docenteId: f.docenteId } : {}) };
+    const [items, total] = await Promise.all([
+      db.bitacoraNota.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (f.pagina - 1) * f.tamano,
+        take: f.tamano,
+      }),
+      db.bitacoraNota.count({ where }),
+    ]);
+    return { items, total };
+  },
+
+  /** Docentes que aparecen en la bitácora (filtro «Docente» de AD-16), con el nombre de su último cambio. */
+  docentes: (db: Db = prisma): Promise<{ docenteId: string; docenteNombre: string }[]> =>
+    db.bitacoraNota.findMany({
+      distinct: ["docenteId"],
+      orderBy: [{ docenteId: "asc" }, { createdAt: "desc" }],
+      select: { docenteId: true, docenteNombre: true },
     }),
 };

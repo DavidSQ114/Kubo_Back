@@ -70,7 +70,7 @@ Todas las pantallas resuelven cargando (spinner «Cargando las notas…»), erro
 
 ## Diferencias con el Figma
 
-- **Solicitudes de rectificación:** la pestaña «Solicitudes de rectificación (2)» y las tarjetas «Aprobar / Rechazar» de AD-15 son de US41, que no es de esta entrega. No se muestran.
+- **Solicitudes de rectificación:** la pestaña «Solicitudes de rectificación (N)» y las tarjetas «Aprobar / Rechazar» de AD-15 (US41) se agregaron en el bloque 8; ver [frontend-rectificacion-notas.md](frontend-rectificacion-notas.md).
 - **Registros abiertos y «Recordar»:** AD-15 lista también registros «Abierto» con su avance y el botón «Recordar». Aquí solo se listan los cerrados y los publicados (lo que se puede revisar y publicar); el recordatorio al docente no está en el backlog de este bloque.
 - **Ver:** en el Figma «Ver» solo aparece en los publicados; aquí también en los cerrados, para revisar el registro antes de publicarlo (US39, criterio 4: «el Administrador revisa un registro consolidado»). Se abre debajo de la tabla y no en un modal, porque la grilla es ancha.
 - **Evidencias:** la columna «Evidencia del docente» («Ver evidencia», «Ver comentario») de AP-04 y «3 evidencias adjuntas por los docentes» del resumen son de US38 y US47, que no son de esta entrega.
