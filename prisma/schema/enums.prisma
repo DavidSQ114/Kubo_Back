@@ -1,5 +1,5 @@
 // Enumeraciones del diagrama de clases v4.2 (34) y del sprint 3 (OrigenPago, EstadoIntentoPago, TipoBloque,
-// TipoAvisoAsistencia).
+// TipoAvisoAsistencia, OrigenCambioNota).
 
 enum Rol {
   ADMINISTRADOR
@@ -257,4 +257,10 @@ enum MotivoRetiro {
   MOTIVOS_ECONOMICOS
   MOTIVOS_SALUD
   OTRO
+}
+
+// Sprint 3 (US03, US41): de dónde viene un cambio de nota en la bitácora de notas
+enum OrigenCambioNota {
+  REGISTRO
+  RECTIFICACION
 }

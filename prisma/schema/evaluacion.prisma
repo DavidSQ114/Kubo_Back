@@ -1,4 +1,5 @@
-// Módulo evaluación: cierres, notas por competencia, resultados consolidados, evidencias y rectificaciones.
+// Módulo evaluación: cierres, notas por competencia, resultados consolidados, evidencias, rectificaciones (US41) y
+// bitácora de notas (US03).
 // Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
 
 model CierreCalificacion {
@@ -96,12 +97,58 @@ model SolicitudRectificacion {
   valorSolicitado Logro           @map("valor_solicitado")
   motivo          String
   estado          EstadoSolicitud @default(PENDIENTE)
+  // Docente que la pidió (US41): nadie aprueba ni rechaza su propia solicitud
+  solicitadoPorId String          @db.Uuid @map("solicitado_por_id")
+  solicitadoPor   Usuario         @relation("SolicitudRectificacionSolicitadoPor", fields: [solicitadoPorId], references: [id], onDelete: Restrict)
   motivoRechazo   String?         @map("motivo_rechazo")
   resueltoPorId   String?         @db.Uuid @map("resuelto_por_id")
-  resueltoPor     Usuario?        @relation(fields: [resueltoPorId], references: [id], onDelete: SetNull)
+  resueltoPor     Usuario?        @relation("SolicitudRectificacionResueltoPor", fields: [resueltoPorId], references: [id], onDelete: SetNull)
   resueltoEn      DateTime?       @db.Timestamptz(3) @map("resuelto_en")
   createdAt       DateTime        @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
+  @@index([estado, createdAt])
+  @@index([solicitadoPorId])
   @@map("solicitud_rectificacion")
+}
+
+// Bitácora de notas (US03): una fila por cada nota registrada o cambiada, por el docente (REGISTRO) o por una
+// rectificación aprobada (RECTIFICACION). Inmutable (tg_bitacora_nota_inmutable) y sin claves foráneas: guarda los
+// ids y una copia de los nombres al momento del cambio, para que la traza sobreviva a cualquier cambio posterior de
+// los datos (AD-16 en docs/arquitectura).
+model BitacoraNota {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notaId             String           @db.Uuid @map("nota_id")
+  cierreId           String           @db.Uuid @map("cierre_id")
+  matriculaId        String           @db.Uuid @map("matricula_id")
+  competenciaPlanId  String           @db.Uuid @map("competencia_plan_id")
+  origen             OrigenCambioNota
+  // Solicitud de rectificación aprobada que originó el cambio (solo con origen RECTIFICACION)
+  solicitudId        String?          @db.Uuid @map("solicitud_id")
+  // null si es el primer registro de la nota
+  logroAnterior      Logro?           @map("logro_anterior")
+  logroNuevo         Logro            @map("logro_nuevo")
+  // Quién hizo el cambio: el docente (REGISTRO) o el administrador que aprobó (RECTIFICACION)
+  usuarioId          String           @db.Uuid @map("usuario_id")
+  usuarioNombre      String           @map("usuario_nombre")
+  // Docente del curso y la sección: es por quien filtra la bitácora
+  docenteId          String           @db.Uuid @map("docente_id")
+  docenteNombre      String           @map("docente_nombre")
+  anio               Int
+  cursoCodigo        String           @map("curso_codigo")
+  cursoNombre        String           @map("curso_nombre")
+  seccion            String
+  bimestreNumero     Int              @map("bimestre_numero")
+  bimestreNombre     String           @map("bimestre_nombre")
+  estudianteNombre   String           @map("estudiante_nombre")
+  // Columna de la competencia en el registro (C1, C2…), su código y su nombre
+  competenciaColumna Int              @map("competencia_columna")
+  competenciaCodigo  String           @map("competencia_codigo")
+  competenciaNombre  String           @map("competencia_nombre")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+
+  @@index([createdAt])
+  @@index([docenteId, createdAt])
+  @@index([notaId])
+  @@map("bitacora_nota")
 }
