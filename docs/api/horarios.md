@@ -26,6 +26,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 | `GET /horarios/mi-horario?anioId=` | Docente | — | `HorarioDeDocente` del docente en sesión (US34) |
 | `GET /horarios/apoderado/hijos/{id}/horario` | Apoderado | — | `HorarioDeEstudiante` del hijo, si está vinculado (US48) |
 | `GET /horarios/alumno/horario` | Alumno | — | `HorarioDeEstudiante` del alumno en sesión (US50) |
+| `GET /horarios/apoderado/hijos/{id}/horario/pdf` | Apoderado | — | PDF del horario publicado vigente del hijo (US66) |
 
 `{dia}` es `LUNES`, `MARTES`, `MIERCOLES`, `JUEVES` o `VIERNES`.
 
@@ -82,6 +83,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - **Nadie elige la sección.** El docente y el alumno salen de la sesión; el apoderado envía el `{id}` de su hijo y el servidor comprueba el vínculo. Ningún endpoint de portal recibe un id de sección ni de docente.
   - `GET /horarios/mi-horario` (US34): clases del docente en sesión en **todas sus secciones publicadas** del año, cada una con `curso`, `seccion` y `aula`. Sin clases publicadas responde `200` con `clases: []` y `resumen: { bloques: 0, secciones: [] }`; la pantalla muestra «Aún no tienes cursos asignados para este periodo».
   - `GET /horarios/apoderado/hijos/{id}/horario` (US48): horario de la sección del hijo, con `curso`, `aula` y `docente` en cada clase. El hijo debe estar entre los estudiantes vinculados a la persona en sesión, con la misma regla del portal de pagos (`403 ESTUDIANTE_NO_VINCULADO` si no; ver [matricula.md](matricula.md#portal-del-apoderado-us42-us43-us44)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado por la institución». Un hijo retirado se sigue viendo en el portal, pero sin sección: `seccion: null`.
+  - `GET /horarios/apoderado/hijos/{id}/horario/pdf` (US66, «Descargar PDF» de AP-05): la versión publicada vigente en una tabla con una fila por bloque y, por día, «Curso · Aula · Docente»; el recreo ocupa su fila. Mismo vínculo que el horario (`403 ESTUDIANTE_NO_VINCULADO`). Sin horario publicado no se genera: `422 HORARIO_NO_PUBLICADO` «El horario aún no ha sido publicado por la institución.». Usa el generador de PDF de los recibos (US25).
   - `GET /horarios/alumno/horario` (US50): horario de la sección de la **matrícula vigente** del alumno en sesión. Sin matrícula vigente: `403 SIN_MATRICULA_VIGENTE` (ver [matricula.md](matricula.md#portal-del-alumno-us49)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado».
 - `GET /horarios/secciones/{id}/publicado` quedó **solo para el Administrador**. En el bloque 3 también lo podía llamar cualquier docente con el id de cualquier sección; ahora cada perfil ve únicamente su horario por su propio endpoint.
 - Con otro perfil, cada endpoint responde `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.»; sin sesión, `401 NO_AUTENTICADO`.
