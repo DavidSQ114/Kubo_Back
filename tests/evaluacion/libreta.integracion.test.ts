@@ -518,6 +518,20 @@ describe.skipIf(!ACTIVA)("publicación de notas, libreta y mis notas (US39, US46
     expect(enviado.para).toBe(emails.apoderadoA);
     expect(enviado.texto).toContain("Valeria: Matemática · Bimestre I");
     expect(enviado.texto).toContain("Diego: Matemática · Bimestre I");
+
+    // US55: en la misma transacción, notificación interna a la apoderada (una sola) y a Valeria, que tiene cuenta
+    const notificaciones = await prisma.notificacion.findMany({
+      where: { tipo: "NOTAS", usuario: { email: { in: [emails.apoderadoA, "90001221@prueba.kubo.test"] } } },
+      select: { mensaje: true, enlace: true, usuario: { select: { email: true } } },
+    });
+    expect(notificaciones).toHaveLength(2);
+    const deApoderada = notificaciones.find((n) => n.usuario.email === emails.apoderadoA)!;
+    expect(deApoderada).toMatchObject({ enlace: "/apoderado/notas" });
+    expect(deApoderada.mensaje).toContain("Valeria: Matemática · Bimestre I");
+    expect(notificaciones.find((n) => n.usuario.email !== emails.apoderadoA)).toMatchObject({
+      enlace: "/alumno/notas",
+    });
+    expect(await prisma.notificacion.count({ where: { usuario: { email: emails.apoderadoB } } })).toBe(0);
   });
 
   it("un registro publicado no se vuelve a publicar y sus notas siguen bloqueadas (US40)", async () => {
