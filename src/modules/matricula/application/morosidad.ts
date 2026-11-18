@@ -1,6 +1,7 @@
 // matricula/application: panel de morosidad (US24, AD-12). Estudiantes con cuotas Pendiente vencidas al día de hoy
 // en Lima, con meses adeudados, deuda total, días de atraso y el apoderado responsable con su teléfono. Una consulta
-// agregada para las deudas y una por cada dato complementario (secciones, estudiantes, responsables): sin N+1.
+// agregada para las deudas y una por cada dato complementario (secciones, estudiantes, responsables): sin N+1. Cada fila
+// trae la fecha del último recordatorio de pago (US59).
 // También la restricción de la libreta por deuda (US26), con el mismo criterio de pensión vencida.
 import { parametroNumero } from "@/platform/config/parametros";
 import { aCentimos, deCentimos, fechaEnLima, listarSecciones, obtenerAnio } from "@/modules/academico";
@@ -60,6 +61,7 @@ export async function panelMorosidad(f: FiltroMorosidad) {
       deudaCentimos: aCentimos(d.deuda),
       primerVencimiento: d.primerVencimiento,
       diasAtraso: diasAtraso(d.primerVencimiento, hoy),
+      ultimoRecordatorio: d.ultimoRecordatorioEn?.toISOString() ?? null,
       responsable: responsable
         ? {
             nombreCompleto: responsable.nombreCompleto,
