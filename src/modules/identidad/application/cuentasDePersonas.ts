@@ -21,6 +21,17 @@ export async function cuentaDePersona(personaId: string, tx?: Tx): Promise<Cuent
   return u ? { usuarioId: u.id, email: u.email, estado: u.estado, usada: u.ultimoAccesoEn !== null } : null;
 }
 
+/**
+ * Usuario de cada persona que tiene una cuenta vigente (no dada de baja), por id de persona: los módulos lo usan para
+ * dirigir las notificaciones internas (US55). Las personas sin cuenta no aparecen (reciben, si acaso, solo el correo).
+ */
+export async function usuariosDePersonas(personaIds: string[], tx?: Tx): Promise<Record<string, string>> {
+  const unicos = [...new Set(personaIds)];
+  if (!unicos.length) return {};
+  const filas = await usuarios.vigentesDePersonas(unicos, tx);
+  return Object.fromEntries(filas.map((u) => [u.personaId, u.id]));
+}
+
 /** Aumenta la versión de sesión y revoca las sesiones abiertas: los tokens de acceso dejan de valer de inmediato. */
 async function cerrarSesiones(tx: Tx, usuarioId: string, cambios: { email?: string } = {}) {
   await usuarios.actualizar(usuarioId, { ...cambios, versionSesion: { increment: 1 } }, tx);

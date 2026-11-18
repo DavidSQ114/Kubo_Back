@@ -244,6 +244,13 @@ export const docentes = {
       where: { id: { in: ids }, activo: true, persona: { activo: true } },
       select: { id: true, persona: { select: { nombres: true, apellidos: true, email: true } } },
     }),
+
+  /** Persona de cada docente activo (destinatarios de las notificaciones internas, US55). */
+  personas: (ids: string[], db: Db = prisma) =>
+    db.docente.findMany({
+      where: { id: { in: ids }, activo: true, persona: { activo: true } },
+      select: { id: true, personaId: true },
+    }),
 };
 
 export const administradores = {
@@ -252,6 +259,13 @@ export const administradores = {
     db.administrador.findMany({
       where: { activo: true, persona: { activo: true } },
       select: { id: true, persona: { select: { nombres: true, email: true } } },
+    }),
+
+  /** Persona de cada administrador activo (destinatarios de las notificaciones internas, US55). */
+  personas: (db: Db = prisma) =>
+    db.administrador.findMany({
+      where: { activo: true, persona: { activo: true } },
+      select: { personaId: true },
     }),
 };
 
@@ -439,7 +453,7 @@ export const estudiantesMatricula = {
           where: { esPrincipal: true, apoderado: { activo: true, persona: { activo: true } } },
           orderBy: { createdAt: "asc" },
           take: 1,
-          select: { apoderado: { select: { persona: { select: { nombres: true, email: true } } } } },
+          select: { apoderado: { select: { personaId: true, persona: { select: { nombres: true, email: true } } } } },
         },
       },
     }),
@@ -450,6 +464,7 @@ export const estudiantesMatricula = {
       where: { id: { in: ids } },
       select: {
         id: true,
+        personaId: true,
         persona: { select: { nombres: true, apellidos: true } },
         vinculosApoderado: {
           where: { apoderado: { activo: true, persona: { activo: true } } },
@@ -466,7 +481,12 @@ export const estudiantesMatricula = {
       select: {
         id: true,
         parentesco: true,
-        apoderado: { select: { persona: { select: { nombres: true, apellidos: true, telefono: true, email: true } } } },
+        apoderado: {
+          select: {
+            personaId: true,
+            persona: { select: { nombres: true, apellidos: true, telefono: true, email: true } },
+          },
+        },
       },
     }),
 
@@ -516,6 +536,7 @@ export const estudiantesMatricula = {
             autorizado: true,
             apoderado: {
               select: {
+                personaId: true,
                 persona: { select: { dni: true, nombres: true, apellidos: true, telefono: true, email: true } },
               },
             },

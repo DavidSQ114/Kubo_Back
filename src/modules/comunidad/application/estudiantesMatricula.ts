@@ -84,7 +84,7 @@ export interface ContactoDeAsistencia {
   /** Correo del estudiante; null si no tiene uno registrado. */
   email: string | null;
   /** Apoderado principal activo del estudiante, con su correo; null si no tiene. */
-  apoderadoPrincipal: { nombres: string; email: string | null } | null;
+  apoderadoPrincipal: { personaId: string; nombres: string; email: string | null } | null;
 }
 
 /** A quién se avisa por las inasistencias de cada estudiante: él mismo y su apoderado principal (US52). */
@@ -94,14 +94,19 @@ export async function contactosDeAsistencia(ids: string[]): Promise<Record<strin
   const filas = await estudiantesMatricula.contactosDeAsistencia(unicos);
   return Object.fromEntries(
     filas.map((e) => {
-      const principal = e.vinculosApoderado[0]?.apoderado.persona ?? null;
+      const vinculo = e.vinculosApoderado[0] ?? null;
+      const principal = vinculo && { personaId: vinculo.apoderado.personaId, ...vinculo.apoderado.persona };
       return [
         e.id,
         {
           nombres: e.persona.nombres,
           apellidos: e.persona.apellidos,
           email: e.persona.email,
-          apoderadoPrincipal: principal && { nombres: principal.nombres, email: principal.email },
+          apoderadoPrincipal: principal && {
+            personaId: principal.personaId,
+            nombres: principal.nombres,
+            email: principal.email,
+          },
         },
       ];
     }),
@@ -109,6 +114,8 @@ export async function contactosDeAsistencia(ids: string[]): Promise<Record<strin
 }
 
 export interface ApoderadosDeEstudiante {
+  /** Persona del estudiante (su cuenta del portal del alumno recibe las notificaciones, US55). */
+  personaId: string;
   nombres: string;
   apellidos: string;
   /** Apoderados activos vinculados, el principal primero en orden de registro; `email` null si no tiene. */
@@ -124,6 +131,7 @@ export async function apoderadosDeEstudiantes(ids: string[]): Promise<Record<str
     filas.map((e) => [
       e.id,
       {
+        personaId: e.personaId,
         nombres: e.persona.nombres,
         apellidos: e.persona.apellidos,
         apoderados: e.vinculosApoderado.map((v) => ({
@@ -141,6 +149,7 @@ export const idsEstudiantesPorBusqueda = (q: string) => estudiantesMatricula.ids
 
 export interface ApoderadoFicha {
   vinculoId: string;
+  personaId: string;
   dni: string;
   nombreCompleto: string;
   parentesco: string;
@@ -180,6 +189,7 @@ export async function estudianteParaFicha(estudianteId: string): Promise<Estudia
     gradoIngreso: e.gradoIngreso?.nombre ?? null,
     apoderados: e.vinculosApoderado.map((v) => ({
       vinculoId: v.id,
+      personaId: v.apoderado.personaId,
       dni: v.apoderado.persona.dni,
       nombreCompleto: `${v.apoderado.persona.nombres} ${v.apoderado.persona.apellidos}`,
       parentesco: v.parentesco,
@@ -245,6 +255,7 @@ export async function estudiantesVinculadosAPersona(personaId: string): Promise<
 }
 
 export interface ResponsableDePago {
+  personaId: string;
   nombreCompleto: string;
   parentesco: string;
   telefono: string | null;
@@ -260,6 +271,7 @@ export async function responsablesDeVinculos(ids: string[]): Promise<Record<stri
     filas.map((v) => [
       v.id,
       {
+        personaId: v.apoderado.personaId,
         nombreCompleto: `${v.apoderado.persona.nombres} ${v.apoderado.persona.apellidos}`,
         parentesco: v.parentesco,
         telefono: v.apoderado.persona.telefono,
