@@ -42,13 +42,18 @@ const MENSAJES_BD: Record<string, string> = {
   RESPONSABLE_NO_VINCULADO: "El apoderado responsable no está vinculado a este estudiante.",
   DETALLE_INCOHERENTE: "La sección o el docente no coinciden con la asignación.",
   REGISTRO_AUDITORIA_INMUTABLE: "La bitácora de auditoría no se puede modificar.",
+  // tg_nota_registro_cerrado (US40)
+  REGISTRO_CERRADO: "Este registro está cerrado y no puede modificarse directamente.",
 };
+
+/** Códigos de la base de datos que no son una regla incumplida (422): un registro cerrado es un conflicto (409). */
+const ESTADO_BD: Record<string, number> = { REGISTRO_CERRADO: 409 };
 
 /** Convierte errores lanzados por la base de datos (triggers con código al inicio). */
 export function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
   const texto = String((e as { message?: string })?.message ?? "");
   const m = texto.match(
-    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE)\b/,
+    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE|REGISTRO_CERRADO)\b/,
   );
   if (!m) return null;
   // El trigger de aforo informa ambos números: «el aforo de la sección (32) supera el del aula (28)».
@@ -60,7 +65,7 @@ export function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
       aforoAula: Number(aula),
     });
   }
-  return new ErrorApp(m[1], MENSAJES_BD[m[1]], 422);
+  return new ErrorApp(m[1], MENSAJES_BD[m[1]], ESTADO_BD[m[1]] ?? 422);
 }
 
 /** Qué respuesta corresponde a la excepción. Todo lo que no se reconoce es un error interno (500). */
