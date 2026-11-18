@@ -33,6 +33,7 @@ export {
   type HorarioDeDocente,
 } from "./application/consultas";
 export { horarioDelAlumno, horarioDelHijo, type HorarioDeEstudiante } from "./application/portales";
+export { horarioPdfDelHijo } from "./application/horarioPdf";
 export { resumenDelDocente, type ResumenDelDocente } from "./domain/portales";
 export {
   ESTADOS_ASISTENCIA,
