@@ -310,6 +310,29 @@ journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
 2. Como apoderado de prueba: AP-02 → «Pagar» → «Ir a pagar». Paga en el checkout con el comprador de prueba y una tarjeta de prueba. La pantalla de retorno debe mostrar «Pago aprobado».
 3. Resultado de la conciliación: `journalctl -u kubo-conciliar-pagos.service -n 20`.
 
+## Datos de demostración de morosidad
+
+US24, US26 y US59. El cronograma (US21) solo genera las pensiones que vencen **después** de la fecha de matrícula. Si los alumnos se matricularon en noviembre, nadie tiene pensiones vencidas y no se pueden mostrar el panel de morosidad, la restricción de la libreta ni los recordatorios de pago. `npm run demo:morosidad` adelanta la fecha de matrícula de **un** estudiante y le agrega las pensiones que le faltan.
+
+> **Solo para datos ficticios (RNF14).** Cambia la fecha de matrícula y agrega cobros que el apoderado verá como deuda. No se usa con alumnos ni apoderados reales.
+
+Lo que hace, en una sola transacción:
+
+- busca la matrícula En proceso o Matriculado del estudiante en el año **En curso**;
+- se niega, con un mensaje, si el DNI no es de un estudiante, si no tiene esa matrícula, si está retirada o anulada, o si alguna de sus cuotas ya tiene pagos;
+- cambia `fecha_matricula` a `--desde` (por defecto `2026-09-01`) y agrega las pensiones que faltan según el cronograma, con el mismo día de vencimiento y monto de las que ya tiene. No toca las cuotas existentes ni la de matrícula;
+- registra `DATOS_DEMO` en la auditoría con el DNI enmascarado, la fecha anterior, la nueva y las pensiones agregadas.
+
+Es idempotente: si se ejecuta otra vez con la misma fecha, no cambia nada. Al final muestra el cronograma y cuántas pensiones quedan vencidas hoy.
+
+En Session Manager, desde el release en uso y con las variables de `kubo.env` cargadas (cambia `<DNI>` por el del estudiante ficticio):
+
+```bash
+sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && set +a && npm run demo:morosidad -- --dni <DNI> --desde 2026-09-01'
+```
+
+Con `--desde 2026-09-01`, una matrícula de noviembre queda con las pensiones de setiembre, octubre y noviembre vencidas. Para revertirlo no hay comando: se anula la matrícula de prueba o se vuelve a crear el estudiante ficticio.
+
 ## En cada sesión del Learner Lab
 
 1. **Start Lab** y espera el círculo verde. Abre la consola de AWS.
@@ -332,6 +355,7 @@ journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
 | Ver el HTTPS | `systemctl status caddy` y `journalctl -u caddy -n 50` |
 | Conciliar pagos en línea ya (US71) | `systemctl start kubo-conciliar-pagos.service` y `journalctl -u kubo-conciliar-pagos.service -n 20` |
 | Reintentar ya los correos pendientes (US55) | `systemctl start kubo-conciliar-pagos.service` (concilia y luego procesa la bandeja de salida) |
+| Dejar pensiones vencidas a un estudiante **ficticio** (demostración de US24, US26, US59) | Ver [Datos de demostración de morosidad](#datos-de-demostración-de-morosidad) |
 
 Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve al anterior, la base ya tiene la migración nueva: por eso las migraciones deben ser compatibles con la versión anterior (agregar columnas o tablas, no borrarlas en el mismo cambio).
 

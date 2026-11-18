@@ -22,6 +22,7 @@ export {
   type ContactoDocente,
 } from "./application/docentes";
 export { buscarPersonaPorDni, personaParaPerfil, type PersonaEncontrada } from "./application/personas";
+export { enmascararDni } from "./domain/edicion";
 export { docentesProviderComunidad } from "./infrastructure/docentesProvider";
 export { personasProviderComunidad } from "./infrastructure/personasProvider";
 export { PARENTESCOS, type Parentesco } from "./domain/vinculos";
