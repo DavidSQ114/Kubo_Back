@@ -425,7 +425,7 @@ describe.skipIf(!ACTIVA)(
 
       // UMBRAL_FALTAS_MES = 1 en este año: la primera inasistencia del mes ya avisa a Diego y a su apoderada principal
       expect(correo.mock.calls.map(([c]) => c.para).sort()).toEqual([emailApoderadoA, emailDiego].sort());
-      expect(correo.mock.calls[0][0].asunto).toBe("Kubo · 1 inasistencias injustificadas en marzo");
+      expect(correo.mock.calls[0][0].asunto).toBe("Kubo · 1 inasistencia injustificada en marzo");
       const avisos = await prisma.avisoAsistencia.findMany({ where: { matriculaId: alumnos.diego.matriculaId } });
       expect(avisos).toMatchObject([{ tipo: "FALTAS_MES", periodo: "2089-03", faltas: 1, correosEnviados: 2 }]);
 
@@ -553,7 +553,7 @@ describe.skipIf(!ACTIVA)(
       expect(porRuta.datos).toMatchObject({
         resumen: { ausentes: 1 },
         incidencias: [{ estado: "AUSENTE", observacion: "No asistió" }],
-        alerta: { mensaje: "Atención: 1 inasistencias injustificadas este mes", fechas: [LUNES] },
+        alerta: { mensaje: "Atención: 1 inasistencia injustificada este mes", fechas: [LUNES] },
       });
 
       // un mes sin registros llega vacío: la pantalla muestra «No hay registros de asistencia disponibles…»
