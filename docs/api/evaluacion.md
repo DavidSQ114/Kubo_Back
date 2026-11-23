@@ -11,6 +11,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - **Nota** (`nota`): logro `AD`, `A`, `B` o `C` de un alumno (matrícula) en una competencia del plan (`competencia_plan`) dentro de un registro. Guarda quién la registró y cuándo (`registrado_por_id`, `created_at`) y, si se cambió, el **valor anterior**, quién lo cambió y cuándo (`logro_anterior`, `modificado_por_id`, `modificado_en`). Cada creación o cambio queda además en la bitácora de notas (US03, ver [Bitácora de notas](#bitácora-de-notas-us03)).
 - **Resultado consolidado** (`resultado_consolidado`): logro del curso de cada alumno al cerrar, con `detalle_calculo` (la versión de la regla, el método, el criterio de desempate y los logros con sus pesos).
 - **Trigger `tg_nota_registro_cerrado`** (migración `notas_cambios_y_bloqueo`, ampliado en `bitacora_y_rectificacion_notas`): ninguna nota se crea ni se cambia en un registro `CERRADO` o `PUBLICADO`, aunque la escritura no pase por la aplicación (US40). La única excepción es el cambio de una rectificación aprobada (US41). La aplicación lo traduce a `409 REGISTRO_CERRADO`.
+- **Trigger `tg_nota_borrado_registro_cerrado`** (migración `nota_borrado_registro_cerrado`, D-15): tampoco se borra una nota de un registro `CERRADO` o `PUBLICADO`, con el mismo mensaje y sin excepciones (una rectificación cambia la nota, no la borra). La aplicación no tiene ninguna operación que borre notas; borrar el registro completo (`cierre_calificacion`) arrastra sus notas por la cascada, y ningún flujo lo hace (ver [AD-16](../arquitectura/AD-16-bitacora-notas.md)).
 - **Solicitud de rectificación** (`solicitud_rectificacion`): pedido del docente para corregir una nota de un registro cerrado o publicado (US41), con el valor anterior, el solicitado, el motivo, quién la pidió y, al resolverla, quién, cuándo y el motivo del rechazo.
 - **Bitácora de notas** (`bitacora_nota`): una fila inmutable por cada nota registrada o cambiada (US03).
 
@@ -61,7 +62,7 @@ Todos son **solo del Docente** y solo para sus propios cursos y secciones (asign
 **Registro cerrado (US40)**
 
 - Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si detectas un error, envía una solicitud de rectificación a la administración.» (ver [Rectificación de nota](#rectificación-de-nota-us41)).
-- Toda escritura sobre él responde `409 REGISTRO_CERRADO`, venga de la pantalla o directo por la API. En la base, el trigger `tg_nota_registro_cerrado` rechaza crear o cambiar notas aunque se intente fuera de la aplicación.
+- Toda escritura sobre él responde `409 REGISTRO_CERRADO`, venga de la pantalla o directo por la API. En la base, el trigger `tg_nota_registro_cerrado` rechaza crear o cambiar notas y `tg_nota_borrado_registro_cerrado` rechaza borrarlas (D-15), aunque se intente fuera de la aplicación.
 
 ## Publicación de notas (US39, criterio 4)
 

@@ -284,7 +284,8 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
 
   afterAll(async () => {
     if (!anioId) return;
-    // al borrar el cierre se van sus notas y sus resultados consolidados (el trigger solo bloquea crear o cambiar)
+    // al borrar el cierre se van sus notas y sus resultados consolidados por la cascada: los triggers de US40 y D-15
+    // solo miran el cierre, que en ese momento ya no existe (ningún flujo de la aplicación borra cierres)
     await prisma.cierreCalificacion.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
     await prisma.reglaConsolidacion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.asignacionDocente.deleteMany({ where: { seccion: { anioAcademicoId: anioId } } });
@@ -504,6 +505,20 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
     expect(r).toMatchObject({ estado: "CERRADO", editable: false, motivoSoloLectura: "REGISTRO_CERRADO" });
     expect(r.correccion).toContain("envía una solicitud de rectificación a la administración");
     expect((await misRegistros(propio, ABRIL)).cursos[0].estados[bimestreI]).toBe("CERRADO");
+  });
+
+  it("D-15: tampoco se borra una nota del registro cerrado, ni con SQL directo ni con Prisma", async () => {
+    const guardada = await prisma.nota.findFirstOrThrow({
+      where: { matriculaId: alumnos.ana, competenciaPlanId: competencias[0] },
+    });
+    await expect(prisma.$executeRaw`DELETE FROM nota WHERE id = ${guardada.id}::uuid`).rejects.toThrow(
+      /REGISTRO_CERRADO: el registro de notas está cerrado y no puede modificarse directamente/,
+    );
+    await expect(prisma.nota.deleteMany({ where: { cierreId: guardada.cierreId } })).rejects.toThrow(
+      /REGISTRO_CERRADO/,
+    );
+    expect(await prisma.nota.count({ where: { cierreId: guardada.cierreId } })).toBeGreaterThan(0);
+    expect((await prisma.nota.findUniqueOrThrow({ where: { id: guardada.id } })).logro).toBe("B");
   });
 
   it("en el bimestre II consolida con la versión que rige ahí (promedio ponderado con pesos 2, 1, 1)", async () => {
