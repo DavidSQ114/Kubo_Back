@@ -22,7 +22,7 @@ import {
 import { cuotasDePago } from "../infrastructure/pagos";
 import { intentos, type IntentoFila } from "../infrastructure/intentos";
 import { firmaAvisoValida, obtenerPasarela, simularPagoFalso, type SimulacionFalsa } from "../infrastructure/pasarela";
-import { registrarPagoPasarela } from "./pagos";
+import { registrarPagoPasarela, verificarOrdenEnMatriculas } from "./pagos";
 import { hijoAutorizado } from "./portalApoderado";
 
 /** Intentos que revisa como máximo una corrida de la conciliación (el timer corre cada 15 minutos). */
@@ -45,8 +45,9 @@ function pasarelaActiva(): PasarelaPagos {
 
 /**
  * El apoderado elige cuotas Pendiente de un hijo vinculado; el servidor calcula el monto, crea el intento (Pendiente,
- * expira en 30 minutos) y la order en la pasarela, y devuelve la URL del checkout. Las cuotas no se reservan: se
- * vuelven a validar cuando llega la confirmación.
+ * expira en 30 minutos) y la order en la pasarela, y devuelve la URL del checkout. Antes valida el orden de pago
+ * (D-14: primero la matrícula y luego las pensiones por vencimiento). Las cuotas no se reservan: se vuelven a validar
+ * cuando llega la confirmación.
  */
 export async function crearIntentoPago(
   auth: Autenticado,
@@ -62,6 +63,7 @@ export async function crearIntentoPago(
   );
   const matriculaId = lista[0].matriculaId;
   if (!hijo.matriculas.some((m) => m.id === matriculaId)) throw E.cuotaNoEncontrada();
+  await verificarOrdenEnMatriculas(datos.conceptoIds, [matriculaId]);
 
   const referencia = nuevaReferencia();
   const intentoId = await intentos.crear({

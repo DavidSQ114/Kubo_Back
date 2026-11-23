@@ -109,6 +109,16 @@ describe.skipIf(!ACTIVA)("aviso de la pasarela y conciliación (US70, US71)", ()
       meta,
     );
     cuotas = m.cronograma.cuotas.filter((c) => c.tipo === "PENSION").map((c) => ({ id: c.id!, monto: c.monto }));
+    // D-14: estas pruebas eligen una pensión suelta a propósito. La matrícula queda pagada y las pensiones vencen el
+    // mismo día, así ninguna es «anterior» a otra; el orden de pago se prueba en ordenPago.integracion.test.ts
+    await prisma.conceptoCobro.updateMany({
+      where: { matriculaId: m.matriculaId, tipo: "MATRICULA" },
+      data: { estado: "PAGADO" },
+    });
+    await prisma.conceptoCobro.updateMany({
+      where: { matriculaId: m.matriculaId, tipo: "PENSION" },
+      data: { fechaVencimiento: new Date(`${ANIO}-12-05T00:00:00Z`) },
+    });
   });
 
   afterAll(async () => {

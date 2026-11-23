@@ -34,6 +34,7 @@ import {
   verificarMotivoAnulacionPago,
   verificarPagoAnualPosible,
   verificarObservado,
+  verificarOrdenDePago,
   verificarPagoAnulable,
   verificarReciboDisponible,
   type MedioPago,
@@ -336,6 +337,26 @@ async function pasarAModalidadAnual(
   );
 }
 
+/**
+ * D-14: orden de pago (primero la matrícula y luego las pensiones por vencimiento) en cada matrícula de las cuotas
+ * elegidas, leyendo sus cuotas actuales. El año del mensaje es el de la matrícula. Los pagos ya registrados no se
+ * revisan: solo se valida la operación nueva.
+ */
+export async function verificarOrdenEnMatriculas(idsElegidos: string[], matriculaIds: string[], db?: Tx) {
+  const unicas = [...new Set(matriculaIds)];
+  const todas = await cuotasDePago.deMatriculas(unicas, db);
+  for (const matriculaId of unicas) {
+    const m = await matriculas.porId(matriculaId, db);
+    if (!m) throw E.noEncontrada();
+    const { anio } = await obtenerAnio(m.anioAcademicoId);
+    verificarOrdenDePago(
+      idsElegidos,
+      todas.filter((c) => c.matriculaId === matriculaId),
+      anio,
+    );
+  }
+}
+
 type CuotaBloqueada = Awaited<ReturnType<typeof cuotasDePago.bloqueadas>>[number] & { montoCentimos: number };
 
 /**
@@ -348,8 +369,15 @@ async function estadoDeLaOperacion(
   datos: { conceptoIds: string[]; cuotas: CuotaBloqueada[]; montoCentimos: number; numero: string },
   opciones: OpcionesRegistro,
 ) {
+  // el orden de pago (D-14) se validó al crear el intento; el cobro ya se hizo y no se rechaza aquí
   if (opciones.pasarela) return estadoPagoPasarela(datos.conceptoIds, datos.cuotas, datos.montoCentimos);
   const suma = verificarCuotasPagables(datos.conceptoIds, datos.cuotas);
+  // en el pago anual (US58) van todas las Pendiente, matrícula incluida: el orden se cumple por construcción
+  await verificarOrdenEnMatriculas(
+    datos.conceptoIds,
+    datos.cuotas.map((c) => c.matriculaId),
+    tx,
+  );
   if (opciones.anual) verificarMontoAnual(datos.montoCentimos, suma);
   else verificarMontoExacto(datos.montoCentimos, suma);
   return { estado: estadoInicialPago(await operaciones.numeroUsado(tx, datos.numero)), motivo: null };

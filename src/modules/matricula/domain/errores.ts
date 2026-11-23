@@ -132,6 +132,22 @@ export const erroresMatricula = {
       { fecha },
     ),
   cuotaAnulada: () => new ErrorApp("CUOTA_ANULADA", "La cuota está anulada y no admite pagos.", 409),
+  /** D-14: no se paga una pensión con la cuota de matrícula pendiente fuera de la operación. */
+  matriculaPendiente: (anio: number) =>
+    new ErrorApp(
+      "MATRICULA_PENDIENTE",
+      `Primero debe pagarse la matrícula ${anio}. Inclúyela en este pago o regístrala antes.`,
+      409,
+      { anio },
+    ),
+  /** D-14: las pensiones se pagan en orden de vencimiento. `conceptos`: las anteriores que faltan elegir. */
+  cuotasAnterioresPendientes: (conceptos: string[]) =>
+    new ErrorApp(
+      "CUOTAS_ANTERIORES_PENDIENTES",
+      `Primero deben pagarse las cuotas anteriores: ${conceptos.join(", ")}.`,
+      409,
+      { conceptos },
+    ),
   fechaPagoFutura: () => new ErrorApp("FECHA_PAGO_FUTURA", "La fecha de pago no puede ser posterior a hoy.", 422),
   pagoNoEncontrado: () => new ErrorApp("PAGO_NO_ENCONTRADO", "La operación de pago no existe.", 404),
   pagoNoObservado: (estado: string) =>
