@@ -1,7 +1,8 @@
 // AP-04 · Libreta de notas · Apoderado (US46): logros del hijo elegido por bimestre, curso y competencia, con el
 // consolidado de cada curso; los cursos sin publicar muestran «Pendiente de publicación». AP-06 (US26): con 2 o más
 // pensiones vencidas, el mensaje de restricción y la deuda, sin ninguna calificación. «Descargar libreta (PDF)»
-// (US66). El servidor decide qué se ve: solo registros publicados y solo hijos vinculados (403 si no es su hijo).
+// (US66). Evidencias del docente en cada calificación (US47, M-09). El servidor decide qué se ve: solo registros
+// publicados y solo hijos vinculados (403 si no es su hijo); con deuda no llega ninguna nota ni evidencia.
 "use client";
 
 import Link from "next/link";
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { useHijo } from "@/components/apoderado/PortalApoderado";
 import { EncabezadoPagina, mensajeError } from "@/components/portal";
 import { useConsulta, type Carga } from "@/components/portal/asistencia";
+import { ModalEvidenciaDocente, type EvidenciaElegida } from "@/components/portal/evidencias";
 import {
   CargandoLibreta,
   ErrorLibreta,
@@ -111,6 +113,7 @@ function Contenido({
 
 function Bimestre({ libreta, id }: { libreta: Libreta; id: string }) {
   const bimestre = libreta.bimestres.find((b) => b.id === id)!;
+  const [evidencia, setEvidencia] = useState<EvidenciaElegida | null>(null);
   return (
     <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1fr_300px]">
       <div className="flex flex-col gap-4">
@@ -131,7 +134,19 @@ function Bimestre({ libreta, id }: { libreta: Libreta; id: string }) {
             Los cursos aparecen cuando el colegio arma el plan de estudios de la sección.
           </LibretaVacia>
         ) : (
-          <TablaLibreta bimestre={bimestre} pendiente={PENDIENTE} />
+          <TablaLibreta
+            bimestre={bimestre}
+            pendiente={PENDIENTE}
+            onVerEvidencia={(curso, c) =>
+              setEvidencia({
+                curso: curso.nombre,
+                docente: curso.docente,
+                competencia: c.nombre,
+                logro: c.logro,
+                evidencias: c.evidencias,
+              })
+            }
+          />
         )}
         <p className="flex items-start gap-2 text-[12px] leading-[1.5] text-texto-3">
           <span className="mt-0.5 shrink-0">
@@ -145,6 +160,7 @@ function Bimestre({ libreta, id }: { libreta: Libreta; id: string }) {
         <TarjetaEscala />
         <ResumenDelBimestre bimestre={bimestre} />
       </div>
+      {evidencia && <ModalEvidenciaDocente elegida={evidencia} onCerrar={() => setEvidencia(null)} />}
     </div>
   );
 }

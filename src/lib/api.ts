@@ -1,6 +1,8 @@
 // Cliente de la API para el frontend. Las cookies de sesión viajan solas (httpOnly).
 // - Si el token de acceso venció (401 NO_AUTENTICADO), renueva la sesión una vez y repite la solicitud.
 // - Los errores llegan como ApiError con el código y el mensaje listo para mostrar.
+// - Un cuerpo FormData (subida de archivos, US38) se envía como multipart/form-data; los archivos protegidos se
+//   leen como Blob para verlos, abrirlos o descargarlos sin exponer ninguna URL pública.
 
 export type Rol = "ADMINISTRADOR" | "DOCENTE" | "APODERADO" | "ALUMNO";
 
@@ -37,25 +39,29 @@ function renovarSesion(): Promise<boolean> {
 
 interface Opciones {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** JSON, o FormData para un formulario con archivos (el navegador pone el multipart y su boundary). */
   body?: unknown;
 }
+
+const SIN_CONEXION = "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.";
 
 export async function api<T>(ruta: string, opciones: Opciones = {}, reintentar = true): Promise<T> {
   let res: Response;
   try {
+    const formulario = opciones.body instanceof FormData;
     res = await fetch(`/api/v1${ruta}`, {
       method: opciones.method ?? "GET",
-      headers: opciones.body !== undefined ? { "Content-Type": "application/json" } : undefined,
-      body: opciones.body !== undefined ? JSON.stringify(opciones.body) : undefined,
+      headers: opciones.body !== undefined && !formulario ? { "Content-Type": "application/json" } : undefined,
+      body: formulario
+        ? (opciones.body as FormData)
+        : opciones.body !== undefined
+          ? JSON.stringify(opciones.body)
+          : undefined,
       credentials: "same-origin",
       cache: "no-store",
     });
   } catch {
-    throw new ApiError(
-      "SIN_CONEXION",
-      "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.",
-      0,
-    );
+    throw new ApiError("SIN_CONEXION", SIN_CONEXION, 0);
   }
 
   const json = await res.json().catch(() => ({}));
@@ -77,24 +83,24 @@ export async function api<T>(ruta: string, opciones: Opciones = {}, reintentar =
 const ESPERA_LIBERAR_DESCARGA_MS = 10_000;
 
 /**
- * Descarga un archivo de la API (por ejemplo, la ficha de matrícula en PDF, US20) y lo guarda en el navegador con el
- * nombre que envía el servidor. Renueva la sesión como `api()` y, si falla, lanza ApiError con el mensaje del backend.
+ * Lee un archivo protegido de la API (PDF, imagen…) con su nombre. Renueva la sesión como `api()` y, si falla, lanza
+ * ApiError con el mensaje del backend.
  */
-export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf", reintentar = true): Promise<void> {
+export async function obtenerArchivo(
+  ruta: string,
+  nombrePorDefecto = "documento.pdf",
+  reintentar = true,
+): Promise<{ blob: Blob; nombre: string }> {
   let res: Response;
   try {
     res = await fetch(`/api/v1${ruta}`, { credentials: "same-origin", cache: "no-store" });
   } catch {
-    throw new ApiError(
-      "SIN_CONEXION",
-      "No pudimos conectarnos con el servidor. Revisa tu conexión e inténtalo nuevamente.",
-      0,
-    );
+    throw new ApiError("SIN_CONEXION", SIN_CONEXION, 0);
   }
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     if (res.status === 401 && json?.error?.code === "NO_AUTENTICADO" && reintentar && (await renovarSesion())) {
-      return descargar(ruta, nombrePorDefecto, false);
+      return obtenerArchivo(ruta, nombrePorDefecto, false);
     }
     throw new ApiError(
       json?.error?.code ?? "ERROR",
@@ -103,8 +109,19 @@ export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf"
       json?.error?.details ?? {},
     );
   }
-  const nombre = res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? nombrePorDefecto;
-  const url = URL.createObjectURL(await res.blob());
+  const disposicion = res.headers.get("content-disposition") ?? "";
+  const utf8 = disposicion.match(/filename\*=UTF-8''([^;]+)/)?.[1];
+  const nombre = utf8 ? decodeURIComponent(utf8) : (disposicion.match(/filename="([^"]+)"/)?.[1] ?? nombrePorDefecto);
+  return { blob: await res.blob(), nombre };
+}
+
+/**
+ * Descarga un archivo de la API (por ejemplo, la ficha de matrícula en PDF, US20) y lo guarda en el navegador con el
+ * nombre que envía el servidor.
+ */
+export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf"): Promise<void> {
+  const { blob, nombre } = await obtenerArchivo(ruta, nombrePorDefecto);
+  const url = URL.createObjectURL(blob);
   const enlace = document.createElement("a");
   enlace.href = url;
   enlace.download = nombre;
@@ -112,6 +129,24 @@ export async function descargar(ruta: string, nombrePorDefecto = "documento.pdf"
   enlace.click();
   enlace.remove();
   setTimeout(() => URL.revokeObjectURL(url), ESPERA_LIBERAR_DESCARGA_MS);
+}
+
+/**
+ * Abre un archivo de la API en una pestaña nueva (un PDF en el visor del navegador). La pestaña se abre antes de
+ * pedir el archivo para que el navegador no la bloquee como ventana emergente.
+ */
+export async function abrirEnPestana(ruta: string): Promise<void> {
+  const pestana = window.open("", "_blank");
+  try {
+    const { blob } = await obtenerArchivo(ruta);
+    const url = URL.createObjectURL(blob);
+    if (pestana) pestana.location.href = url;
+    else window.location.assign(url);
+    setTimeout(() => URL.revokeObjectURL(url), ESPERA_LIBERAR_DESCARGA_MS * 6);
+  } catch (e) {
+    pestana?.close();
+    throw e;
+  }
 }
 
 /** A dónde va cada perfil después de iniciar sesión. */

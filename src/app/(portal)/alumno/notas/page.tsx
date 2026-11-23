@@ -1,22 +1,25 @@
 // AL-03 · Mis notas · Alumno (US51): logros del alumno por curso y competencia en el bimestre elegido en el filtro
 // «Periodo» (los anteriores siguen disponibles), con el logro del bimestre de cada curso; los cursos sin publicar se
 // listan como «Aún no publicado», sin notas parciales. «Descargar libreta» (US66). El alumno sale de la sesión y el
-// servidor solo envía notas de registros publicados.
+// servidor solo envía notas de registros publicados. Una calificación con evidencia del docente se presiona para
+// verla (US47, M-09); sin evidencia, la celda no es clicable.
 "use client";
 
 import { useState } from "react";
 import { columnaDe, BadgeLogro, LeyendaLogros, NOMBRE_LOGRO } from "@/components/docente/notas";
 import { EncabezadoPagina, mensajeError } from "@/components/portal";
 import { useConsulta } from "@/components/portal/asistencia";
+import { ModalEvidenciaDocente, type EvidenciaElegida } from "@/components/portal/evidencias";
 import {
   CargandoLibreta,
   ErrorLibreta,
   LibretaVacia,
   type BimestreDeLibreta,
+  type CompetenciaDeLibreta,
   type CursoDeLibreta,
   type Libreta,
 } from "@/components/portal/libreta";
-import { Alerta, Badge, Boton, Tarjeta } from "@/components/ui";
+import { Alerta, Badge, Boton, Icono, Tarjeta } from "@/components/ui";
 import { ApiError, descargar } from "@/lib/api";
 import { fechaDia, hoyEnLima } from "@/lib/formato";
 
@@ -90,6 +93,7 @@ function Bimestre({
   onElegir: (id: string) => void;
 }) {
   const hoy = hoyEnLima();
+  const [evidencia, setEvidencia] = useState<EvidenciaElegida | null>(null);
   const publicados = bimestre.cursos.filter((c) => c.publicado);
   const pendientes = bimestre.cursos.filter((c) => !c.publicado);
   return (
@@ -112,7 +116,21 @@ function Bimestre({
         <LeyendaLogros />
       </div>
 
-      {publicados.length > 0 && <TablaMisNotas cursos={publicados} />}
+      {publicados.length > 0 && (
+        <TablaMisNotas
+          cursos={publicados}
+          onVerEvidencia={(curso, k) =>
+            setEvidencia({
+              curso: curso.nombre,
+              docente: curso.docente,
+              competencia: k.nombre,
+              logro: k.logro,
+              evidencias: k.evidencias,
+            })
+          }
+        />
+      )}
+      {evidencia && <ModalEvidenciaDocente elegida={evidencia} onCerrar={() => setEvidencia(null)} />}
 
       {pendientes.length > 0 && (
         <Tarjeta className="flex flex-col gap-4 p-5">
@@ -155,8 +173,45 @@ function Bimestre({
   );
 }
 
+/**
+ * Logro de una competencia. Con evidencia del docente es un botón con un clip que abre M-09 (US47); sin evidencia, solo
+ * la insignia (la celda no es clicable).
+ */
+function LogroDeCompetencia({
+  curso,
+  competencia: k,
+  onVerEvidencia,
+}: {
+  curso: CursoDeLibreta;
+  competencia: CompetenciaDeLibreta;
+  onVerEvidencia: (curso: CursoDeLibreta, k: CompetenciaDeLibreta) => void;
+}) {
+  if (!k.logro) return <span className="text-texto-3">—</span>;
+  const insignia = <BadgeLogro logro={k.logro} titulo={`${k.nombre}: ${NOMBRE_LOGRO[k.logro]}`} />;
+  if (!k.evidencias?.length) return insignia;
+  return (
+    <button
+      type="button"
+      onClick={() => onVerEvidencia(curso, k)}
+      aria-label={`${k.nombre}: ${NOMBRE_LOGRO[k.logro]}. Ver la evidencia del docente`}
+      className="relative inline-flex rounded-md focus-visible:ring-2 focus-visible:ring-kubo-azul/50 hover:opacity-90"
+    >
+      {insignia}
+      <span className="absolute -top-1.5 -right-2 rounded-full bg-white p-0.5 shadow-tarjeta">
+        <Icono nombre="icon-clip" size={12} />
+      </span>
+    </button>
+  );
+}
+
 /** Desde 1024 px, una fila por curso con una columna por competencia (C1, C2…); en el celular, una tarjeta por curso. */
-function TablaMisNotas({ cursos }: { cursos: CursoDeLibreta[] }) {
+function TablaMisNotas({
+  cursos,
+  onVerEvidencia,
+}: {
+  cursos: CursoDeLibreta[];
+  onVerEvidencia: (curso: CursoDeLibreta, k: CompetenciaDeLibreta) => void;
+}) {
   const columnas = Math.max(...cursos.map((c) => c.competencias.length));
   return (
     <>
@@ -189,8 +244,8 @@ function TablaMisNotas({ cursos }: { cursos: CursoDeLibreta[] }) {
                   const k = c.competencias[i];
                   return (
                     <td key={columnaDe(i)} className="px-3 py-3 text-center">
-                      {k?.logro ? (
-                        <BadgeLogro logro={k.logro} titulo={`${k.nombre}: ${NOMBRE_LOGRO[k.logro]}`} />
+                      {k ? (
+                        <LogroDeCompetencia curso={c} competencia={k} onVerEvidencia={onVerEvidencia} />
                       ) : (
                         <span className="text-texto-3">—</span>
                       )}
@@ -225,7 +280,7 @@ function TablaMisNotas({ cursos }: { cursos: CursoDeLibreta[] }) {
                 {c.competencias.map((k) => (
                   <li key={k.competenciaPlanId} className="flex items-center justify-between gap-3 py-2">
                     <span className="text-[14px] leading-[1.4] text-texto-2">{k.nombre}</span>
-                    {k.logro ? <BadgeLogro logro={k.logro} /> : <span className="text-texto-3">—</span>}
+                    <LogroDeCompetencia curso={c} competencia={k} onVerEvidencia={onVerEvidencia} />
                   </li>
                 ))}
               </ul>
