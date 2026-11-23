@@ -28,6 +28,7 @@ Tipos: **básico** (camino feliz), **alterno** (otro camino válido), **excepci�
 | CP-D14-12 | US70 | excepción | PC-P, sesión de la apoderada | 1. `POST …/intentos` solo con octubre. | — | `409 CUOTAS_ANTERIORES_PENDIENTES` «Primero deben pagarse las cuotas anteriores: Pensión de setiembre 2026.» |
 | CP-D14-13 | US70 | alterno | PC-P, PC-F | 1. «Pagar» con setiembre y octubre. 2. En AP-02P, «Aprobar pago». | — | Pago aprobado con comprobante. Las dos pensiones quedan «Pagado». |
 | CP-D14-14 | — | básico | Base de desarrollo con un estudiante ficticio matriculado hoy | 1. `npm run demo:morosidad -- --dni <dni> --desde 2026-09-01`. 2. Volver a ejecutarlo. | — | La fecha de matrícula y el vencimiento de «Matrícula 2026» pasan al 01/09/2026 y se agregan las pensiones faltantes. La segunda ejecución informa «Sin cambios». `DATOS_DEMO` guarda el vencimiento anterior y el nuevo. |
+| CP-D14-15 | US70 | alterno | PC-P, PC-F, la pensión de setiembre con un pago en línea Observado (en revisión) | 1. AP-02, «Pagar». 2. Repetirlo con la cuota de matrícula Pendiente y en revisión. | — | Encima de la lista, `Alerta` info «La pensión de setiembre 2026 tiene un pago en revisión. Las cuotas siguientes se podrán pagar cuando se confirme.»; setiembre no aparece y octubre en adelante quedan deshabilitadas. Con la matrícula en revisión el aviso dice «La matrícula 2026 …», no queda ninguna cuota elegible e «Ir a pagar» está deshabilitado. |
 
 ## D-15 · Borrado de notas en un registro cerrado
 

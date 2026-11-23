@@ -11,7 +11,10 @@ import { api } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
 import {
   alternarEnOrden,
+  avisoEnRevision,
   AYUDA_ORDEN_CUOTAS,
+  cuotaEnRevision,
+  cuotasElegibles,
   esFija,
   ordenarParaPago,
   puedeMarcarse,
@@ -70,6 +73,9 @@ function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar:
       .map((c) => ({ ...c, id: c.cuotaId })),
   );
   const pagables = orden.filter((c) => c.pagable);
+  const enRevision = cuotaEnRevision(orden);
+  // con la matrícula en revisión no queda ninguna cuota elegible y no se puede ir a pagar
+  const sinElegibles = cuotasElegibles(orden).length === 0;
   const [elegidas, setElegidas] = useState(() => seleccionInicial(orden));
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,13 +116,14 @@ function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar:
           <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
             Cancelar
           </Boton>
-          <Boton onClick={irAPagar} cargando={enviando} disabled={total === 0}>
+          <Boton onClick={irAPagar} cargando={enviando} disabled={total === 0 || sinElegibles}>
             {total === 0 ? "Ir a pagar" : `Ir a pagar ${soles(aMonto(total))}`}
           </Boton>
         </>
       }
     >
       <p className="text-[14px] text-texto-2">Elige las cuotas que quieres pagar ahora.</p>
+      {enRevision && <Alerta tipo="info" titulo={avisoEnRevision(enRevision.concepto)} />}
       <ul className="flex flex-col divide-y divide-borde rounded-lg border border-borde">
         {pagables.map((c) => (
           <li key={c.cuotaId} className="flex items-center justify-between gap-3 px-4 py-3">

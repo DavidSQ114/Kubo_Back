@@ -54,3 +54,21 @@ export function alternarEnOrden(orden: CuotaOrdenable[], elegidas: Set<string>, 
   const posteriores = new Set(orden.slice(i).map((c) => c.id));
   return new Set([...elegidas].filter((x) => !posteriores.has(x)));
 }
+
+/** Primera cuota pendiente que no se puede elegir (tiene un pago en revisión); null si no hay ninguna. */
+export function cuotaEnRevision<T extends CuotaOrdenable>(orden: T[]): T | null {
+  return orden.find((c) => !c.pagable) ?? null;
+}
+
+/** Cuotas que se pueden elegir: las anteriores a la primera en revisión (ninguna si es la matrícula). */
+export function cuotasElegibles<T extends CuotaOrdenable>(orden: T[]): T[] {
+  const i = orden.findIndex((c) => !c.pagable);
+  return i < 0 ? orden : orden.slice(0, i);
+}
+
+/**
+ * Aviso de AP-02 cuando una cuota tiene un pago en revisión y bloquea las siguientes:
+ *   avisoEnRevision("Pensión de setiembre 2026") // «La pensión de setiembre 2026 tiene un pago en revisión. …»
+ */
+export const avisoEnRevision = (concepto: string) =>
+  `La ${concepto.charAt(0).toLowerCase()}${concepto.slice(1)} tiene un pago en revisión. Las cuotas siguientes se podrán pagar cuando se confirme.`;

@@ -3,6 +3,9 @@
 import { describe, expect, it } from "vitest";
 import {
   alternarEnOrden,
+  avisoEnRevision,
+  cuotaEnRevision,
+  cuotasElegibles,
   esFija,
   ordenarParaPago,
   puedeMarcarse,
@@ -61,5 +64,33 @@ describe("selección de cuotas en orden en la pantalla (D-14, AD-11, AP-02)", ()
     ]);
     expect(ids(seleccionEnOrden(conRevision, ["setiembre"]))).toEqual([]);
     expect(puedeMarcarse(conRevision, new Set(), "setiembre")).toBe(false);
+  });
+
+  it("con una pensión en revisión avisa cuál es y solo deja elegir las anteriores (CP-D14-15)", () => {
+    const conRevision = ordenarParaPago([
+      cuota("matricula", "MATRICULA", "2026-03-01"),
+      cuota("setiembre", "PENSION", "2026-09-30", false),
+      cuota("octubre", "PENSION", "2026-10-31"),
+    ]);
+    expect(cuotaEnRevision(conRevision)?.id).toBe("setiembre");
+    expect(cuotasElegibles(conRevision).map((c) => c.id)).toEqual(["matricula"]);
+    expect(avisoEnRevision("Pensión de setiembre 2026")).toBe(
+      "La pensión de setiembre 2026 tiene un pago en revisión. Las cuotas siguientes se podrán pagar cuando se confirme.",
+    );
+  });
+
+  it("con la matrícula en revisión no queda ninguna cuota elegible (CP-D14-15)", () => {
+    const conRevision = ordenarParaPago([
+      cuota("matricula", "MATRICULA", "2026-03-01", false),
+      cuota("setiembre", "PENSION", "2026-09-30"),
+    ]);
+    expect(cuotaEnRevision(conRevision)?.id).toBe("matricula");
+    expect(cuotasElegibles(conRevision)).toEqual([]);
+    expect(avisoEnRevision("Matrícula 2026")).toMatch(/^La matrícula 2026 tiene un pago en revisión\./);
+  });
+
+  it("sin cuotas en revisión no hay aviso y todas son elegibles", () => {
+    expect(cuotaEnRevision(orden)).toBeNull();
+    expect(cuotasElegibles(orden)).toHaveLength(orden.length);
   });
 });
