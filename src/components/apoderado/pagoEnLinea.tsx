@@ -9,6 +9,15 @@ import { useEffect, useState } from "react";
 import { Alerta, Badge, Boton, Casilla, Icono, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
+import {
+  alternarEnOrden,
+  AYUDA_ORDEN_CUOTAS,
+  esFija,
+  ordenarParaPago,
+  puedeMarcarse,
+  seleccionEnOrden,
+  type CuotaOrdenable,
+} from "@/lib/ordenCuotas";
 import type { CuotaPortal, PagosDelHijo } from "./pagos";
 import { mensajeError } from "./PortalApoderado";
 
@@ -43,24 +52,31 @@ const aMonto = (c: number) => `${Math.trunc(c / 100)}.${String(c % 100).padStart
 
 // ---------- AP-02 · Botón «Pagar» y selección de cuotas ----------
 
-/** Al abrir, se marcan las vencidas (o la primera pendiente si no hay vencidas). */
-function seleccionInicial(cuotas: CuotaPortal[]) {
-  const vencidas = cuotas.filter((c) => c.estado === "VENCIDO").map((c) => c.cuotaId);
-  return new Set(vencidas.length ? vencidas : cuotas.slice(0, 1).map((c) => c.cuotaId));
+/**
+ * Al abrir, se marcan la matrícula pendiente y las vencidas (o la primera pendiente si no hay vencidas), con las
+ * anteriores a ellas por el orden de pago (D-14).
+ */
+function seleccionInicial(orden: (CuotaOrdenable & CuotaPortal)[]) {
+  const pagables = orden.filter((c) => c.pagable);
+  const vencidas = pagables.filter((c) => c.estado === "VENCIDO").map((c) => c.id);
+  return seleccionEnOrden(orden, vencidas.length ? vencidas : pagables.slice(0, 1).map((c) => c.id));
 }
 
 function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar: () => void }) {
-  const pagables = datos.cuotas.filter((c) => c.pagable);
-  const [elegidas, setElegidas] = useState(() => seleccionInicial(pagables));
+  // D-14: todas las pendientes en orden de pago; una en revisión (no pagable) bloquea las posteriores
+  const orden = ordenarParaPago(
+    datos.cuotas
+      .filter((c) => c.estado === "PENDIENTE" || c.estado === "VENCIDO")
+      .map((c) => ({ ...c, id: c.cuotaId })),
+  );
+  const pagables = orden.filter((c) => c.pagable);
+  const [elegidas, setElegidas] = useState(() => seleccionInicial(orden));
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const total = pagables.filter((c) => elegidas.has(c.cuotaId)).reduce((t, c) => t + centimos(c.monto), 0);
 
   function alternar(cuotaId: string, marcada: boolean) {
-    const nuevas = new Set(elegidas);
-    if (marcada) nuevas.add(cuotaId);
-    else nuevas.delete(cuotaId);
-    setElegidas(nuevas);
+    setElegidas(alternarEnOrden(orden, elegidas, cuotaId, marcada));
   }
 
   async function irAPagar() {
@@ -107,6 +123,7 @@ function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar:
             <Casilla
               etiqueta={`${c.concepto} · vence el ${fechaDia(c.fechaVencimiento)}`}
               checked={elegidas.has(c.cuotaId)}
+              deshabilitada={esFija(c) || (!elegidas.has(c.cuotaId) && !puedeMarcarse(orden, elegidas, c.cuotaId))}
               onChange={(v) => alternar(c.cuotaId, v)}
             />
             <span className="flex items-center gap-2 text-[14px] whitespace-nowrap text-texto">
@@ -120,6 +137,7 @@ function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar:
           </li>
         ))}
       </ul>
+      <p className="text-[12px] text-texto-3">{AYUDA_ORDEN_CUOTAS}</p>
       <div className="flex items-center justify-between rounded-lg bg-fondo px-4 py-3">
         <span className="text-[14px] font-semibold text-texto-2">Total a pagar</span>
         <span className="text-[22px] font-bold text-kubo-azul">{soles(aMonto(total))}</span>

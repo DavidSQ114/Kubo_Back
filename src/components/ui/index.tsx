@@ -158,16 +158,26 @@ export function Casilla({
   checked,
   onChange,
   color = "azul",
+  deshabilitada = false,
 }: {
   etiqueta: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   color?: "azul" | "verde";
+  deshabilitada?: boolean;
 }) {
   const marcado = color === "verde" ? "bg-verde-oscuro border-verde-oscuro" : "bg-kubo-azul border-kubo-azul";
   return (
-    <label className="flex cursor-pointer items-center gap-2 select-none">
-      <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label
+      className={`flex items-center gap-2 select-none ${deshabilitada ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+    >
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={deshabilitada}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       <span
         className={`flex size-[18px] items-center justify-center rounded-[4px] border-[1.5px] peer-focus-visible:ring-2 peer-focus-visible:ring-kubo-azul/40 ${
           checked ? marcado : "border-texto-3 bg-white"

@@ -7,6 +7,14 @@ import { useState } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal } from "@/components/ui";
 import { api, descargar } from "@/lib/api";
 import { fechaDia, fechaHora, hoyEnLima } from "@/lib/formato";
+import {
+  alternarEnOrden,
+  AYUDA_ORDEN_CUOTAS,
+  esFija,
+  ordenarParaPago,
+  puedeMarcarse,
+  seleccionEnOrden,
+} from "@/lib/ordenCuotas";
 import { Avatar } from "./apoderados";
 import { Selector, separarErrores } from "./grados";
 import { soles } from "./matricula";
@@ -242,10 +250,15 @@ export function ModalRegistrarPago({
   onCerrar: () => void;
   onRegistrado: (r: ResultadoPago) => void;
 }) {
-  const pendientes = cuenta.cuotas.filter((c) => c.estado === "PENDIENTE");
-  const [elegidas, setElegidas] = useState<string[]>(preseleccion);
-  const total = pendientes.filter((c) => elegidas.includes(c.id)).reduce((t, c) => t + centimos(c.monto), 0);
-  const [monto, setMonto] = useState(preseleccion.length ? aMonto(total) : "");
+  // D-14: en orden de pago; la matrícula pendiente va marcada y fija y las pensiones se marcan en orden
+  const pendientes = ordenarParaPago(
+    cuenta.cuotas.filter((c) => c.estado === "PENDIENTE").map((c) => ({ ...c, pagable: true })),
+  );
+  const [elegidas, setElegidas] = useState(() => seleccionEnOrden(pendientes, preseleccion));
+  const sumaDe = (ids: Set<string>) =>
+    pendientes.filter((c) => ids.has(c.id)).reduce((t, c) => t + centimos(c.monto), 0);
+  const total = sumaDe(elegidas);
+  const [monto, setMonto] = useState(total ? aMonto(total) : "");
   const [fecha, setFecha] = useState(hoyEnLima());
   const [numero, setNumero] = useState("");
   const [medio, setMedio] = useState<MedioPago | "">("TRANSFERENCIA");
@@ -254,16 +267,16 @@ export function ModalRegistrarPago({
   const [enviando, setEnviando] = useState(false);
 
   function alternar(id: string, marcado: boolean) {
-    const nuevas = marcado ? [...elegidas, id] : elegidas.filter((x) => x !== id);
+    const nuevas = alternarEnOrden(pendientes, elegidas, id, marcado);
     setElegidas(nuevas);
     // el monto sigue al total mientras el usuario no lo cambie a mano
-    const nuevoTotal = pendientes.filter((c) => nuevas.includes(c.id)).reduce((t, c) => t + centimos(c.monto), 0);
+    const nuevoTotal = sumaDe(nuevas);
     if (!monto || centimos(monto) === total) setMonto(nuevoTotal ? aMonto(nuevoTotal) : "");
   }
 
   async function registrar() {
     const e: Record<string, string> = {};
-    if (!elegidas.length) e.conceptoIds = "Selecciona al menos una cuota pendiente.";
+    if (!elegidas.size) e.conceptoIds = "Selecciona al menos una cuota pendiente.";
     if (!numero.trim()) e.numeroOperacion = MENSAJE_SIN_NUMERO;
     if (!medio) e.medioPago = "Elige el medio de pago";
     setErrores(e);
@@ -274,7 +287,7 @@ export function ModalRegistrarPago({
       const r = await api<ResultadoPago>("/matricula/pagos", {
         method: "POST",
         body: {
-          conceptoIds: elegidas,
+          conceptoIds: pendientes.filter((c) => elegidas.has(c.id)).map((c) => c.id),
           monto: monto.trim(),
           medioPago: medio,
           numeroOperacion: numero,
@@ -333,9 +346,10 @@ export function ModalRegistrarPago({
               <input
                 type="checkbox"
                 aria-label={`Pagar ${c.concepto}`}
-                checked={elegidas.includes(c.id)}
+                checked={elegidas.has(c.id)}
+                disabled={esFija(c) || (!elegidas.has(c.id) && !puedeMarcarse(pendientes, elegidas, c.id))}
                 onChange={(e) => alternar(c.id, e.target.checked)}
-                className="size-[18px] accent-kubo-azul"
+                className="size-[18px] accent-kubo-azul disabled:cursor-not-allowed disabled:opacity-60"
               />
               <div className="flex flex-col text-[13px]">
                 <span className="font-semibold text-texto">{c.concepto}</span>
@@ -352,11 +366,12 @@ export function ModalRegistrarPago({
           </div>
         ))}
       </div>
+      <p className="text-[12px] text-texto-3">{AYUDA_ORDEN_CUOTAS}</p>
       {errores.conceptoIds && <p className="text-[13px] text-rojo-oscuro">{errores.conceptoIds}</p>}
       <div className="flex items-center justify-between rounded-lg bg-fondo px-4 py-3">
         <div className="flex flex-col text-[13px]">
           <span className="font-semibold text-texto">Total de la operación</span>
-          <span className="text-texto-3">{`${elegidas.length} cuota${elegidas.length === 1 ? "" : "s"} seleccionada${elegidas.length === 1 ? "" : "s"}`}</span>
+          <span className="text-texto-3">{`${elegidas.size} cuota${elegidas.size === 1 ? "" : "s"} seleccionada${elegidas.size === 1 ? "" : "s"}`}</span>
         </div>
         <span className="text-[22px] font-semibold text-kubo-azul">{soles(aMonto(total))}</span>
       </div>
