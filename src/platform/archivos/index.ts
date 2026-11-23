@@ -39,11 +39,14 @@ export function almacenArchivos(): AlmacenArchivos {
     if (!bucket) throw erroresArchivos.almacenNoConfigurado();
     almacen = almacenS3({ bucket, region: process.env.AWS_REGION?.trim() || undefined });
   } else if (driver === "disco") {
+    // turbopackIgnore: la carpeta es de datos y se decide al ejecutar; sin el comentario, el build rastrea todo el
+    // proyecto y lo copia al código del servidor («Dynamic filesystem access causes tracing of the whole project»)
     const carpeta =
-      process.env.ARCHIVOS_DIR?.trim() || (produccion ? "" : path.join(process.cwd(), CARPETA_DESARROLLO));
+      process.env.ARCHIVOS_DIR?.trim() ||
+      (produccion ? "" : path.join(/* turbopackIgnore: true */ process.cwd(), CARPETA_DESARROLLO));
     // en producción la carpeta se indica siempre: la del release se perdería en el siguiente despliegue
     if (!carpeta) throw erroresArchivos.almacenNoConfigurado();
-    almacen = almacenDisco(path.resolve(carpeta));
+    almacen = almacenDisco(path.resolve(/* turbopackIgnore: true */ carpeta));
   } else {
     throw erroresArchivos.almacenNoConfigurado();
   }
