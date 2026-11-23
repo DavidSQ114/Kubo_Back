@@ -1,7 +1,8 @@
-// evaluacion/infrastructure: consultas de cierre_calificacion, nota, resultado_consolidado, solicitud_rectificacion y
-// bitacora_nota (dueño: evaluacion) para el registro de notas (US37), el cierre y la publicación del bimestre (US39),
-// su bloqueo (US40), la libreta del apoderado y del alumno (US46, US51), que solo lee notas de registros PUBLICADOS,
-// la rectificación de nota (US41) y la bitácora de notas (US03).
+// evaluacion/infrastructure: consultas de cierre_calificacion, nota, resultado_consolidado, solicitud_rectificacion,
+// bitacora_nota y evidencia_pedagogica (dueño: evaluacion) para el registro de notas (US37), el cierre y la publicación
+// del bimestre (US39), su bloqueo (US40), la libreta del apoderado y del alumno (US46, US51), que solo lee notas y
+// evidencias de registros PUBLICADOS, la rectificación de nota (US41), la bitácora de notas (US03) y las evidencias
+// pedagógicas (US38, US47).
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -261,6 +262,118 @@ export const publicados = {
       where: { matriculaId, cierre: { estado: "PUBLICADO" } },
       select: { cierreId: true, competenciaPlanId: true, logro: true },
     }),
+
+  /** Evidencias de las notas publicadas de una matrícula (US47): las de un registro sin publicar nunca salen. */
+  async evidenciasDeMatricula(matriculaId: string, db: Db = prisma): Promise<EvidenciaPublicada[]> {
+    const filas = await db.evidenciaPedagogica.findMany({
+      where: { nota: { matriculaId, cierre: { estado: "PUBLICADO" } } },
+      select: { ...selectEvidencia, nota: { select: { cierreId: true, competenciaPlanId: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    return filas.map(({ nota, ...e }) => ({
+      ...e,
+      cierreId: nota.cierreId,
+      competenciaPlanId: nota.competenciaPlanId,
+    }));
+  },
+};
+
+// ---------- Evidencias pedagógicas (US38, US47) ----------
+
+export interface EvidenciaFila {
+  id: string;
+  notaId: string;
+  entregaTrabajoId: string | null;
+  comentario: string | null;
+  /** Clave interna del almacén (<area>/<uuid>): nunca sale hacia el navegador. */
+  archivoClave: string | null;
+  nombreArchivo: string | null;
+  mimeType: string | null;
+  tamanoBytes: number | null;
+  subidoPorId: string;
+  createdAt: Date;
+}
+
+export interface EvidenciaPublicada extends EvidenciaFila {
+  cierreId: string;
+  competenciaPlanId: string;
+}
+
+/** La evidencia con la nota y el registro a los que pertenece: con esto se decide quién puede verla. */
+export interface EvidenciaConRegistro extends EvidenciaFila {
+  matriculaId: string;
+  competenciaPlanId: string;
+  cierreId: string;
+  estadoCierre: string;
+  asignacionDocenteId: string;
+}
+
+const selectEvidencia = {
+  id: true,
+  notaId: true,
+  entregaTrabajoId: true,
+  comentario: true,
+  archivoClave: true,
+  nombreArchivo: true,
+  mimeType: true,
+  tamanoBytes: true,
+  subidoPorId: true,
+  createdAt: true,
+} as const;
+
+export const evidencias = {
+  /** Evidencias de todas las notas de un registro (ícono con el número de evidencias en DO-04). */
+  delCierre: (cierreId: string, db: Db = prisma): Promise<EvidenciaFila[]> =>
+    db.evidenciaPedagogica.findMany({
+      where: { nota: { cierreId } },
+      select: selectEvidencia,
+      orderBy: { createdAt: "asc" },
+    }),
+
+  crear: (
+    tx: Tx,
+    datos: {
+      notaId: string;
+      comentario: string | null;
+      archivoClave: string | null;
+      nombreArchivo: string | null;
+      mimeType: string | null;
+      tamanoBytes: number | null;
+      subidoPorId: string;
+      entregaTrabajoId?: string | null;
+    },
+  ): Promise<EvidenciaFila> => tx.evidenciaPedagogica.create({ data: datos, select: selectEvidencia }),
+
+  eliminar: async (tx: Tx, id: string) => {
+    await tx.evidenciaPedagogica.delete({ where: { id } });
+  },
+
+  async conRegistro(id: string, db: Db = prisma): Promise<EvidenciaConRegistro | null> {
+    const fila = await db.evidenciaPedagogica.findUnique({
+      where: { id },
+      select: {
+        ...selectEvidencia,
+        nota: {
+          select: {
+            matriculaId: true,
+            competenciaPlanId: true,
+            cierreId: true,
+            cierre: { select: { estado: true, asignacionDocenteId: true } },
+          },
+        },
+      },
+    });
+    if (!fila) return null;
+    const { nota, ...e } = fila;
+    return {
+      ...e,
+      matriculaId: nota.matriculaId,
+      competenciaPlanId: nota.competenciaPlanId,
+      cierreId: nota.cierreId,
+      estadoCierre: nota.cierre.estado,
+      asignacionDocenteId: nota.cierre.asignacionDocenteId,
+    };
+  },
 };
 
 // ---------- Solicitudes de rectificación (US41) ----------

@@ -1,8 +1,9 @@
 // evaluacion/schemas: validación de las entradas de la API del registro de notas (US37, US39, US40), de la
-// rectificación de nota (US41) y de la bitácora de notas (US03), RNF16.
+// rectificación de nota (US41), de la bitácora de notas (US03) y de las evidencias pedagógicas (US38), RNF16.
 // Mensajes en español; un logro fuera de la escala responde con el mensaje del backlog (US37, criterio 2).
 import { z } from "zod";
 import { erroresEvaluacion as E, MENSAJE_VALOR_NO_PERMITIDO } from "./domain/errores";
+import { largoEnCaracteres, LARGO_MAXIMO_COMENTARIO_EVIDENCIA } from "./domain/evidencias";
 import { LOGROS_NOTA, type NotaPedida } from "./domain/notas";
 import { LARGO_MAXIMO_MOTIVO } from "./domain/rectificacion";
 
@@ -137,4 +138,26 @@ export const FiltroBitacoraSchema = z.object({
   docenteId: IdOpcional,
   pagina: z.coerce.number().int().min(1).default(1),
   tamano: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+// ---------- Evidencias pedagógicas (US38) ----------
+
+/** Ruta /registros/{asignacionId}/bimestres/{periodoId}/evidencias/{evidenciaId}. */
+export const EvidenciaParamsSchema = RegistroParamsSchema.extend({ evidenciaId: IdSchema });
+
+/**
+ * Campos de texto del formulario de POST …/evidencias (multipart/form-data). El archivo no pasa por aquí: se valida por
+ * su contenido (tipo real y tamaño) en platform/archivos. Un comentario vacío cuenta como «sin comentario».
+ */
+export const NuevaEvidenciaSchema = z.object({
+  matriculaId: IdSchema,
+  competenciaPlanId: IdSchema,
+  comentario: z
+    .string({ message: "El comentario debe ser texto" })
+    .nullish()
+    .transform((v) => v ?? null)
+    .refine(
+      (v) => v === null || largoEnCaracteres(v.trim()) <= LARGO_MAXIMO_COMENTARIO_EVIDENCIA,
+      `El comentario admite hasta ${LARGO_MAXIMO_COMENTARIO_EVIDENCIA} caracteres`,
+    ),
 });

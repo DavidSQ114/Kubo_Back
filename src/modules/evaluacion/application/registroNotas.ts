@@ -1,5 +1,5 @@
-// evaluacion/application: registro de notas cualitativas del docente (US37, DO-04), cierre y consolidación del
-// bimestre (US39, M-10) y bloqueo del registro cerrado (US40). El docente sale de la sesión, nunca de la URL: un curso
+// evaluacion/application: registro de notas cualitativas del docente (US37, DO-04) con las evidencias de cada
+// calificación (US38), cierre y consolidación del bimestre (US39, M-10) y bloqueo del registro cerrado (US40). El docente sale de la sesión, nunca de la URL: un curso
 // o una sección de otro docente responde 403. El registro de un curso y sección en un bimestre es cierre_calificacion.
 // Cada nota guardada queda en la bitácora de notas (US03) en la misma transacción.
 import { prisma } from "@/platform/db/prisma";
@@ -43,9 +43,11 @@ import {
   type NotaPedida,
   type SituacionDelRegistro,
 } from "../domain/notas";
+import { evidenciasPorNota, type EvidenciaVista } from "../domain/evidencias";
 import { columnasDelRegistro } from "../domain/rectificacion";
-import { cierres, estadoDeRegistro, notas, resultados, type NotaFila } from "../infrastructure/repositorio";
+import { cierres, estadoDeRegistro, evidencias, notas, resultados, type NotaFila } from "../infrastructure/repositorio";
 import { registrarEnBitacora, type CambioDeNota } from "./bitacora";
+import { vistaDeEvidencia } from "./vistaEvidencias";
 
 // ---------- Vistas ----------
 
@@ -81,6 +83,8 @@ export interface NotaVista {
   registradoEn: string;
   modificadoPor: string | null;
   modificadoEn: string | null;
+  /** Evidencias de la calificación (US38): la celda muestra el ícono con su número. */
+  evidencias: EvidenciaVista[];
 }
 
 export interface AlumnoDeRegistro {
@@ -228,9 +232,14 @@ async function armarRegistro(
   ]);
   const estado = estadoDeRegistro(cierre);
   const cerrado = estado !== "ABIERTO";
-  const [guardadas, consolidados] = cierre
-    ? await Promise.all([notas.delCierre(cierre.id), cerrado ? resultados.delCierre(cierre.id) : []])
-    : [[], []];
+  const [guardadas, consolidados, delCierre] = cierre
+    ? await Promise.all([
+        notas.delCierre(cierre.id),
+        cerrado ? resultados.delCierre(cierre.id) : [],
+        evidencias.delCierre(cierre.id),
+      ])
+    : [[], [], []];
+  const evidenciasDe = evidenciasPorNota(delCierre);
   const competencias = [...lista]
     .sort((a, b) => a.orden - b.orden)
     .map((c) => ({
@@ -267,6 +276,7 @@ async function armarRegistro(
           registradoEn: n.createdAt.toISOString(),
           modificadoPor: n.modificadoPorId ? (usuarios[n.modificadoPorId]?.nombreCorto ?? null) : null,
           modificadoEn: n.modificadoEn?.toISOString() ?? null,
+          evidencias: (evidenciasDe.get(n.id) ?? []).map(vistaDeEvidencia),
         },
       ]),
     );

@@ -1,7 +1,8 @@
 // evaluacion/domain: reglas puras de la publicación de notas (US39, AD-15) y de la libreta del apoderado y del alumno
-// (US46 AP-04, US51 AL-03, US66 PDF). La libreta recibe solo resultados de registros PUBLICADOS (los filtra la
-// consulta); aquí se arman los cursos de cada bimestre y se marcan los que aún no se publican.
+// (US46 AP-04, US51 AL-03, US66 PDF, US47 evidencias). La libreta recibe solo resultados y evidencias de registros
+// PUBLICADOS (los filtra la consulta); aquí se arman los cursos de cada bimestre y se marcan los que aún no se publican.
 import { erroresEvaluacion as E } from "./errores";
+import type { EvidenciaVista } from "./evidencias";
 import { LOGROS_NOTA, type EstadoRegistro, type LogroNota } from "./notas";
 
 // ---------- Publicación (US39, criterio 4) ----------
@@ -20,6 +21,8 @@ export interface CompetenciaDeLibreta {
   nombre: string;
   /** null solo si la competencia se agregó al plan después del cierre. */
   logro: LogroNota | null;
+  /** Evidencias del docente (US47); sin evidencias, la calificación no es clicable. */
+  evidencias: EvidenciaVista[];
 }
 
 export interface CursoDeLibreta {
@@ -45,6 +48,8 @@ export interface CursoPublicadoEntrada {
   competencias: { competenciaPlanId: string; codigo: string; nombre: string; orden: number }[];
   /** Logro de cada competencia, por id de competencia del plan. */
   notas: Record<string, LogroNota>;
+  /** Evidencias de cada calificación, por id de competencia del plan (US47). */
+  evidencias?: Record<string, EvidenciaVista[]>;
 }
 
 export interface CursoDelPlanEntrada {
@@ -76,6 +81,7 @@ export function cursosDelBimestre(publicados: CursoPublicadoEntrada[], plan: Cur
         codigo: c.codigo,
         nombre: c.nombre,
         logro: p.notas[c.competenciaPlanId] ?? null,
+        evidencias: p.notas[c.competenciaPlanId] ? (p.evidencias?.[c.competenciaPlanId] ?? []) : [],
       })),
   }));
   const yaPublicados = new Set(conNotas.map((c) => c.cursoId));
