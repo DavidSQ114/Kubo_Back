@@ -153,3 +153,61 @@ GET {{base}}/evaluacion/bitacora?desde=2026-09-16&hasta=2026-09-01
 
 ### 28. Docentes con cambios en la bitácora (filtro «Docente»)
 GET {{base}}/evaluacion/bitacora/docentes
+
+### ---------- Evidencias pedagógicas (US38) · sesión de Docente ----------
+
+### 29. Adjuntar a una calificación guardada un comentario y un PDF o JPG (máx. 5 MB) → 201 con la evidencia y el registro.
+### Sin calificación guardada → 422 NOTA_SIN_CALIFICAR; registro cerrado o publicado → 409 REGISTRO_CERRADO;
+### archivo falsificado o PNG → 400 ARCHIVO_NO_PERMITIDO; más de 5 MB → 413 ARCHIVO_DEMASIADO_GRANDE.
+### Usa un PDF ficticio guardado como docs/api/ficha.pdf (no se sube al repositorio).
+@matricula = 00000000-0000-0000-0000-000000000000
+@competencia = 00000000-0000-0000-0000-000000000000
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/evidencias
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="matriculaId"
+
+{{matricula}}
+--kubo
+Content-Disposition: form-data; name="competenciaPlanId"
+
+{{competencia}}
+--kubo
+Content-Disposition: form-data; name="comentario"
+
+Resolvió los problemas de fracciones y explicó su procedimiento con claridad.
+--kubo
+Content-Disposition: form-data; name="archivo"; filename="ficha.pdf"
+Content-Type: application/pdf
+
+< ./ficha.pdf
+--kubo--
+
+### 30. Solo comentario (sin archivo)
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/evidencias
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="matriculaId"
+
+{{matricula}}
+--kubo
+Content-Disposition: form-data; name="competenciaPlanId"
+
+{{competencia}}
+--kubo
+Content-Disposition: form-data; name="comentario"
+
+Explicó su razonamiento en voz alta.
+--kubo--
+
+### 31. Eliminar una evidencia (registro abierto) → el registro actualizado
+@evidencia = 00000000-0000-0000-0000-000000000000
+DELETE {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/evidencias/{{evidencia}}
+
+### ---------- Evidencias (US47) · Docente, Apoderado o Alumno ----------
+
+### 32. Archivo de la evidencia: inline para JPG y PDF. Apoderado ajeno, otro alumno o registro sin publicar → 404;
+### apoderado con deuda → 403 LIBRETA_RESTRINGIDA
+GET {{base}}/evaluacion/evidencias/{{evidencia}}/archivo

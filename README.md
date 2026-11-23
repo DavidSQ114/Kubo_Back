@@ -128,7 +128,7 @@ kubo/
 │  │  ├─ auditoria/              Registro en la bitácora  (se crea al desarrollar)
 │  │  ├─ logger/                 Log de errores con rotación  (se crea al desarrollar)
 │  │  ├─ notificaciones/         Notificaciones internas y bandeja de salida de correos (US55)
-│  │  ├─ archivos/               Subida a S3 con URL firmada  (se crea al desarrollar)
+│  │  ├─ archivos/               Almacén de archivos (S3 privado o disco), validación y descargas por la API
 │  │  ├─ pdf/                    Ficha de matrícula, libreta, horario  (se crea al desarrollar)
 │  │  ├─ config/                 Lectura de ParametroInstitucion  (se crea al desarrollar)
 │  │  └─ jobs/                   Tareas programadas y cola de eventos  (se crea al desarrollar)
