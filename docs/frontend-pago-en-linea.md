@@ -21,10 +21,11 @@ src/app/(portal)/admin/pagos/page.tsx                        AD-11: abre ModalDe
 - **Modal «Pagar en línea»** (`Modal`, ícono `nav-wallet-azul` en tono azul). Subtítulo: «[Estudiante] · Año [año]».
   - Texto: «Elige las cuotas que quieres pagar ahora.»
   - Lista con borde: cada cuota pagable es una `Casilla` «[Concepto] · vence el [dd/mm/aaaa]», con el monto a la derecha y la insignia roja «Vencido» si corresponde. Al abrir se marcan las vencidas; si no hay vencidas, la primera pendiente.
+  - Orden de pago (D-14, `src/lib/ordenCuotas.ts`): la lista va en orden (matrícula y luego pensiones por vencimiento). La matrícula pendiente viene marcada y bloqueada (`Casilla` con `deshabilitada`); una pensión solo se marca si las anteriores lo están, y al desmarcar una se desmarcan las posteriores. La selección inicial incluye las anteriores a las vencidas. Una cuota en revisión no aparece y deja deshabilitadas las posteriores. Debajo de la lista: «Las cuotas se pagan en orden: primero la matrícula y luego las pensiones por fecha de vencimiento.»
   - Caja gris «Total a pagar» con el total en azul, de 22 px y en negrita. Se calcula en céntimos, sin float.
   - `Alerta` info «Pagarás en Mercado Pago»: «Te llevaremos a la página segura de Mercado Pago. Kubo no recibe ni guarda los datos de tu tarjeta…».
   - Pie: «Cancelar» (secundario) y «Ir a pagar S/ [total]» (primario, deshabilitado con total 0 y con `cargando` mientras crea el intento).
-  - Error de la API (por ejemplo, `PAGO_EN_LINEA_NO_DISPONIBLE` o `CUOTA_YA_PAGADA`): `Alerta` de error con el `message`.
+  - Error de la API (por ejemplo, `PAGO_EN_LINEA_NO_DISPONIBLE`, `CUOTA_YA_PAGADA` o `MATRICULA_PENDIENTE`): `Alerta` de error con el `message`.
 - Al confirmar: `POST /matricula/apoderado/pagos/intentos` y redirección (`window.location.assign`) a `urlCheckout` (Mercado Pago o AP-02P).
 - **«¿Cómo pagar?»:** con el pago en línea activo, agrega arriba un recuadro azul «Pago en línea»: «Usa «Pagar» para pagar con tarjeta en Mercado Pago. El pago se registra apenas Mercado Pago lo confirma.»
 

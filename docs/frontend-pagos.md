@@ -29,14 +29,15 @@ src/components/admin/matricula.tsx          enlace a Pensiones y pagos en M-19 c
 - **Cronograma de pensiones:** concepto, vencimiento, monto, estado (Pagado, Pendiente, Vencido, Observado o Anulado), fecha de pago, N.° de operación y comprobante.
   - Las vencidas van en rojo.
   - Una cuota pagada junto con otras indica «Operación 00561207 · 2 cuotas».
-  - Las pagadas tienen el ícono para descargar el recibo y las pendientes, «Registrar pago», que abre M-01 con esa cuota marcada. Al pie, otro «Registrar pago» abre M-01 sin cuotas marcadas.
+  - Las pagadas tienen el ícono para descargar el recibo y las pendientes, «Registrar pago», que abre M-01 con esa cuota marcada (y, por el orden de pago de D-14, la matrícula pendiente y las pensiones anteriores). Al pie, otro «Registrar pago» abre M-01 solo con la matrícula pendiente marcada, si la hay.
 - **Operaciones de pago:** N.° de operación, fecha, cuotas que cubre, monto, comprobante y estado.
   - Confirmado: descargar recibo y anular (M-02).
   - Observado: el aviso «Número ya usado en R-…» y los botones «Descartar» y «Confirmar».
   - Anulado: «Anulado el … por R. Huamán · motivo: detalle», y su recibo se sigue descargando con la marca «ANULADO».
 - **Log de auditoría de pagos:** fecha y hora, acción (Registro, Confirmación o Anulación), detalle y usuario.
 - **M-01 Registrar pago manual:**
-  - Estudiante y responsable; cuotas pendientes con casillas, vencimiento y estado.
+  - Estudiante y responsable; cuotas pendientes con casillas, vencimiento y estado, en orden de pago: la matrícula primero y luego las pensiones por vencimiento.
+  - Orden de pago (D-14, `src/lib/ordenCuotas.ts`): la matrícula pendiente viene marcada y bloqueada; una pensión solo se puede marcar si las anteriores están marcadas (si no, la casilla está deshabilitada) y al desmarcar una se desmarcan las posteriores. Debajo de la lista: «Las cuotas se pagan en orden: primero la matrícula y luego las pensiones por fecha de vencimiento.» El servidor valida igual (`MATRICULA_PENDIENTE`, `CUOTAS_ANTERIORES_PENDIENTES`) y su mensaje se muestra como error general.
   - «Total de la operación» con la cantidad de cuotas. El monto sigue al total mientras no se edite a mano.
   - Campos de monto, fecha de pago (hasta hoy), N.° de operación y medio de pago.
   - Mensajes: sin número, «El número de operación es obligatorio»; monto distinto, «El monto ingresado no coincide con el total de las cuotas seleccionadas»; cuota ya pagada, «Esta pensión ya fue cancelada el [fecha]».

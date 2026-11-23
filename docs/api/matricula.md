@@ -150,6 +150,10 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   - Fecha futura: `422 FECHA_PAGO_FUTURA`.
   - Cuota ya pagada: `409 CUOTA_YA_PAGADA` «Esta pensión ya fue cancelada el 03/07/2026» (la fecha de pago de la operación que la canceló).
   - Cuota anulada `409 CUOTA_ANULADA`, inexistente `404 CUOTA_NO_ENCONTRADA`, repetida `422 CUOTA_REPETIDA`, de otro estudiante `422 CUOTAS_DE_VARIOS_ESTUDIANTES`.
+  - **Orden de pago (D-14):** primero la matrícula y luego las pensiones por fecha de vencimiento. Solo cuentan las cuotas `PENDIENTE` de la misma matrícula (las anuladas y pagadas no):
+    - Con la cuota de matrícula pendiente no se paga ninguna pensión salvo que la matrícula vaya en la misma operación: `409 MATRICULA_PENDIENTE` «Primero debe pagarse la matrícula 2026. Inclúyela en este pago o regístrala antes.» (el año es el de la matrícula; `details.anio`).
+    - Si se elige una pensión, todas las pensiones pendientes con vencimiento anterior deben ir en la misma operación: `409 CUOTAS_ANTERIORES_PENDIENTES` «Primero deben pagarse las cuotas anteriores: Pensión de setiembre 2026, Pensión de octubre 2026.» (`details.conceptos`).
+    - Se valida en el servidor aunque la pantalla ya lo impida. Los pagos ya registrados no se revisan, y confirmar un pago Observado (US23) no vuelve a aplicar el orden.
   - Monto distinto a la suma: `422 MONTO_NO_COINCIDE` «El monto ingresado no coincide con el total de las cuotas seleccionadas», con `details.total`. No hay pagos parciales. La suma se hace en céntimos enteros, nunca en float.
 - **Concurrencia:** en la transacción se toma un candado por número de operación (`pg_advisory_xact_lock`) y se bloquean las filas de las cuotas (`SELECT … FOR UPDATE`, en orden de id). De dos pagos simultáneos de la misma cuota, el segundo espera y recibe `CUOTA_YA_PAGADA`. De dos con el mismo número, el segundo queda Observado. Lo prueba `tests/matricula/pagos.integracion.test.ts`.
 - **Resultado:**
@@ -198,6 +202,7 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   - Sin cuotas pendientes: `422 SIN_CUOTAS_PENDIENTES`.
   - Monto distinto al total pendiente: `422 MONTO_NO_COINCIDE_PENDIENTE` «El monto no coincide con el total pendiente», con `details.total`.
   - Sin número de operación o con fecha futura: los mismos errores del pago manual.
+  - Orden de pago (D-14): como incluye todas las cuotas pendientes, la cuota de matrícula pendiente siempre va en la operación. El servidor aplica igual la misma validación que el pago manual.
 - Usa el mismo núcleo que el pago manual: en una transacción toma el candado del número de operación y la fila de la matrícula, y bloquea (`FOR UPDATE`, en orden de id) todas las cuotas `PENDIENTE` de la matrícula.
   - Si se confirma: las cuotas pasan a `PAGADO`, la matrícula a `modalidad_pago = ANUAL` (auditoría `CAMBIAR_MODALIDAD_PAGO` con la modalidad anterior y la operación) y se emite **un único comprobante** `R-AAAA-NNNNNN` por el total.
   - Con un número de operación ya usado (US23): queda `OBSERVADO`, sin tocar cuotas ni modalidad. `REGISTRAR_PAGO` guarda `tipoPago: "ANUAL"`; al confirmarla, `POST /matricula/pagos/{id}/confirmar` lee ese dato y también cambia la modalidad a `ANUAL`.
@@ -326,6 +331,7 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 
 `POST /matricula/apoderado/pagos/intentos` con `{ "estudianteId": "uuid", "conceptoIds": ["uuid", …] }` (de 1 a 11 cuotas).
 - El servidor recalcula el vínculo (403 `ESTUDIANTE_NO_VINCULADO`), exige cuotas **Pendiente** del mismo estudiante y de la misma matrícula, y **calcula el monto**. El cliente no envía montos.
+- **Orden de pago (D-14):** las mismas reglas del pago manual, antes de crear el intento: `409 MATRICULA_PENDIENTE` y `409 CUOTAS_ANTERIORES_PENDIENTES`. Rechazado, no se crea intento ni order. Cuando llega el aviso de un pago aprobado, el orden **no** se vuelve a aplicar (el cobro ya se hizo): las cuotas se revisan solo como antes (pagada o anulada → Observado).
 - Crea un `IntentoPago` Pendiente con el monto, las cuotas, un `external_reference` (`KUBO-…`) y una expiración de 30 minutos. Luego crea la order en la pasarela (`X-Idempotency-Key` = id del intento).
 - **No reserva las cuotas:** se validan de nuevo al confirmar el pago.
 - `201 { intentoId, monto, urlCheckout }`. El frontend redirige a `urlCheckout`.
@@ -387,6 +393,8 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 | `NUMERO_OPERACION_REQUERIDO` | 422 | «El número de operación es obligatorio» |
 | `MONTO_NO_COINCIDE` | 422 | «El monto ingresado no coincide con el total de las cuotas seleccionadas» (`details.total`) |
 | `CUOTA_YA_PAGADA` | 409 | «Esta pensión ya fue cancelada el [fecha]» |
+| `MATRICULA_PENDIENTE` | 409 | «Primero debe pagarse la matrícula [año]. Inclúyela en este pago o regístrala antes.» (D-14, `details.anio`) |
+| `CUOTAS_ANTERIORES_PENDIENTES` | 409 | «Primero deben pagarse las cuotas anteriores: [conceptos].» (D-14, `details.conceptos`) |
 | `RECIBO_NO_CONFIRMADO` | 422 | «No se puede generar un recibo de un pago no confirmado» |
 | `PAGO_NO_OBSERVADO` · `PAGO_YA_ANULADO` · `CUOTA_ANULADA` | 409 | Estado que no permite confirmar, descartar, anular o pagar |
 | `PAGO_NO_ENCONTRADO` · `CUOTA_NO_ENCONTRADA` | 404 | No existe |
