@@ -108,7 +108,7 @@ async function codigoDe(p: Promise<unknown>) {
 const formulario = (campos: Record<string, string>, archivo?: { bytes: Uint8Array; nombre: string; tipo: string }) => {
   const f = new FormData();
   for (const [k, v] of Object.entries(campos)) f.set(k, v);
-  if (archivo) f.set("archivo", new File([archivo.bytes], archivo.nombre, { type: archivo.tipo }));
+  if (archivo) f.set("archivo", new File([new Uint8Array(archivo.bytes)], archivo.nombre, { type: archivo.tipo }));
   return f;
 };
 
@@ -311,8 +311,18 @@ describe.skipIf(!ACTIVA)("evidencias pedagógicas (US38) y su consulta en la lib
     ).id;
     await prisma.nota.createMany({
       data: [
-        { cierreId: cierreA, matriculaId: matriculas.valeria, competenciaPlanId: competencias.mat1, logro: "AD" },
-        { cierreId: cierreA, matriculaId: matriculas.valeria, competenciaPlanId: competencias.mat2, logro: "A" },
+        {
+          cierreId: cierreA,
+          matriculaId: matriculas.valeria,
+          competenciaPlanId: competencias.mat1,
+          logro: "AD" as const,
+        },
+        {
+          cierreId: cierreA,
+          matriculaId: matriculas.valeria,
+          competenciaPlanId: competencias.mat2,
+          logro: "A" as const,
+        },
       ].map((n) => ({ ...n, registradoPorId: admin.usuarioId })),
     });
 
