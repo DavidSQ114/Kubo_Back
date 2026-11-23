@@ -69,6 +69,10 @@ model ResultadoConsolidado {
   @@map("resultado_consolidado")
 }
 
+// Evidencia de una calificación (US38): comentario del docente y/o un archivo, al menos uno (ck_evidencia_contenido).
+// El archivo está en el almacén de platform/archivos con la clave interna <area>/<uuid> (nunca una URL pública); el
+// nombre original saneado, el tipo real y el tamaño se guardan aquí. entregaTrabajoId: la evidencia sale de una
+// entrega de trabajo (US64, bloque 6). Solo se crea o borra con el registro ABIERTO (tg_evidencia_registro_cerrado).
 model EvidenciaPedagogica {
   id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   notaId           String          @db.Uuid @map("nota_id")
@@ -76,8 +80,9 @@ model EvidenciaPedagogica {
   entregaTrabajoId String?         @db.Uuid @map("entrega_trabajo_id")
   entregaTrabajo   EntregaTrabajo? @relation(fields: [entregaTrabajoId], references: [id], onDelete: SetNull)
   titulo           String?
+  // Hasta 1000 caracteres (ck_evidencia_comentario_largo)
   comentario       String?
-  archivoUrl       String?         @map("archivo_url")
+  archivoClave     String?         @map("archivo_clave")
   nombreArchivo    String?         @map("nombre_archivo")
   mimeType         String?         @map("mime_type")
   tamanoBytes      Int?            @map("tamano_bytes")
@@ -86,6 +91,8 @@ model EvidenciaPedagogica {
   createdAt        DateTime        @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt        DateTime        @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
+  @@index([notaId])
+  @@index([entregaTrabajoId])
   @@map("evidencia_pedagogica")
 }
 
