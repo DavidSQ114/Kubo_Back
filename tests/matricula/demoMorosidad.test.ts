@@ -4,6 +4,7 @@ import {
   pensionesFaltantes,
   pensionesVencidas,
   referenciaPension,
+  vencimientoMatriculaAMover,
   verificarAjusteDemo,
   type CuotaExistente,
 } from "@/modules/matricula/domain/demoMorosidad";
@@ -98,5 +99,16 @@ describe("DemoMorosidadSchema", () => {
   it("rechaza un DNI que no tiene 8 dígitos o una fecha inexistente", () => {
     expect(() => DemoMorosidadSchema.parse({ dni: "1234" })).toThrow(/8 dígitos/);
     expect(() => DemoMorosidadSchema.parse({ dni: "90000001", desde: "2026-02-30" })).toThrow(/AAAA-MM-DD/);
+  });
+});
+
+describe("vencimientoMatriculaAMover (D-14)", () => {
+  it("mueve el vencimiento de la cuota de matrícula a la fecha nueva", () => {
+    expect(vencimientoMatriculaAMover(EXISTENTES, "2026-09-01")).toBe("2026-11-18");
+  });
+
+  it("no hace nada si ya vence en esa fecha o si no hay cuota de matrícula", () => {
+    expect(vencimientoMatriculaAMover(EXISTENTES, "2026-11-18")).toBeNull();
+    expect(vencimientoMatriculaAMover(EXISTENTES.slice(1), "2026-09-01")).toBeNull();
   });
 });

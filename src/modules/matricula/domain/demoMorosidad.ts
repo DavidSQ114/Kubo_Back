@@ -63,3 +63,12 @@ export function pensionesFaltantes(d: {
 /** Pensiones Pendiente con vencimiento anterior a hoy (la misma regla del panel de morosidad). */
 export const pensionesVencidas = (cuotas: { tipo: string; estado: string; fechaVencimiento: string }[], hoy: string) =>
   cuotas.filter((c) => c.tipo === "PENSION" && estaVencida(c, hoy)).length;
+
+/**
+ * D-14: la cuota de matrícula vence el día de la matrícula (como en generarCronograma). Devuelve el vencimiento
+ * actual si hay que moverlo a `desde`, o null si ya coincide o la matrícula no tiene esa cuota.
+ */
+export function vencimientoMatriculaAMover(existentes: CuotaExistente[], desde: string): string | null {
+  const cuota = existentes.find((c) => c.tipo === "MATRICULA");
+  return cuota && cuota.fechaVencimiento !== desde ? cuota.fechaVencimiento : null;
+}
