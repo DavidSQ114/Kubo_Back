@@ -132,11 +132,16 @@ describe.skipIf(!ACTIVA)("datos de demostración de morosidad (US24, US26, US59)
     const cuotaMatricula = await prisma.conceptoCobro.findFirstOrThrow({
       where: { matriculaId: m.id, tipo: "MATRICULA" },
     });
-    expect(cuotaMatricula.fechaVencimiento.toISOString().slice(0, 10)).toBe(HOY);
+    // D-14: la cuota de matrícula pasa a vencer el día de la matrícula, antes que las pensiones agregadas
+    expect(cuotaMatricula.fechaVencimiento.toISOString().slice(0, 10)).toBe(DESDE);
     const auditoria = await prisma.registroAuditoria.findMany({ where: { entidadId: m.id, accion: "DATOS_DEMO" } });
     expect(auditoria).toHaveLength(1);
-    expect(auditoria[0].valorAnterior).toEqual({ fechaMatricula: HOY });
-    expect(auditoria[0].valorNuevo).toMatchObject({ dni: "******01", fechaMatricula: DESDE });
+    expect(auditoria[0].valorAnterior).toEqual({ fechaMatricula: HOY, vencimientoCuotaMatricula: HOY });
+    expect(auditoria[0].valorNuevo).toMatchObject({
+      dni: "******01",
+      fechaMatricula: DESDE,
+      vencimientoCuotaMatricula: DESDE,
+    });
   });
 
   it("es idempotente: la segunda ejecución no duplica pensiones ni auditoría", async () => {

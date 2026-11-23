@@ -320,8 +320,9 @@ Lo que hace, en una sola transacción:
 
 - busca la matrícula En proceso o Matriculado del estudiante en el año **En curso**;
 - se niega, con un mensaje, si el DNI no es de un estudiante, si no tiene esa matrícula, si está retirada o anulada, o si alguna de sus cuotas ya tiene pagos;
-- cambia `fecha_matricula` a `--desde` (por defecto `2026-09-01`) y agrega las pensiones que faltan según el cronograma, con el mismo día de vencimiento y monto de las que ya tiene. No toca las cuotas existentes ni la de matrícula;
-- registra `DATOS_DEMO` en la auditoría con el DNI enmascarado, la fecha anterior, la nueva y las pensiones agregadas.
+- cambia `fecha_matricula` a `--desde` (por defecto `2026-09-01`) y agrega las pensiones que faltan según el cronograma, con el mismo día de vencimiento y monto de las que ya tiene. No toca las pensiones existentes;
+- mueve también el vencimiento de la cuota de matrícula a `--desde` (como la generaría el cronograma), para que quede antes que las pensiones agregadas y el orden de pago (D-14: primero la matrícula) se pueda demostrar;
+- registra `DATOS_DEMO` en la auditoría con el DNI enmascarado, la fecha anterior, la nueva, el vencimiento anterior y el nuevo de la cuota de matrícula y las pensiones agregadas.
 
 Es idempotente: si se ejecuta otra vez con la misma fecha, no cambia nada. Al final muestra el cronograma y cuántas pensiones quedan vencidas hoy.
 

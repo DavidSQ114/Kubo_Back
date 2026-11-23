@@ -334,3 +334,33 @@ POST {{base}}/matricula/morosidad/recordatorios
 Content-Type: application/json
 
 { "matriculaIds": [] }
+
+# ---------- Orden de pago de las cuotas (D-14) ----------
+# Estudiante con la cuota de matrícula Pendiente y pensiones Pendiente. Copia los ids del estado de cuenta.
+@cuotaMatricula = 00000000-0000-0000-0000-000000000000
+@pensionSetiembre = 00000000-0000-0000-0000-000000000000
+@pensionOctubre = 00000000-0000-0000-0000-000000000000
+
+### 60. Pensión sin la matrícula pendiente → 409 MATRICULA_PENDIENTE «Primero debe pagarse la matrícula 2026. …»
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{pensionSetiembre}}"], "monto": "450", "medioPago": "TRANSFERENCIA", "numeroOperacion": "D14-60", "fechaPago": "2026-11-23" }
+
+### 61. Matrícula y octubre, saltándose setiembre → 409 CUOTAS_ANTERIORES_PENDIENTES «Primero deben pagarse las cuotas anteriores: Pensión de setiembre 2026.»
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuotaMatricula}}", "{{pensionOctubre}}"], "monto": "800", "medioPago": "TRANSFERENCIA", "numeroOperacion": "D14-61", "fechaPago": "2026-11-23" }
+
+### 62. En orden: matrícula y setiembre → 201 Confirmado
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{cuotaMatricula}}", "{{pensionSetiembre}}"], "monto": "800", "medioPago": "TRANSFERENCIA", "numeroOperacion": "D14-62", "fechaPago": "2026-11-23" }
+
+### 63. Con sesión de apoderado: intento en línea saltándose una pensión → 409 CUOTAS_ANTERIORES_PENDIENTES
+POST {{base}}/matricula/apoderado/pagos/intentos
+Content-Type: application/json
+
+{ "estudianteId": "{{hijo}}", "conceptoIds": ["{{pensionOctubre}}"] }

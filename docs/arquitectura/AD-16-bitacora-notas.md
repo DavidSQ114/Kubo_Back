@@ -1,6 +1,6 @@
 # Arquitectura · Bitácora de notas y rectificación de nota (US03, US41)
 
-Decisión AD-16. Sprint 3, bloque 8. Código en `src/modules/evaluacion` (dueño de `nota`, `bitacora_nota` y `solicitud_rectificacion`); migración `prisma/migrations/20261118180000_bitacora_y_rectificacion_notas`. API en [api/evaluacion.md](../api/evaluacion.md).
+Decisión AD-16. Sprint 3, bloque 8; ampliada en el sprint 4 por el defecto D-15. Código en `src/modules/evaluacion` (dueño de `nota`, `bitacora_nota` y `solicitud_rectificacion`); migraciones `prisma/migrations/20261118180000_bitacora_y_rectificacion_notas` y `prisma/migrations/20261123120000_nota_borrado_registro_cerrado`. API en [api/evaluacion.md](../api/evaluacion.md).
 
 ## AD-16 · Bitácora de notas inmutable, escrita por la aplicación, y un único camino para cambiar una nota cerrada
 
@@ -19,7 +19,8 @@ Decisión AD-16. Sprint 3, bloque 8. Código en `src/modules/evaluacion` (dueño
 
    La aplicación aprueba la solicitud **antes** de cambiar la nota, dentro de la misma transacción, con la solicitud y el registro bloqueados (`FOR UPDATE`). Dos aprobaciones a la vez: la segunda espera el bloqueo y encuentra la solicitud ya `APROBADA` (`409 SOLICITUD_YA_RESUELTA`).
 6. **Recálculo fiel al cierre.** Al aprobar, el consolidado del alumno se recalcula con la versión de la regla y los pesos guardados en el `detalle_calculo` de su resultado (los que se usaron al cerrar), no con la versión que rige hoy.
-7. **Restricciones de la solicitud en la base:** `uq_solicitud_rectificacion_pendiente_por_nota` (una sola pendiente por nota, también ante dos pedidos simultáneos), `ck_solicitud_rectificacion_valor_distinto` y `ck_solicitud_rectificacion_motivo_rechazo` (motivo obligatorio al rechazar). La solicitud guarda quién la pidió (`solicitado_por_id`) para que nadie apruebe la suya.
+7. **Tampoco se borra una nota cerrada (D-15).** `tg_nota_registro_cerrado` es `BEFORE INSERT OR UPDATE`: un `DELETE` directo en la base borraba notas de un registro cerrado sin dejar rastro en la bitácora. `tg_nota_borrado_registro_cerrado` (`BEFORE DELETE ON nota`, por fila, función `fn_nota_borrado_registro_cerrado`) lanza el mismo `REGISTRO_CERRADO: el registro de notas está cerrado y no puede modificarse directamente` si el cierre está `CERRADO` o `PUBLICADO`. No tiene excepción para las rectificaciones: una rectificación aprobada actualiza la nota, nunca la borra. Va en una migración nueva (`--create-only`); las aplicadas no se editan.
+8. **Restricciones de la solicitud en la base:** `uq_solicitud_rectificacion_pendiente_por_nota` (una sola pendiente por nota, también ante dos pedidos simultáneos), `ck_solicitud_rectificacion_valor_distinto` y `ck_solicitud_rectificacion_motivo_rechazo` (motivo obligatorio al rechazar). La solicitud guarda quién la pidió (`solicitado_por_id`) para que nadie apruebe la suya.
 
 **Alternativas descartadas.**
 
@@ -34,3 +35,4 @@ Decisión AD-16. Sprint 3, bloque 8. Código en `src/modules/evaluacion` (dueño
 - Las filas de la bitácora no se borran nunca, ni siquiera en las pruebas: las pruebas de integración filtran por los ids que crean. Si se borra un registro de notas, su historia queda en la bitácora con los nombres de ese momento.
 - Un usuario con acceso directo a la base podría insertar una solicitud `APROBADA` y declararla; eso exige además escribir en `solicitud_rectificacion`, y queda a la vista en la bandeja y sin la fila de auditoría `APROBAR_RECTIFICACION_NOTA`. El control de acceso a la base (Neon, AWS) sigue siendo la protección principal.
 - La migración agrega `solicitud_rectificacion.solicitado_por_id NOT NULL`: la tabla no se usaba antes y no tiene filas.
+- **Flujos que podrían borrar notas (revisados para D-15).** Ninguno de la aplicación borra filas de `nota`. Anular (US21, M-19) o retirar (US57) una matrícula solo cambia su estado y sus cuotas; además `nota.matricula_id` es `ON DELETE RESTRICT`, igual que `competencia_plan_id` y la asignación docente del cierre, así que borrar una matrícula, competencia o asignación con notas falla antes de llegar a ellas. La única cascada es `nota.cierre_id ON DELETE CASCADE`: borrar un `cierre_calificacion` se lleva sus notas. Cuando la cascada corre, la fila del cierre ya no existe y el trigger lo deja pasar; ningún flujo borra cierres (solo la limpieza de las pruebas de integración, que depende de esto). Lo prueban `tests/evaluacion/notas.integracion.test.ts` (DELETE directo rechazado) y las limpiezas de las pruebas de evaluación (cascada).

@@ -237,6 +237,13 @@ export const cuotas = {
       })),
     }),
 
+  /** Solo para los datos de demostración (D-14): la cuota de matrícula vence el día de la matrícula. */
+  moverVencimientoMatricula: (matriculaId: string, fecha: string, tx: Tx) =>
+    tx.conceptoCobro.updateMany({
+      where: { matriculaId, tipo: "MATRICULA" },
+      data: { fechaVencimiento: aFecha(fecha) },
+    }),
+
   /** US21: al anular la matrícula, las cuotas pendientes pasan a Anulado. Devuelve cuántas cambiaron. */
   async anularPendientes(matriculaId: string, tx: Tx) {
     const r = await tx.conceptoCobro.updateMany({

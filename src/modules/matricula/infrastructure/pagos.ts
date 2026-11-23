@@ -77,6 +77,15 @@ export const cuotasDePago = {
     return cuotasDePago.porIds(ids, tx);
   },
 
+  /** D-14: todas las cuotas de las matrículas (cualquier estado), para validar el orden de pago. */
+  async deMatriculas(matriculaIds: string[], db: Db = prisma): Promise<CuotaDePago[]> {
+    const filas = await db.conceptoCobro.findMany({
+      where: { matriculaId: { in: matriculaIds } },
+      select: selectCuota,
+    });
+    return filas.map(cuota);
+  },
+
   /** US58: bloquea y devuelve los ids de las cuotas Pendiente de la matrícula (en orden de id). */
   async pendientesBloqueadas(tx: Tx, matriculaId: string): Promise<string[]> {
     const filas = await tx.$queryRaw<{ id: string }[]>`SELECT id::text AS id FROM concepto_cobro

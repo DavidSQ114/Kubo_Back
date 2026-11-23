@@ -78,6 +78,40 @@ export function verificarCuotasPagables(idsElegidos: string[], cuotas: CuotaPara
   return lista.reduce((suma, c) => suma + c.montoCentimos, 0);
 }
 
+export interface CuotaParaOrden {
+  id: string;
+  tipo: "MATRICULA" | "PENSION";
+  concepto: string;
+  /** «AAAA-MM-DD». */
+  fechaVencimiento: string;
+  estado: "PENDIENTE" | "PAGADO" | "ANULADO";
+}
+
+/**
+ * D-14 (US22, US58, US70): orden de pago de las cuotas de UNA matrícula. `cuotas` son todas las de esa matrícula;
+ * los ids elegidos de otras matrículas se ignoran. Solo cuentan las Pendiente (las Anuladas y Pagadas no).
+ * 1. Con la cuota de matrícula Pendiente no se paga ninguna pensión salvo que la matrícula vaya en la misma operación.
+ * 2. Si se elige una pensión, todas las pensiones Pendiente con vencimiento anterior deben ir en la misma operación.
+ * Ejemplo: matrícula pagada, setiembre y octubre pendientes; elegir solo octubre → «Primero deben pagarse las cuotas
+ * anteriores: Pensión setiembre.»
+ */
+export function verificarOrdenDePago(idsElegidos: string[], cuotas: CuotaParaOrden[], anioMatricula: number) {
+  const elegidas = new Set(idsElegidos);
+  const pendientes = cuotas.filter((c) => c.estado === "PENDIENTE");
+  const pensionesElegidas = pendientes.filter((c) => c.tipo === "PENSION" && elegidas.has(c.id));
+  if (!pensionesElegidas.length) return;
+  const matricula = pendientes.find((c) => c.tipo === "MATRICULA");
+  if (matricula && !elegidas.has(matricula.id)) throw E.matriculaPendiente(anioMatricula);
+  const ultimoVencimiento = pensionesElegidas.reduce(
+    (max, c) => (c.fechaVencimiento > max ? c.fechaVencimiento : max),
+    "",
+  );
+  const faltan = pendientes
+    .filter((c) => c.tipo === "PENSION" && !elegidas.has(c.id) && c.fechaVencimiento < ultimoVencimiento)
+    .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+  if (faltan.length) throw E.cuotasAnterioresPendientes(faltan.map((c) => c.concepto));
+}
+
 /** US22: no hay pagos parciales; el monto debe ser exactamente la suma de las cuotas elegidas. */
 export function verificarMontoExacto(montoCentimos: number, sumaCentimos: number) {
   if (montoCentimos !== sumaCentimos) throw E.montoNoCoincide(sumaCentimos);

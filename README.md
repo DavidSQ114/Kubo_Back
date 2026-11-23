@@ -291,7 +291,7 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run db:deploy` | Aplica las migraciones pendientes a la base de `DATABASE_URL` sin borrar nada (base remota) |
 | `npm run db:seed:remoto` | Carga los datos iniciales en la base de `DATABASE_URL` sin usar Docker (base remota) |
 | `npm run conciliar-pagos` | Concilia los pagos en línea pendientes con la pasarela (US71); en AWS lo ejecuta un timer cada 15 minutos |
-| `npm run demo:morosidad -- --dni <DNI> [--desde 2026-09-01]` | Solo con datos ficticios: adelanta la fecha de matrícula de un estudiante y le agrega las pensiones vencidas para demostrar la morosidad (US24, US26, US59). Ver `docs/DESPLIEGUE-AWS.md` |
+| `npm run demo:morosidad -- --dni <DNI> [--desde 2026-09-01]` | Solo con datos ficticios: adelanta la fecha de matrícula (y el vencimiento de su cuota) de un estudiante y le agrega las pensiones vencidas para demostrar la morosidad (US24, US26, US59). Ver `docs/DESPLIEGUE-AWS.md` |
 
 `npm install` ejecuta `prisma generate` automáticamente (`postinstall`). El despliegue está descrito en `docs/DESPLIEGUE.md`.
 

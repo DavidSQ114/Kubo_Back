@@ -12,6 +12,7 @@ import {
   pensionesFaltantes,
   pensionesVencidas,
   referenciaPension,
+  vencimientoMatriculaAMover,
   verificarAjusteDemo,
   type CuotaExistente,
 } from "../domain/demoMorosidad";
@@ -57,7 +58,8 @@ async function matriculaAjustable(tx: Tx, estudianteId: string, anio: { id: stri
 /**
  * Prepara la demostración de morosidad para el estudiante del DNI: en una sola transacción cambia su fecha de
  * matrícula a `desde` y agrega las pensiones que faltan (mismo día de vencimiento y monto), y registra DATOS_DEMO
- * en la auditoría. La cuota de matrícula no cambia. Idempotente: si ya estaba ajustada, no hace nada.
+ * en la auditoría. La cuota de matrícula pasa a vencer en `desde` (D-14), como la generaría el cronograma.
+ * Idempotente: si ya estaba ajustada, no hace nada.
  */
 export async function prepararDemoMorosidad(
   datos: { dni: string; desde: string },
@@ -93,18 +95,28 @@ export async function prepararDemoMorosidad(
       fechaVencimiento: c.fechaVencimiento,
       monto: deCentimos(c.montoCentimos),
     }));
+    const vencimientoAnterior = vencimientoMatriculaAMover(existentes, datos.desde);
     const resultado = { matriculaId: m.id, fechaAnterior: m.fechaMatricula, agregadas };
-    if (m.fechaMatricula === datos.desde && !faltantes.length) return { ...resultado, huboCambios: false };
+    if (m.fechaMatricula === datos.desde && !faltantes.length && !vencimientoAnterior) {
+      return { ...resultado, huboCambios: false };
+    }
 
     await matriculas.cambiarFechaMatricula(m.id, datos.desde, tx);
+    // D-14: la cuota de matrícula vence el día de la matrícula, así queda antes que las pensiones agregadas
+    if (vencimientoAnterior) await cuotas.moverVencimientoMatricula(m.id, datos.desde, tx);
     if (faltantes.length) await cuotas.crear(m.id, faltantes, tx);
     await registrarAuditoria(tx, {
       usuarioId: null,
       entidad: "matricula",
       entidadId: m.id,
       accion: "DATOS_DEMO",
-      anterior: { fechaMatricula: m.fechaMatricula },
-      nuevo: { dni: dniEnmascarado, fechaMatricula: datos.desde, pensionesAgregadas: agregadas },
+      anterior: { fechaMatricula: m.fechaMatricula, vencimientoCuotaMatricula: vencimientoAnterior },
+      nuevo: {
+        dni: dniEnmascarado,
+        fechaMatricula: datos.desde,
+        vencimientoCuotaMatricula: vencimientoAnterior ? datos.desde : null,
+        pensionesAgregadas: agregadas,
+      },
       motivo: "Datos de demostración de morosidad (US24, US26, US59). Solo datos ficticios (RNF14).",
     });
     return { ...resultado, huboCambios: true };
