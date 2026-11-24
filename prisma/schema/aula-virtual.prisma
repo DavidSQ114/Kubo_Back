@@ -24,7 +24,12 @@ model MaterialEstudio {
   unidad              UnidadDidactica?  @relation(fields: [unidadId], references: [id], onDelete: SetNull)
   titulo              String
   tipoFormato         TipoFormato       @map("tipo_formato")
-  urlArchivo          String            @map("url_archivo")
+  /// Solo el material tipo ENLACE: la URL (http o https) que abre el alumno.
+  urlArchivo          String?           @map("url_archivo")
+  /// Archivo en el almacén privado de platform/archivos (materiales/<uuid>); null en un ENLACE.
+  archivoClave        String?           @map("archivo_clave")
+  nombreArchivo       String?           @map("nombre_archivo")
+  tamanoBytes         Int?              @map("tamano_bytes")
   pesoMb              Decimal?          @db.Decimal(5, 2) @map("peso_mb")
   mimeType            String?           @map("mime_type")
   estadoVisibilidad   EstadoVisibilidad @default(BORRADOR) @map("estado_visibilidad")
@@ -34,6 +39,8 @@ model MaterialEstudio {
   createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
+  @@index([asignacionDocenteId])
+  @@index([unidadId])
   @@map("material_estudio")
 }
 
@@ -45,11 +52,14 @@ model EnlaceVirtual {
   titulo              String
   urlMeet             String            @map("url_meet")
   horario             String?
+  /// Inicio del enlace (US62); el estado Programado, Activo o Finalizado se calcula con él y con fechaFin.
   fechaProgramada     DateTime?         @db.Timestamptz(3) @map("fecha_programada")
+  fechaFin            DateTime?         @db.Timestamptz(3) @map("fecha_fin")
   visible             Boolean           @default(true)
   createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
+  @@index([asignacionDocenteId])
   @@map("enlace_virtual")
 }
 

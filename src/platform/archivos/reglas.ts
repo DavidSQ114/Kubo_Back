@@ -173,8 +173,10 @@ export interface ArchivoValidado {
 
 export interface ReglasArchivo {
   permitidos: readonly TipoArchivo[];
-  /** Mensaje para el formato no permitido o el exceso de tamaño (US38: el mismo para ambos). */
+  /** Mensaje para el formato no permitido y, si no se indica `mensajeTamano`, también para el exceso de tamaño (US38). */
   mensaje: string;
+  /** Mensaje propio para el exceso de tamaño (US61 indica el motivo del rechazo). */
+  mensajeTamano?: string;
   tamanoMaximo?: number;
 }
 
@@ -183,7 +185,7 @@ export function validarArchivo(archivo: ArchivoRecibido, reglas: ReglasArchivo):
   const tamanoBytes = archivo.bytes.byteLength;
   if (tamanoBytes === 0) throw erroresArchivos.vacio();
   if (tamanoBytes > (reglas.tamanoMaximo ?? TAMANO_MAXIMO_ARCHIVO))
-    throw erroresArchivos.demasiadoGrande(reglas.mensaje);
+    throw erroresArchivos.demasiadoGrande(reglas.mensajeTamano ?? reglas.mensaje);
   const tipo = detectarTipo(archivo.bytes);
   if (!tipo || !reglas.permitidos.includes(tipo)) throw erroresArchivos.noPermitido(reglas.mensaje);
   return {
