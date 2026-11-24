@@ -2,7 +2,8 @@
 // US28 asignación de clases, US29 y US30 cruces de docente y de aula, US31 publicación por versiones, el horario
 // publicado en los portales del docente, del apoderado y del alumno, US34, US48 y US50, la asistencia de alumnos por
 // sesión de clase, US35 y US36, su consulta en los portales, US45 y US52, y el puerto que académico usa para no borrar
-// cursos ni asignaciones con horario, US10 y US14).
+// cursos ni asignaciones con horario, US10 y US14), y el registro de ingreso del personal docente con su
+// verificación automática de la hora límite (US32).
 export { horariosProviderHorarios } from "./infrastructure/horariosProvider";
 export {
   DIAS,
@@ -62,4 +63,20 @@ export {
   type AsistenciaDelMes,
   type AsistenciaDelAlumno,
 } from "./application/asistenciaPortales";
+export {
+  ESTADOS_ASISTENCIA_DOCENTE,
+  NOMBRE_ESTADO_ASISTENCIA_DOCENTE,
+  type EstadoAsistenciaDocente,
+} from "./domain/asistenciaDocente";
+export {
+  asistenciaDocenteDelDia,
+  registrarIngreso,
+  registrarSalida,
+  justificarFalta,
+  marcarFaltasDocentes,
+  type AsistenciaDocenteDelDia,
+  type DocenteDelDia,
+  type RegistroDelDia,
+  type ResultadoFaltasDocentes,
+} from "./application/asistenciaDocente";
 export * as esquemasHorarios from "./schemas";

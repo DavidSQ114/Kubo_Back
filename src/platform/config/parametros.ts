@@ -15,6 +15,15 @@ export const PARAMETROS_POR_DEFECTO = {
 
 type ClaveConocida = keyof typeof PARAMETROS_POR_DEFECTO;
 
+/** Horas «HH:MM» de la jornada docente (US32): los mismos valores del seed y de la migración que los carga. */
+export const HORAS_POR_DEFECTO = {
+  HORA_INICIO_JORNADA_DOCENTE: "07:30",
+  HORA_LIMITE_ASISTENCIA_DOCENTE: "08:00",
+} as const;
+
+type ClaveHora = keyof typeof HORAS_POR_DEFECTO;
+const FORMATO_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export async function obtenerParametro<T = unknown>(clave: string, anioAcademicoId?: string): Promise<T | undefined> {
   const filas = await prisma.parametroInstitucion.findMany({
     where: { clave, OR: [{ anioAcademicoId: anioAcademicoId ?? null }, { anioAcademicoId: null }] },
@@ -29,4 +38,10 @@ export async function obtenerParametro<T = unknown>(clave: string, anioAcademico
 export async function parametroNumero(clave: ClaveConocida, anioAcademicoId?: string): Promise<number> {
   const valor = Number(await obtenerParametro(clave, anioAcademicoId));
   return Number.isFinite(valor) && valor > 0 ? valor : PARAMETROS_POR_DEFECTO[clave];
+}
+
+/** Parámetro de hora «HH:MM» (por ejemplo «07:30»), con valor por defecto si falta o no tiene ese formato. */
+export async function parametroHora(clave: ClaveHora, anioAcademicoId?: string): Promise<string> {
+  const valor = await obtenerParametro(clave, anioAcademicoId);
+  return typeof valor === "string" && FORMATO_HORA.test(valor) ? valor : HORAS_POR_DEFECTO[clave];
 }

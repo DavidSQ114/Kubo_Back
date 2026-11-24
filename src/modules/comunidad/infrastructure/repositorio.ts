@@ -235,6 +235,17 @@ export const docentes = {
   porIds: (ids: string[], db: Db = prisma) =>
     db.docente.findMany({ where: { id: { in: ids } }, select: selectDocente }),
 
+  /**
+   * Personal docente para la asistencia diaria (US32): los activos y, además, los indicados aunque ya no lo estén
+   * (tienen registros en la fecha consultada). Con su especialidad, por apellido.
+   */
+  personal: (incluir: string[], db: Db = prisma) =>
+    db.docente.findMany({
+      where: { OR: [{ activo: true, persona: { activo: true } }, { id: { in: incluir } }] },
+      orderBy: [{ persona: { apellidos: "asc" } }, { persona: { nombres: "asc" } }],
+      select: { ...selectDocente, especialidad: true },
+    }),
+
   porPersona: (personaId: string, db: Db = prisma) =>
     db.docente.findUnique({ where: { personaId }, select: selectDocente }),
 

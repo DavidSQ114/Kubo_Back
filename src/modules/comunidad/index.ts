@@ -15,11 +15,13 @@ export { perfilesProviderComunidad } from "./infrastructure/perfilesProvider";
 export * as esquemasComunidad from "./schemas";
 export {
   listarDocentesActivos,
+  personalDocente,
   registrarDocente,
   contactosDeDocentes,
   personasDeDocentes,
   type DatosDocente,
   type ContactoDocente,
+  type DocenteDelPersonal,
 } from "./application/docentes";
 export { buscarPersonaPorDni, personaParaPerfil, type PersonaEncontrada } from "./application/personas";
 export { enmascararDni } from "./domain/edicion";
