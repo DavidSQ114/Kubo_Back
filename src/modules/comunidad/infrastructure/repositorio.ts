@@ -406,7 +406,31 @@ export const estudiantes = {
 
 // ---------- Vínculos estudiante–apoderado (US15, US17) ----------
 
+const selectPersonaVinculo = {
+  id: true,
+  activo: true,
+  persona: { select: { id: true, nombres: true, apellidos: true, activo: true } },
+} as const;
+
 export const vinculos = {
+  /**
+   * Vínculos de una persona (D-12): como estudiante, sus apoderados; como apoderado, sus hijos. Activos o no, para
+   * que el detalle muestre también los de un perfil ya desactivado.
+   */
+  dePersona: (personaId: string, db: Db = prisma) =>
+    db.vinculoApoderado.findMany({
+      where: { OR: [{ estudiante: { personaId } }, { apoderado: { personaId } }] },
+      orderBy: [{ esPrincipal: "desc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        parentesco: true,
+        esPrincipal: true,
+        autorizado: true,
+        estudiante: { select: selectPersonaVinculo },
+        apoderado: { select: selectPersonaVinculo },
+      },
+    }),
+
   deEstudiante: (estudianteId: string, db: Db = prisma) =>
     db.vinculoApoderado.findMany({
       where: { estudianteId },

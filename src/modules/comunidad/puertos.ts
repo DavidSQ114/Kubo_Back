@@ -43,6 +43,21 @@ export interface RegistrosMatriculaProvider {
    * al portal del alumno (US49). Un retirado o con la matrícula anulada no la tiene.
    */
   tieneMatriculaVigente(tx: Tx, estudianteId: string): Promise<boolean>;
+  /**
+   * Matrícula más reciente de cada estudiante (la de su último año; una anulada solo si no tiene otra), con su sección
+   * y el vínculo responsable del pago: los vínculos del detalle de una persona (D-12). Sin matrícula no aparece.
+   */
+  matriculasRecientes(estudianteIds: string[]): Promise<Record<string, MatriculaReciente>>;
+}
+
+export interface MatriculaReciente {
+  anio: number;
+  /** EN_PROCESO, MATRICULADO, RETIRADO, ANULADO o FINALIZADO. */
+  estado: string;
+  /** «3° B»; null si aún no tiene sección. */
+  seccion: string | null;
+  /** Vínculo apoderado–estudiante responsable del pago de esa matrícula. */
+  vinculoResponsableId: string | null;
 }
 
 let registrosMatricula: RegistrosMatriculaProvider | null = null;
