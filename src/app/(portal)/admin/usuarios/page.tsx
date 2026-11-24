@@ -58,7 +58,11 @@ function Usuarios({ qInicial }: { qInicial: string }) {
   const [aSuspender, setASuspender] = useState<UsuarioListado | null>(null);
   const [aReactivar, setAReactivar] = useState<UsuarioListado | null>(null);
   const [registrando, setRegistrando] = useState(false);
-  const [personaAbierta, setPersonaAbierta] = useState<{ usuario: UsuarioListado; modo: ModoPersona } | null>(null);
+  const [personaAbierta, setPersonaAbierta] = useState<{
+    personaId: string;
+    usuarioId: string | null;
+    modo: ModoPersona;
+  } | null>(null);
 
   // Espera 300 ms después de la última tecla antes de buscar; toda búsqueda nueva vuelve a la página 1.
   useEffect(() => {
@@ -314,13 +318,17 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                         <Accion
                           icono="act-eye"
                           texto="Ver detalle"
-                          onClick={() => setPersonaAbierta({ usuario: u, modo: "detalle" })}
+                          onClick={() =>
+                            setPersonaAbierta({ personaId: u.personaId, usuarioId: u.usuarioId, modo: "detalle" })
+                          }
                         />
                         {u.estado !== "SUSPENDIDO" && (
                           <Accion
                             icono="act-edit"
                             texto="Editar"
-                            onClick={() => setPersonaAbierta({ usuario: u, modo: "editar" })}
+                            onClick={() =>
+                              setPersonaAbierta({ personaId: u.personaId, usuarioId: u.usuarioId, modo: "editar" })
+                            }
                           />
                         )}
                         {u.usuarioId && u.estado === "SUSPENDIDO" && (
@@ -365,11 +373,12 @@ function Usuarios({ qInicial }: { qInicial: string }) {
       <ModalReactivar usuario={aReactivar} onCerrar={() => setAReactivar(null)} onListo={alTerminarAccion} />
       {personaAbierta && (
         <ModalPersona
-          key={`${personaAbierta.usuario.personaId}-${personaAbierta.modo}`}
-          personaId={personaAbierta.usuario.personaId}
+          key={`${personaAbierta.personaId}-${personaAbierta.modo}`}
+          personaId={personaAbierta.personaId}
           modoInicial={personaAbierta.modo}
-          esYo={personaAbierta.usuario.usuarioId === sesion.usuario.id}
+          esYo={personaAbierta.usuarioId === sesion.usuario.id}
           onCerrar={() => setPersonaAbierta(null)}
+          onVerPersona={(personaId) => setPersonaAbierta({ personaId, usuarioId: null, modo: "detalle" })}
           onListo={(mensaje) => {
             setPersonaAbierta(null);
             alTerminarAccion(mensaje);

@@ -1,10 +1,10 @@
-// AD-04 · Cursos y competencias (US10, US11)
+// AD-04 · Cursos y competencias (US10, US11) y su pestaña «Catálogo oficial» (US56)
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { anioPorDefecto, type AnioAcademico } from "@/components/admin/anio";
+import { CatalogoOficial } from "@/components/admin/catalogoCompetencias";
 import {
-  CatalogoOficial,
   DetalleCurso,
   FormularioCurso,
   ID_CAMPO_CURSO,
@@ -58,6 +58,20 @@ export default function CursosCompetenciasPage() {
     }
     void cargar();
   }, []);
+
+  // US56: tras un cambio en el catálogo oficial, las áreas de la malla se vuelven a leer (competencias que se pueden
+  // elegir al registrar un curso)
+  const [versionAreas, setVersionAreas] = useState(0);
+  useEffect(() => {
+    if (!versionAreas) return;
+    let vigente = true;
+    api<Area[]>("/academico/areas")
+      .then((areas) => vigente && setCatalogos((c) => c && { ...c, areas }))
+      .catch((e) => vigente && setAlerta(alertaError(e)));
+    return () => {
+      vigente = false;
+    };
+  }, [versionAreas]);
 
   const anio = catalogos
     ? (catalogos.anios.find((a) => a.id === anioElegido) ?? anioPorDefecto(catalogos.anios))
@@ -223,7 +237,7 @@ export default function CursosCompetenciasPage() {
         </Alerta>
       )}
 
-      {pestana === "catalogo" && <CatalogoOficial areas={catalogos.areas} />}
+      {pestana === "catalogo" && <CatalogoOficial onCambio={() => setVersionAreas((n) => n + 1)} />}
 
       {pestana === "malla" && (
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[380px_1fr]">

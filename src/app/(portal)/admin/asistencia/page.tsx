@@ -1,10 +1,12 @@
 // Asistencia de alumnos · Administrador (US36, criterio 3 · modal M-20): sesiones de clase de una fecha con sus
 // contadores; al abrir una se ve su lista y se corrige un registro fuera del plazo del docente, con motivo
-// obligatorio y auditoría. Pantalla sin diseño propio en el Figma: ver docs/frontend-asistencia.md.
+// obligatorio y auditoría. Pantalla sin diseño propio en el Figma: ver docs/frontend-asistencia.md. Comparte las
+// pestañas de AD-14 con la asistencia docente (US32).
 "use client";
 
 import { useState } from "react";
 import { ListaDeSesion, ModalCorregirAsistencia } from "@/components/admin/asistencia";
+import { PestanasAsistencia } from "@/components/admin/asistenciaDocente";
 import {
   BadgeRegistro,
   type AlumnoDeSesion,
@@ -98,6 +100,8 @@ export default function AsistenciaAlumnosPage() {
           plazo. Cada corrección exige un motivo y queda en la bitácora de auditoría.
         </p>
       </div>
+
+      <PestanasAsistencia activa="alumnos" />
 
       <Tarjeta className="flex flex-wrap items-end gap-4 p-5">
         <label className="flex w-[200px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">

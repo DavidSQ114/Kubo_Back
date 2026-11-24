@@ -156,11 +156,16 @@ export function AvisoVencidas({ datos, accion }: { datos: PagosDelHijo; accion?:
       ? `${vencidas[0].concepto} · ${soles(vencidas[0].monto)} · venció el ${fechaDia(vencidas[0].fechaVencimiento)}.`
       : `${listaConceptos(vencidas)} · ${soles(datos.resumen.vencido)} en total.`;
   return (
-    <div className="flex items-center gap-4 rounded-lg border-l-4 border-rojo bg-rojo/8 px-5 py-4">
+    <div className="flex flex-wrap items-center gap-4 rounded-lg border-l-4 border-rojo bg-rojo/8 px-5 py-4">
       <Icono nombre="alerta-err" size={20} />
-      <div className="flex flex-1 flex-col gap-0.5 text-[14px] leading-[1.4]">
+      <div className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[14px] leading-[1.4]">
         <p className="font-semibold text-texto">{titulo}</p>
-        <p className="text-texto-2">{detalle} Regulariza el pago en tesorería o por transferencia.</p>
+        <p className="text-texto-2">
+          {detalle}{" "}
+          {datos.pagoEnLinea
+            ? "Puedes pagar en línea con «Pagar» o regularizarlo en tesorería."
+            : "Regulariza el pago en tesorería o por transferencia."}
+        </p>
       </div>
       {accion}
     </div>

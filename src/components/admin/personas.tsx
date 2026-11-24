@@ -1,5 +1,6 @@
 // Piezas de AD-06 para una persona (US69): detalle con historial de cambios, edición en dos pasos y baja. Desde el
-// detalle de un estudiante sin cuenta se crea su acceso al portal del alumno (US49).
+// detalle de un estudiante sin cuenta se crea su acceso al portal del alumno (US49). El detalle muestra los vínculos:
+// apoderados de un estudiante e hijos de un apoderado, con enlace al detalle de cada uno (D-12).
 // Pantalla no diseñada en el Figma: usa el estilo de los modales M-04.
 "use client";
 
@@ -253,14 +254,116 @@ function Historial({ eventos }: { eventos: EventoHistorial[] }) {
   );
 }
 
+interface VinculoDePersona {
+  vinculoId: string;
+  personaId: string;
+  nombreCompleto: string;
+  activo: boolean;
+  parentesco: string;
+  esPrincipal: boolean;
+  autorizado: boolean;
+  responsablePago: boolean;
+  matricula: { anio: number; estado: string; seccion: string | null } | null;
+}
+
+interface VinculosDePersona {
+  apoderados: VinculoDePersona[];
+  hijos: VinculoDePersona[];
+}
+
+const NOMBRE_ESTADO_MATRICULA: Record<string, string> = {
+  EN_PROCESO: "En proceso",
+  MATRICULADO: "Matriculado",
+  RETIRADO: "Retirado",
+  ANULADO: "Anulada",
+  FINALIZADO: "Finalizado",
+};
+
+/** D-12: un apoderado del estudiante o un hijo del apoderado, con enlace a su propio detalle. */
+function FilaVinculo({
+  v,
+  esHijo = false,
+  onVer,
+}: {
+  v: VinculoDePersona;
+  esHijo?: boolean;
+  onVer?: (personaId: string) => void;
+}) {
+  const etiquetas = [v.parentesco, v.esPrincipal && "Principal", v.responsablePago && "Responsable del pago"].filter(
+    Boolean,
+  );
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-borde px-3.5 py-2.5">
+      <div className="flex min-w-0 flex-1 flex-col leading-[1.4]">
+        {onVer ? (
+          <button
+            type="button"
+            onClick={() => onVer(v.personaId)}
+            className="w-fit text-left text-[14px] font-semibold text-kubo-azul hover:underline"
+          >
+            {v.nombreCompleto}
+          </button>
+        ) : (
+          <span className="text-[14px] font-semibold text-texto">{v.nombreCompleto}</span>
+        )}
+        <span className="text-[13px] text-texto-2">
+          {etiquetas.join(" · ")}
+          {!v.activo ? " · Inactivo" : ""}
+        </span>
+      </div>
+      {esHijo && (
+        <span className="text-[13px] text-texto-2">
+          {v.matricula
+            ? `${v.matricula.seccion ?? "Sin sección"} · ${NOMBRE_ESTADO_MATRICULA[v.matricula.estado] ?? v.matricula.estado} (${v.matricula.anio})`
+            : "Sin matrícula"}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** D-12: apoderados del estudiante e hijos del apoderado, para no tener que buscarlos por DNI. */
+function Vinculos({ vinculos, onVer }: { vinculos: VinculosDePersona; onVer?: (personaId: string) => void }) {
+  const { apoderados, hijos } = vinculos;
+  if (!apoderados.length && !hijos.length) return null;
+  return (
+    <div className="flex w-full flex-col gap-3 border-t border-borde pt-4">
+      {apoderados.length > 0 && (
+        <>
+          <h3 className="text-[14px] font-semibold leading-[1.4] text-texto">Apoderados</h3>
+          <ul className="flex flex-col gap-2">
+            {apoderados.map((v) => (
+              <FilaVinculo key={v.vinculoId} v={v} onVer={onVer} />
+            ))}
+          </ul>
+        </>
+      )}
+      {hijos.length > 0 && (
+        <>
+          <h3 className="text-[14px] font-semibold leading-[1.4] text-texto">Hijos (estudiantes vinculados)</h3>
+          <ul className="flex flex-col gap-2">
+            {hijos.map((v) => (
+              <FilaVinculo key={v.vinculoId} v={v} esHijo onVer={onVer} />
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Detalle({
   detalle,
   historial,
+  vinculos,
   onCrearAcceso,
+  onVerPersona,
 }: {
   detalle: DetallePersona;
   historial: EventoHistorial[];
+  vinculos: VinculosDePersona;
   onCrearAcceso: () => void;
+  onVerPersona?: (personaId: string) => void;
 }) {
   return (
     <>
@@ -289,6 +392,7 @@ function Detalle({
           </div>
         ))}
       </dl>
+      <Vinculos vinculos={vinculos} onVer={onVerPersona} />
       <div className="flex w-full flex-col gap-3 border-t border-borde pt-4">
         <h3 className="text-[14px] font-semibold leading-[1.4] text-texto">Historial de cambios</h3>
         <Historial eventos={historial} />
@@ -307,16 +411,24 @@ export function ModalPersona({
   esYo,
   onCerrar,
   onListo,
+  onVerPersona,
 }: {
   personaId: string;
   modoInicial: ModoPersona;
   esYo: boolean;
   onCerrar: () => void;
   onListo: (mensaje: string) => void;
+  /** D-12: abrir el detalle de un apoderado o de un hijo vinculado. */
+  onVerPersona?: (personaId: string) => void;
 }) {
   const router = useRouter();
   const [modo, setModo] = useState<Modo>(modoInicial);
-  const [carga, setCarga] = useState<{ detalle?: DetallePersona; historial?: EventoHistorial[]; error?: string }>({});
+  const [carga, setCarga] = useState<{
+    detalle?: DetallePersona;
+    historial?: EventoHistorial[];
+    vinculos?: VinculosDePersona;
+    error?: string;
+  }>({});
   const [formulario, setFormulario] = useState<Formulario | null>(null);
   const [motivo, setMotivo] = useState("");
   const [perfilARetirar, setPerfilARetirar] = useState("");
@@ -332,10 +444,11 @@ export function ModalPersona({
     Promise.all([
       api<DetallePersona>(`/comunidad/personas/${personaId}`),
       api<{ items: EventoHistorial[] }>(`/comunidad/personas/${personaId}/historial`),
+      api<VinculosDePersona>(`/comunidad/personas/${personaId}/vinculos`),
     ])
-      .then(([detalle, historial]) => {
+      .then(([detalle, historial, vinculos]) => {
         if (!vigente) return;
-        setCarga({ detalle, historial: historial.items });
+        setCarga({ detalle, historial: historial.items, vinculos });
         setFormulario(aFormulario(detalle));
         setEmailAcceso(detalle.email ?? "");
       })
@@ -347,7 +460,7 @@ export function ModalPersona({
     };
   }, [personaId]);
 
-  const { detalle, historial } = carga;
+  const { detalle, historial, vinculos } = carga;
   const cambios = useMemo(() => (detalle && formulario ? cambiosDe(detalle, formulario) : []), [detalle, formulario]);
   const pideMotivo = cambios.some((c) => CAMPOS_IDENTIDAD.includes(c.campo));
   const cambiaCorreoDeCuenta = Boolean(detalle?.cuenta) && cambios.some((c) => c.campo === "email");
@@ -504,8 +617,14 @@ export function ModalPersona({
         </div>
       )}
 
-      {detalle && historial && modo === "detalle" && (
-        <Detalle detalle={detalle} historial={historial} onCrearAcceso={() => setModo("acceso")} />
+      {detalle && historial && vinculos && modo === "detalle" && (
+        <Detalle
+          detalle={detalle}
+          historial={historial}
+          vinculos={vinculos}
+          onCrearAcceso={() => setModo("acceso")}
+          onVerPersona={onVerPersona}
+        />
       )}
 
       {detalle && modo === "acceso" && !acceso && (
