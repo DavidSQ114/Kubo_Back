@@ -138,3 +138,21 @@ export function haceCuanto(iso: string, ahora: Date = new Date()): string {
   if (clave(p) === clave(partes(new Date(ahora.getTime() - 86_400_000)))) return `Ayer, ${p.hora}`;
   return `${p.dia}/${p.mes}/${p.anio}`;
 }
+
+/**
+ * Inicio y fin de un enlace de clase virtual en la hora de Lima (DO-05, AL-05): «lunes 24/11, 10:00 – 11:30» o, si
+ * termina otro día, «lunes 24/11, 23:00 – martes 25/11, 01:00».
+ */
+export function rangoDeHoras(inicioIso: string, finIso: string): string {
+  const dia = (p: ReturnType<typeof partes>) => diaSemanaCorto(`${p.anio}-${p.mes}-${p.dia}`);
+  const i = partes(new Date(inicioIso));
+  const f = partes(new Date(finIso));
+  const mismoDia = i.anio === f.anio && i.mes === f.mes && i.dia === f.dia;
+  return `${dia(i)}, ${i.hora} – ${mismoDia ? "" : `${dia(f)}, `}${f.hora}`;
+}
+
+/** Instante ISO → «2026-11-24T10:00» en la hora de Lima: valor de un campo datetime-local (M-17). */
+export function entradaFechaHora(iso: string): string {
+  const p = partes(new Date(iso));
+  return `${p.anio}-${p.mes}-${p.dia}T${p.hora}`;
+}
