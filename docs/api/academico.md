@@ -1,4 +1,4 @@
-# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas, asignaciones y montos del año (US06–US12, US14, US21)
+# API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas, asignaciones y montos del año (US06–US12, US14, US21) y catálogo oficial de competencias (US56)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
@@ -402,3 +402,39 @@ Requisito del cronograma de pagos: la cuota de matrícula y la pensión mensual 
 ## Dependencias entre módulos
 
 - matricula los lee con `montosDelAnio` y bloquea la sección con `seccionBloqueadaParaMatricula(tx, id)` (`SELECT … FOR UPDATE`), ambos por el `index.ts` de académico.
+
+# Catálogo oficial de competencias (US56)
+
+Pestaña «Catálogo oficial» de AD-04 (`/admin/cursos`). Cuando el Ministerio publica una competencia nueva, el administrador la registra en su área curricular; la edita, la desactiva o, si no se usa, la elimina.
+
+## Endpoints · solo `ADMINISTRADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /academico/competencias` | — | `AreaDelCatalogo[]`: áreas activas con todas sus competencias (activas o no) |
+| `POST /academico/competencias` | `{ areaCurricularId, codigo, nombre, descripcion? }` | `201 CompetenciaDelCatalogo` |
+| `PATCH /academico/competencias/{id}` | `{ nombre?, descripcion?, activo? }` (al menos uno) | `CompetenciaDelCatalogo` |
+| `DELETE /academico/competencias/{id}` | — | `{ competenciaId, eliminada: true }` |
+
+- `CompetenciaDelCatalogo`: `{ id, areaCurricularId, codigo, nombre, descripcion, activo, uso: { planes, notas }, eliminable }`. `uso.planes` son los planes de estudio (curso + grado + año) que la evalúan y `uso.notas`, las calificaciones registradas con ella.
+
+## Reglas
+
+- **Registrar (criterio 1):** código de 2 a 15 letras, números o guiones, normalizado a mayúsculas (`mat-c5` → `MAT-C5`; si no, `400 CODIGO_COMPETENCIA_INVALIDO`) y único (`409 COMPETENCIA_CODIGO_EN_USO`). El área debe existir y estar activa (`422 AREA_NO_DISPONIBLE`). Queda activa y se puede asociar a los cursos de esa área («Competencias del curso»).
+- **Eliminar (criterio 2):** con calificaciones registradas, `409 COMPETENCIA_CON_CALIFICACIONES` «No se puede eliminar una competencia con calificaciones registradas: solo puedes desactivarla.» (`details.notas`); asociada a un plan de estudios sin notas, `409 COMPETENCIA_EN_PLAN` (`details.planes`). Solo se elimina la que no se usa.
+- **Desactivar:** `PATCH { activo: false }`. No se puede asociar a cursos nuevos (`422 COMPETENCIA_INACTIVA` al guardar las competencias de un plan), pero los planes que ya la tienen la conservan y siguen registrando notas con ella. `PATCH { activo: true }` la reactiva.
+- **Editar:** solo el nombre y la descripción; el código y el área no cambian (las notas siguen asociadas a la misma competencia). Sin cambios, `409 COMPETENCIA_SIN_CAMBIOS`. `descripcion: ""` o `null` la deja vacía.
+- Cada cambio bloquea la fila de la competencia (`SELECT … FOR UPDATE`).
+
+## Auditoría (RF03)
+
+| Acción | Entidad | Anterior → nuevo |
+|---|---|---|
+| `REGISTRAR_COMPETENCIA` | `competencia` | — → `{ codigo, nombre, descripcion, activo, areaCurricularId, area }` |
+| `EDITAR_COMPETENCIA` | `competencia` | `{ codigo, …campos que cambian }` → `{ codigo, …valores nuevos }` (criterio 3) |
+| `DESACTIVAR_COMPETENCIA` / `ACTIVAR_COMPETENCIA` | `competencia` | `{ codigo, activo }` → `{ codigo, activo }` |
+| `ELIMINAR_COMPETENCIA` | `competencia` | `{ codigo, nombre, descripcion, activo, areaCurricularId }` → — |
+
+## Dependencias entre módulos
+
+- Las calificaciones se cuentan con el puerto `CierresProvider.notasPorCompetenciaPlan` (lo implementa evaluacion).

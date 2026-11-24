@@ -229,3 +229,6 @@ POST {{base}}/comunidad/estudiantes/{{estudiante}}/acceso
 Content-Type: application/json
 
 { "email": "diego.quispe@ejemplo.test" }
+
+### 41. Vínculos de la persona (D-12) → 200 { apoderados, hijos }; persona inexistente → 404 NO_ENCONTRADO
+GET {{base}}/comunidad/personas/{{persona}}/vinculos

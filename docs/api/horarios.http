@@ -1,6 +1,6 @@
 # Pruebas manuales de la API de horarios: cuadrícula (US27), asignación de clases (US28), cruces de docente y de
 # aula (US29, US30), publicación por versiones (US31), horario en los portales (US34, US48, US50) y asistencia de
-# alumnos (US35, US36, US45, US52, bloques 23 a 32).
+# alumnos (US35, US36, US45, US52, bloques 23 a 32) y asistencia docente (US32, bloques 33 a 36).
 # Requiere la extensión REST Client (humao.rest-client): clic en "Send Request" sobre cada bloque.
 # Todas las rutas exigen sesión de administrador: ejecuta antes los bloques 2 y 4 de identidad.http
 # (las cookies de sesión se guardan solas entre solicitudes, también entre archivos).
@@ -173,3 +173,27 @@ GET {{base}}/horarios/apoderado/hijos/{{estudiante}}/asistencia?mes=2026-09
 
 ### 32. «Mi asistencia» del alumno (US52) → 200 con bimestre, delAnio, riesgo y alertaDelMes
 GET {{base}}/horarios/alumno/asistencia
+
+# ---------- Asistencia del personal docente (US32, AD-14), bloques 33 a 36 ----------
+
+### 33. Listado del día (por defecto, hoy) → 200 con resumen, horaLimite y el registro de cada docente
+GET {{base}}/horarios/asistencia-docente
+
+### 34. Marcar «Asistió» hoy → 201 PUNTUAL o TARDANZA; otra fecha → 422 SOLO_DIA_ACTUAL; de nuevo → 409
+POST {{base}}/horarios/asistencia-docente/ingreso
+Content-Type: application/json
+
+{ "docenteId": "{{docente}}", "fecha": "2026-11-25" }
+
+### 35. Registrar la salida de hoy → 200; sin ingreso → 422 SIN_INGRESO; de nuevo → 409 SALIDA_YA_REGISTRADA
+POST {{base}}/horarios/asistencia-docente/salida
+Content-Type: application/json
+
+{ "docenteId": "{{docente}}", "fecha": "2026-11-25" }
+
+### 36. Justificar una inasistencia (cualquier fecha) → 200 FALTA_JUSTIFICADA; si no es FALTA → 422 NO_ES_INASISTENCIA
+# @registroDocente es registro.id de un docente con estado FALTA en el bloque 33
+POST {{base}}/horarios/asistencia-docente/{{registroDocente}}/justificar
+Content-Type: application/json
+
+{ "motivo": "Presentó descanso médico por dos días" }
