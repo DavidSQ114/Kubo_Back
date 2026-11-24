@@ -1,6 +1,6 @@
-// AL-01 · Inicio · Alumno (US49, US52): panel simplificado con accesos solo a Horario, Mis cursos, Notas, Asistencia
-// y Notificaciones. Notas y Notificaciones aún no existen y se muestran como «Próximamente», igual que en el portal
-// del apoderado.
+// AL-01 · Inicio · Alumno (US49, US51, US52): panel simplificado con accesos solo a Horario, Mis cursos, Notas,
+// Asistencia y Notificaciones. Las notificaciones (US55) se leen en la campana de la barra superior: su tarjeta lo
+// explica, sin enlace propio.
 "use client";
 
 import Link from "next/link";
@@ -13,7 +13,7 @@ interface Acceso {
   titulo: string;
   descripcion: string;
   icono: string;
-  /** Sin destino, el módulo aún no existe. */
+  /** Sin destino, se muestra como información (las notificaciones viven en la campana). */
   href?: string;
   accion?: string;
 }
@@ -37,6 +37,8 @@ const ACCESOS: Acceso[] = [
     titulo: "Mis notas",
     descripcion: "Consulta tus logros por curso y competencia.",
     icono: "nav-award-azul",
+    href: "/alumno/notas",
+    accion: "Ver notas",
   },
   {
     titulo: "Mi asistencia",
@@ -47,7 +49,7 @@ const ACCESOS: Acceso[] = [
   },
   {
     titulo: "Notificaciones",
-    descripcion: "Avisos del colegio sobre tus clases y tus notas.",
+    descripcion: "Avisos del colegio sobre tus clases y tus notas. Ábrelos con la campana de la barra superior.",
     icono: "alerta-info",
   },
 ];
@@ -64,12 +66,7 @@ function TarjetaAccesoPanel({ acceso }: { acceso: Acceso }) {
   );
   if (!acceso.href) {
     return (
-      <li className="flex flex-col gap-3 rounded-lg border border-dashed border-borde bg-white p-5 opacity-80">
-        {contenido}
-        <span className="w-fit rounded-full bg-fondo px-2.5 py-0.5 text-[12px] font-semibold text-texto-3">
-          Próximamente
-        </span>
-      </li>
+      <li className="flex flex-col gap-3 rounded-lg border border-borde bg-white p-5 shadow-tarjeta">{contenido}</li>
     );
   }
   return (
@@ -102,8 +99,8 @@ export default function InicioAlumnoPage() {
       </ul>
       <p className="flex items-start gap-2 text-[13px] leading-[1.5] text-texto-3">
         <Icono nombre="icon-lock" size={16} />
-        Tu cuenta de alumno es de consulta: puedes ver tu horario, tus cursos y tu asistencia. No puedes modificar
-        registros académicos.
+        Tu cuenta de alumno es de consulta: puedes ver tu horario, tus cursos, tus notas y tu asistencia. No puedes
+        modificar registros académicos.
       </p>
     </>
   );

@@ -135,11 +135,13 @@ model AsistenciaDocente {
   horaSalida      DateTime?               @db.Time(0) @map("hora_salida")
   estado          EstadoAsistenciaDocente
   justificacion   String?
-  registradoPorId String                  @db.Uuid @map("registrado_por_id")
-  registradoPor   Usuario                 @relation(fields: [registradoPorId], references: [id], onDelete: Restrict)
+  /// null: la marcó la verificación automática de la hora límite (US32)
+  registradoPorId String?                 @db.Uuid @map("registrado_por_id")
+  registradoPor   Usuario?                @relation(fields: [registradoPorId], references: [id], onDelete: Restrict)
   createdAt       DateTime                @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt       DateTime                @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
   @@unique([docenteId, fecha])
+  @@index([fecha])
   @@map("asistencia_docente")
 }

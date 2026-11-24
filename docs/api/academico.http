@@ -436,3 +436,33 @@ PUT {{base}}/academico/planes/{{planMat1}}/competencias
 Content-Type: application/json
 
 { "competencias": [{ "competenciaId": "{{matC1}}", "peso": 60 }, { "competenciaId": "{{matC2}}" }] }
+
+### 68. Catálogo oficial de competencias (US56) → 200 con uso { planes, notas } y eliminable de cada una
+GET {{base}}/academico/competencias
+
+### 69. Registrar una competencia nueva (US56) → 201; mismo código → 409 COMPETENCIA_CODIGO_EN_USO
+# @name nuevaCompetencia
+POST {{base}}/academico/competencias
+Content-Type: application/json
+
+{ "areaCurricularId": "{{matArea}}", "codigo": "mat-c5", "nombre": "Usa el pensamiento computacional",
+  "descripcion": "Competencia de ejemplo publicada por el Ministerio" }
+
+###
+@competencia = {{nuevaCompetencia.response.body.$.data.id}}
+@matArea = PEGAR-ID-DEL-AREA-MAT
+
+### 70. Editar la descripción → 200 y auditoría EDITAR_COMPETENCIA con el valor anterior y el nuevo
+PATCH {{base}}/academico/competencias/{{competencia}}
+Content-Type: application/json
+
+{ "descripcion": "Descripción actualizada" }
+
+### 71. Desactivar → 200 { activo: false } y auditoría DESACTIVAR_COMPETENCIA; ya no se asocia a cursos nuevos
+PATCH {{base}}/academico/competencias/{{competencia}}
+Content-Type: application/json
+
+{ "activo": false }
+
+### 72. Eliminar: sin uso → 200; en un plan → 409 COMPETENCIA_EN_PLAN; con notas → 409 COMPETENCIA_CON_CALIFICACIONES
+DELETE {{base}}/academico/competencias/{{competencia}}

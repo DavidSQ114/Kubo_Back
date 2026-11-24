@@ -103,3 +103,20 @@ export const ConsultaSesionesSchema = z.object({ fecha: FechaSchema.optional() }
 
 /** ?mes=2026-09: mes de la asistencia que consulta el apoderado (por defecto, el mes actual). */
 export const ConsultaMesSchema = z.object({ mes: MesSchema.optional() });
+
+// ---------- Asistencia del personal docente (US32) ----------
+
+/** ?fecha=2026-09-16: día del listado de AD-14 (por defecto, hoy). */
+export const ConsultaAsistenciaDocenteSchema = z.object({ fecha: FechaSchema.optional() });
+
+/** «Asistió» o la salida de un docente. La fecha se valida en el servidor: solo se acepta la de hoy en Lima. */
+export const MarcacionDocenteSchema = z.object({ docenteId: IdSchema, fecha: FechaSchema });
+
+/** Justificación de una inasistencia: el motivo es obligatorio. */
+export const JustificacionDocenteSchema = z.object({
+  motivo: z
+    .string({ message: "El motivo de la justificación es obligatorio" })
+    .trim()
+    .min(LARGO_MINIMO_MOTIVO, `Indica el motivo de la justificación (mínimo ${LARGO_MINIMO_MOTIVO} caracteres)`)
+    .max(LARGO_MAXIMO_MOTIVO, "Motivo demasiado largo"),
+});

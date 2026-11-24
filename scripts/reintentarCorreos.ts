@@ -1,5 +1,5 @@
 // US55 · Reintenta ahora los correos pendientes de la bandeja de salida (outbox_evento, tipo CORREO). Uso a mano:
-// npm run reintentar-correos. En la EC2 lo hace cada 15 minutos kubo-conciliar-pagos.timer (scripts/conciliarPagos.ts).
+// npm run reintentar-correos. En la EC2 lo hace cada 15 minutos kubo-conciliar-pagos.timer (scripts/tareasProgramadas.ts).
 import "@/server/wiring";
 import { prisma } from "@/platform/db/prisma";
 import { logger } from "@/platform/logger";

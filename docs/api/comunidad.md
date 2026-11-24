@@ -110,6 +110,16 @@ Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desd
 - Después de confirmar se envía el correo de bienvenida con la contraseña temporal (salvo `enviarCorreo: false`). Si el envío falla, la cuenta **no** se revierte: `correoEnviado: false`.
 - El alumno ingresa con el perfil `ALUMNO`. Con credenciales incorrectas el login responde `401 CREDENCIALES_INVALIDAS` «Correo o contraseña incorrectos. Verifica tus datos e inténtalo nuevamente.», sin decir cuál de los dos falló ([identidad.md](identidad.md)).
 
+### Vínculos de una persona (D-12, pantalla AD-06)
+
+| Método y ruta | Respuesta `data` |
+|---|---|
+| `GET /comunidad/personas/{id}/vinculos` | `{ apoderados: VinculoDePersona[], hijos: VinculoDePersona[] }` |
+
+- Solo Administrador. Persona inexistente: `404 NO_ENCONTRADO`.
+- `apoderados`: si la persona es estudiante, sus apoderados (el principal primero). `hijos`: si es apoderado, los estudiantes vinculados. Incluye los vínculos de perfiles ya desactivados (`activo: false`).
+- `VinculoDePersona`: `{ vinculoId, personaId, nombreCompleto, activo, parentesco, esPrincipal, autorizado, responsablePago, matricula }`. `personaId` es el de la otra persona: con él se abre su detalle. `responsablePago` indica si ese vínculo es el responsable del pago en la matrícula más reciente del estudiante. `matricula` (solo en `hijos`): `{ anio, estado, seccion }` de su matrícula más reciente (la del último año; una anulada solo si no tiene otra), o `null` sin matrícula. La informa `matricula` por el puerto `RegistrosMatriculaProvider.matriculasRecientes`.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |

@@ -1,4 +1,4 @@
-# API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31), horario en los portales (US34, US48, US50) y asistencia de alumnos (US35, US36, US45, US52)
+# API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31), horario en los portales (US34, US48, US50), asistencia de alumnos (US35, US36, US45, US52) y asistencia docente (US32)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/admin/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http). El horario en los portales del docente, del apoderado y del alumno (DO-02, AP-05, AL-02) está en [frontend-portales-horario.md](../frontend-portales-horario.md), con sus casos en [pruebas/casos-sprint3-portales-horario.md](../pruebas/casos-sprint3-portales-horario.md).
@@ -237,3 +237,82 @@ El registro y las correcciones del docente dentro del plazo no van a la bitácor
 - De `matricula`: `matriculasDeSeccionEnFecha` (lista de la clase según el historial de secciones), `datosDeMatriculas` (nuevo: estado y estudiante de cada matrícula), `matriculaVigenteDelAlumno` y `matriculaDelHijo` (nuevo: la matrícula del hijo autorizado).
 - De `comunidad`: `resumenEstudiantes` (ahora también con `nombres` y `apellidos` por separado), `nombresDeUsuarios` y `contactosDeAsistencia` (nuevo: correo del estudiante y de su apoderado principal).
 - De `academico`: `listarAnios`, `obtenerAnio` (bimestres), `asignacionesDeClases` y `fechaEnLima`.
+
+# Asistencia del personal docente (US32)
+
+Pantalla AD-14 (`/admin/asistencia-docente`). El administrador registra el ingreso diario de cada docente, su salida y la justificación de sus inasistencias. A la hora límite, la verificación automática marca con «Inasistencia» a quien no fue marcado.
+
+## Modelo de la asistencia docente
+
+- `asistencia_docente`: un registro por docente y fecha (clave única `docente_id + fecha`), con `hora_ingreso`, `hora_salida` (hora de Lima, `TIME`), `estado` (`PUNTUAL`, `TARDANZA`, `FALTA`, `FALTA_JUSTIFICADA`), `justificacion` y `registrado_por_id`.
+- Migración `20261125120000_asistencia_docente`: `registrado_por_id` admite `NULL` (la falta de la verificación automática no la registra un usuario), índice por `fecha` y `ck_asistencia_docente_horas` (la salida necesita un ingreso y no es anterior a él).
+- Parámetros generales nuevos (la migración los carga si faltan): `HORA_INICIO_JORNADA_DOCENTE` = `"07:30"` y `HORA_LIMITE_ASISTENCIA_DOCENTE` = `"08:00"`. El antiguo `HORA_LIMITE_DOCENTE` del seed ya no se usa.
+
+## Endpoints de la asistencia docente
+
+Todos son **solo Administrador**.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/api/v1/horarios/asistencia-docente?fecha=AAAA-MM-DD` | Listado del día (por defecto, hoy): docentes activos (y los inactivos con registro esa fecha) con especialidad, primera clase del horario publicado, registro y contadores |
+| POST | `/api/v1/horarios/asistencia-docente/ingreso` | Marcar «Asistió»: `{ docenteId, fecha }` → `201` con el registro |
+| POST | `/api/v1/horarios/asistencia-docente/salida` | Hora de salida: `{ docenteId, fecha }` → `200` |
+| POST | `/api/v1/horarios/asistencia-docente/{id}/justificar` | Justificar una inasistencia: `{ motivo }` (5 a 300 caracteres) → `200` |
+
+Respuesta del listado:
+
+```jsonc
+{ "data": {
+  "fecha": "2026-09-16", "hoy": "2026-09-16", "horaActual": "07:46",
+  "horaInicioJornada": "07:30", "horaLimite": "08:00", "minutosParaLimite": 14,
+  "diaNoLectivo": null,
+  "resumen": { "total": 28, "puntuales": 22, "tardanzas": 0, "faltas": 2, "justificadas": 1, "sinMarcar": 4 },
+  "docentes": [
+    { "docenteId": "…", "nombreCompleto": "Juan Pérez Salazar", "especialidad": "Matemática", "inactivo": false,
+      "primeraClase": "07:45",
+      "registro": { "id": "…", "estado": "PUNTUAL", "horaIngreso": "07:31", "horaSalida": null,
+                    "justificacion": null, "automatica": false } }
+  ] } }
+```
+
+## Reglas de la asistencia docente
+
+- **Hora exacta (criterio 1):** el ingreso guarda la hora del servidor en Lima con segundos. Es `PUNTUAL` hasta el minuto de `HORA_INICIO_JORNADA_DOCENTE` inclusive (07:30:59 todavía es Puntual) y `TARDANZA` desde el minuto siguiente.
+- **Solo el día actual (criterio 3):** el ingreso y la salida se rechazan si `fecha` no es la de hoy en Lima: `422 SOLO_DIA_ACTUAL` «Solo se puede registrar la asistencia del día actual». La justificación sí acepta cualquier fecha.
+- **Días lectivos:** lunes a viernes, con un año `EN_CURSO` y dentro de uno de sus bimestres (la misma regla `motivoDiaNoLectivo` de la asistencia de alumnos). Fuera de ellos, `422 DIA_NO_LECTIVO`.
+- **Verificación automática (criterio 2):** `scripts/tareasProgramadas.ts` (timer de 15 minutos en la EC2, `npm run conciliar-pagos` o `npm run tareas-programadas`) llama a `marcarFaltasDocentes()`. Desde `HORA_LIMITE_ASISTENCIA_DOCENTE`, en un día lectivo, crea `FALTA` con `registrado_por_id = NULL` para cada docente activo sin registro del día. Es idempotente: la clave única impide repetirla.
+- **Llegada después de la falta:** marcar «Asistió» sobre una falta automática la convierte en `TARDANZA` con la hora real, y el registro pasa al administrador (auditado como `REEMPLAZAR_FALTA_DOCENTE`).
+- Un ingreso ya registrado no se vuelve a marcar; una falta justificada tampoco admite ingreso. La salida necesita el ingreso y se registra una vez. Solo se justifica un registro `FALTA`.
+
+## Códigos de error de la asistencia docente
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `DATOS_INVALIDOS` | 400 | Identificador o fecha con formato inválido; motivo vacío o corto |
+| `NO_ENCONTRADO` | 404 | El registro que se quiere justificar no existe |
+| `INGRESO_YA_REGISTRADO` | 409 | El docente ya tiene ingreso ese día |
+| `FALTA_YA_JUSTIFICADA` | 409 | Se intenta marcar el ingreso sobre una falta justificada |
+| `SALIDA_YA_REGISTRADA` | 409 | La salida ya se registró |
+| `SOLO_DIA_ACTUAL` | 422 | «Solo se puede registrar la asistencia del día actual» |
+| `DIA_NO_LECTIVO` | 422 | Fin de semana, sin año en curso o fuera de los bimestres |
+| `DOCENTE_NO_DISPONIBLE` | 422 | El docente no existe o está inactivo |
+| `SIN_INGRESO` | 422 | La salida se pide sin ingreso registrado |
+| `SALIDA_ANTES_DEL_INGRESO` | 422 | La hora de salida sería anterior a la de ingreso |
+| `NO_ES_INASISTENCIA` | 422 | Se intenta justificar un registro que no es `FALTA` |
+
+## Auditoría de la asistencia docente (RF03)
+
+| Acción | Usuario | Anterior → nuevo |
+|---|---|---|
+| `REGISTRAR_INGRESO_DOCENTE` | Administrador | — → `{ docenteId, fecha, estado, horaIngreso }` |
+| `REEMPLAZAR_FALTA_DOCENTE` | Administrador | `{ estado: FALTA, automatica }` → `{ docenteId, fecha, estado: TARDANZA, horaIngreso }`, con motivo |
+| `REGISTRAR_SALIDA_DOCENTE` | Administrador | `{ horaSalida: null }` → `{ docenteId, fecha, horaSalida }` |
+| `JUSTIFICAR_FALTA_DOCENTE` | Administrador | `{ estado: FALTA }` → `{ docenteId, fecha, estado: FALTA_JUSTIFICADA }`, con el motivo |
+| `MARCAR_FALTA_DOCENTE` | `NULL` (verificación automática) | — → `{ docenteId, fecha, estado: FALTA, horaLimite }` |
+
+## Dependencias de la asistencia docente
+
+- `horarios` es dueño de `asistencia_docente`.
+- De `comunidad`: `personalDocente` (nuevo: docentes activos, y los indicados aunque no lo estén, con su especialidad).
+- De `academico`: `listarAnios` (año en curso y bimestres) y `fechaEnLima`.
+- De `platform/config`: `parametroHora` (nuevo: parámetros «HH:MM» con valor por defecto).

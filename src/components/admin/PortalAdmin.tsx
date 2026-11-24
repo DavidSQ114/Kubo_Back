@@ -63,7 +63,7 @@ const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
     items: [
       { texto: "Horarios", icono: "nav-grid", href: "/admin/horarios" },
       { texto: "Asistencia de alumnos", icono: "nav-usercheck", href: "/admin/asistencia" },
-      { texto: "Asistencia docente", icono: "nav-usercheck" },
+      { texto: "Asistencia docente", icono: "nav-usercheck", href: "/admin/asistencia-docente" },
       { texto: "Notas y rectificaciones", icono: "nav-award", href: "/admin/notas" },
     ],
   },
@@ -165,7 +165,8 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
               const activo = item.href
                 ? item.href === "/admin"
                   ? ruta === "/admin"
-                  : ruta.startsWith(item.href)
+                  : // «/admin/asistencia» no debe quedar activo en «/admin/asistencia-docente»
+                    ruta === item.href || ruta.startsWith(`${item.href}/`)
                 : false;
               const clases = `flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] leading-[1.5] ${minimizada ? "justify-center" : ""}`;
               const contenido = (

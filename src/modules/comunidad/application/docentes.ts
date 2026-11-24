@@ -28,6 +28,16 @@ export async function listarDocentesActivos(): Promise<DocenteResumen[]> {
   return (await docentes.activos()).map(resumenDocente);
 }
 
+export interface DocenteDelPersonal extends DocenteResumen {
+  especialidad: string | null;
+}
+
+/** Docentes activos y los indicados aunque ya no lo estén, con su especialidad (asistencia docente, US32, AD-14). */
+export async function personalDocente(incluir: string[] = []): Promise<DocenteDelPersonal[]> {
+  const filas = await docentes.personal([...new Set(incluir)]);
+  return filas.map((d) => ({ ...resumenDocente(d), especialidad: d.especialidad }));
+}
+
 export interface ContactoDocente {
   docenteId: string;
   nombres: string;

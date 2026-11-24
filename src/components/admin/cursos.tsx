@@ -936,34 +936,3 @@ export function ModalEliminarCurso({
     </Modal>
   );
 }
-
-// ---------- Catálogo oficial (solo lectura) ----------
-
-export function CatalogoOficial({ areas }: { areas: Area[] }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Alerta tipo="info" titulo="Competencias del Currículo Nacional de la Educación Básica (CNEB)">
-        Son las mismas para todos los colegios. Cada curso evalúa solo competencias de su área curricular (RF09).
-      </Alerta>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {areas.map((a) => (
-          <Tarjeta key={a.id} className="flex flex-col gap-3 p-5">
-            <div className="flex items-center gap-3">
-              <ChipCodigo codigo={a.codigo} />
-              <h3 className="flex-1 text-[16px] font-semibold text-texto">{a.nombre}</h3>
-              <span className="text-[12px] text-texto-3">{a.competencias.length} comp.</span>
-            </div>
-            <ul className="flex flex-col gap-1.5">
-              {a.competencias.map((c) => (
-                <li key={c.id} className="flex gap-2 text-[14px] leading-[1.4] text-texto-2">
-                  <span className="w-8 shrink-0 font-bold text-texto-3">{codigoCorto(c.codigo)}</span>
-                  <span className={c.activo ? "" : "text-texto-3 line-through"}>{c.nombre}</span>
-                </li>
-              ))}
-            </ul>
-          </Tarjeta>
-        ))}
-      </div>
-    </div>
-  );
-}

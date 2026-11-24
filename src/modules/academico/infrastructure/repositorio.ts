@@ -308,6 +308,12 @@ export interface CompetenciaFila {
   activo: boolean;
 }
 
+const selectCompetenciaCatalogo = { ...selectCompetencia, descripcion: true } as const;
+
+export interface CompetenciaCatalogoFila extends CompetenciaFila {
+  descripcion: string | null;
+}
+
 export const areas = {
   /** Áreas activas con las competencias del catálogo (activas o no), por código. */
   conCompetencias: (db: Db = prisma) =>
@@ -332,6 +338,45 @@ export const competencias = {
 
   porIds: (ids: string[], db: Db = prisma): Promise<CompetenciaFila[]> =>
     db.competencia.findMany({ where: { id: { in: ids } }, select: selectCompetencia }),
+
+  // ---------- Catálogo oficial (US56) ----------
+
+  /** Todas las competencias, con su descripción, por área y código. */
+  catalogo: (db: Db = prisma): Promise<CompetenciaCatalogoFila[]> =>
+    db.competencia.findMany({ orderBy: { codigo: "asc" }, select: selectCompetenciaCatalogo }),
+
+  porId: (id: string, db: Db = prisma): Promise<CompetenciaCatalogoFila | null> =>
+    db.competencia.findUnique({ where: { id }, select: selectCompetenciaCatalogo }),
+
+  async bloquearFila(tx: Tx, id: string) {
+    await tx.$queryRaw`SELECT id FROM competencia WHERE id = ${id}::uuid FOR UPDATE`;
+  },
+
+  crear: (
+    data: { areaCurricularId: string; codigo: string; nombre: string; descripcion: string | null },
+    db: Db = prisma,
+  ): Promise<CompetenciaCatalogoFila> => db.competencia.create({ data, select: selectCompetenciaCatalogo }),
+
+  actualizar: (
+    id: string,
+    data: { nombre?: string; descripcion?: string | null; activo?: boolean },
+    db: Db = prisma,
+  ): Promise<CompetenciaCatalogoFila> =>
+    db.competencia.update({ where: { id }, data, select: selectCompetenciaCatalogo }),
+
+  eliminar: (id: string, db: Db = prisma) => db.competencia.delete({ where: { id }, select: { id: true } }),
+
+  /** Ids de competencia_plan de cada competencia: los planes de estudio que la evalúan (y que guardan sus notas). */
+  async enPlanes(competenciaIds: string[], db: Db = prisma): Promise<Record<string, string[]>> {
+    if (!competenciaIds.length) return {};
+    const filas = await db.competenciaPlan.findMany({
+      where: { competenciaId: { in: competenciaIds } },
+      select: { id: true, competenciaId: true },
+    });
+    const porCompetencia: Record<string, string[]> = {};
+    for (const f of filas) (porCompetencia[f.competenciaId] ??= []).push(f.id);
+    return porCompetencia;
+  },
 };
 
 const selectCurso = {

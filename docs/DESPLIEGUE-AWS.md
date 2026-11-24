@@ -306,6 +306,12 @@ Desde el sprint 3, bloque 9 (US55), el mismo `npm run conciliar-pagos` también 
 journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
 ```
 
+Desde el sprint 4, bloque 4 (US32), `npm run conciliar-pagos` ejecuta `scripts/tareasProgramadas.ts` (antes `scripts/conciliarPagos.ts`), que además **marca «Inasistencia» a los docentes activos sin marcar** a partir de `HORA_LIMITE_ASISTENCIA_DOCENTE` (08:00) en los días lectivos. Es idempotente, así que el timer puede repetirla cada 15 minutos. Llega también con el despliegue normal: **no hay que tocar systemd**. Los parámetros `HORA_INICIO_JORNADA_DOCENTE` y `HORA_LIMITE_ASISTENCIA_DOCENTE` los carga la migración `20261125120000_asistencia_docente`. A mano: `npm run tareas-programadas`. Para ver el resultado:
+
+```bash
+journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i "asistencia docente"
+```
+
 ### 5. Comprobar
 
 1. En Mercado Pago, **Simular notificación** del webhook. Debe responder 200. El log de la app muestra «Aviso de una order sin intento en Kubo», porque la order simulada no existe en Kubo.

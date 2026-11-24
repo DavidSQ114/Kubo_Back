@@ -137,3 +137,27 @@ export const erroresAsistencia = {
   sinCambios: () =>
     new ErrorApp("ASISTENCIA_SIN_CAMBIOS", "El nuevo estado es igual al actual: no hay nada que corregir.", 409),
 };
+
+/** Asistencia del personal docente (US32, AD-14). */
+export const erroresAsistenciaDocente = {
+  /** US32, criterio 3: no se registra el ingreso ni la salida de otro día (validado con la fecha de Lima). */
+  soloDiaActual: () => new ErrorApp("SOLO_DIA_ACTUAL", "Solo se puede registrar la asistencia del día actual", 422),
+  diaNoLectivo: (mensaje: string) => new ErrorApp("DIA_NO_LECTIVO", mensaje, 422),
+  docenteNoDisponible: () =>
+    new ErrorApp("DOCENTE_NO_DISPONIBLE", "El docente no existe o está inactivo: no se registra su asistencia.", 422),
+  ingresoYaRegistrado: (hora: string) =>
+    new ErrorApp("INGRESO_YA_REGISTRADO", `El ingreso de este docente ya se registró a las ${hora}.`, 409, { hora }),
+  faltaJustificada: () =>
+    new ErrorApp(
+      "FALTA_YA_JUSTIFICADA",
+      "La inasistencia de este docente ya está justificada: no se registra su ingreso.",
+      409,
+    ),
+  sinIngreso: () =>
+    new ErrorApp("SIN_INGRESO", "Primero registra el ingreso del docente: la salida necesita un ingreso.", 422),
+  salidaYaRegistrada: (hora: string) =>
+    new ErrorApp("SALIDA_YA_REGISTRADA", `La salida de este docente ya se registró a las ${hora}.`, 409, { hora }),
+  salidaAntesDelIngreso: () =>
+    new ErrorApp("SALIDA_ANTES_DEL_INGRESO", "La hora de salida no puede ser anterior a la de ingreso.", 422),
+  noEsFalta: () => new ErrorApp("NO_ES_INASISTENCIA", "Solo se justifica un registro con estado «Inasistencia».", 422),
+};

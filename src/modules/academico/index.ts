@@ -85,6 +85,14 @@ export {
   type CompetenciaDelPlan,
 } from "./application/competencias";
 export {
+  catalogoDeCompetencias,
+  registrarCompetencia,
+  editarCompetencia,
+  eliminarCompetencia,
+  type AreaDelCatalogo,
+  type CompetenciaDelCatalogo,
+} from "./application/catalogo";
+export {
   listarAsignaciones,
   misCursos,
   asignarCurso,

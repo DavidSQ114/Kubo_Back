@@ -1,6 +1,7 @@
 # Tareas de cada 15 minutos: npm run conciliar-pagos desde la versión desplegada, como kubo y con las variables de
-# /etc/kubo/kubo.env. Concilia los pagos en línea (US71) y reintenta los correos pendientes de la bandeja de salida
-# (US55). Lo dispara kubo-conciliar-pagos.timer; a mano:
+# /etc/kubo/kubo.env (scripts/tareasProgramadas.ts). Concilia los pagos en línea (US71), reintenta los correos
+# pendientes de la bandeja de salida (US55) y marca las faltas de los docentes sin marcar a la hora límite (US32).
+# Lo dispara kubo-conciliar-pagos.timer; a mano:
 #   sudo systemctl start kubo-conciliar-pagos.service  y  journalctl -u kubo-conciliar-pagos.service
 # Sin PASARELA en kubo.env la conciliación no hace nada; los correos se reintentan igual.
 [Unit]
