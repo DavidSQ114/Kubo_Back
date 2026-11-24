@@ -1,0 +1,186 @@
+### Kubo · API del aula virtual (US61, US62, US67) · REST Client de VS Code
+### Inicia sesión primero con docs/api/identidad.http: las cookies de sesión se reutilizan.
+### Los ids de ejemplo son ficticios: cámbialos por los de tu base local.
+@base = http://localhost:3000/api/v1
+
+### ---------- Docente (DO-05) ----------
+
+### 1. Mis cursos y secciones del año en curso
+GET {{base}}/aula-virtual/docente/cursos
+
+### 2. Aula de un curso y sección: unidades, materiales y enlaces (también borradores y ocultos)
+@asignacion = 00000000-0000-0000-0000-000000000000
+GET {{base}}/aula-virtual/asignaciones/{{asignacion}}
+
+### 3. Crear una unidad didáctica
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/unidades
+Content-Type: application/json
+
+{ "titulo": "Números enteros" }
+
+### 4. Renombrar una unidad
+@unidad = 00000000-0000-0000-0000-000000000000
+PATCH {{base}}/aula-virtual/unidades/{{unidad}}
+Content-Type: application/json
+
+{ "titulo": "Números enteros y racionales" }
+
+### 5. Desactivar una unidad (sus materiales dejan de verse para los alumnos)
+PATCH {{base}}/aula-virtual/unidades/{{unidad}}
+Content-Type: application/json
+
+{ "activo": false }
+
+### 6. Subir la unidad un lugar en el orden → todas las unidades en su nuevo orden
+POST {{base}}/aula-virtual/unidades/{{unidad}}/mover
+Content-Type: application/json
+
+{ "direccion": "ARRIBA" }
+
+### 7. Subir un PDF publicado (US61). Un archivo de otro tipo → 400 ARCHIVO_NO_PERMITIDO; más de 5 MB → 413
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/materiales
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="unidadId"
+
+{{unidad}}
+--kubo
+Content-Disposition: form-data; name="titulo"
+
+Guía de ejercicios de números enteros
+--kubo
+Content-Disposition: form-data; name="tipo"
+
+ARCHIVO
+--kubo
+Content-Disposition: form-data; name="visible"
+
+true
+--kubo
+Content-Disposition: form-data; name="archivo"; filename="guia.pdf"
+Content-Type: application/pdf
+
+< ./guia.pdf
+--kubo--
+
+### 8. Guardar un material tipo enlace como borrador
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/materiales
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="unidadId"
+
+{{unidad}}
+--kubo
+Content-Disposition: form-data; name="titulo"
+
+Video: la recta numérica
+--kubo
+Content-Disposition: form-data; name="tipo"
+
+ENLACE
+--kubo
+Content-Disposition: form-data; name="url"
+
+https://www.youtube.com/watch?v=ejemplo
+--kubo
+Content-Disposition: form-data; name="visible"
+
+false
+--kubo--
+
+### 9. URL inválida → 400 ENLACE_INVALIDO «Ingresa un enlace válido»
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/materiales
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="unidadId"
+
+{{unidad}}
+--kubo
+Content-Disposition: form-data; name="titulo"
+
+Enlace sin protocolo
+--kubo
+Content-Disposition: form-data; name="tipo"
+
+ENLACE
+--kubo
+Content-Disposition: form-data; name="url"
+
+meet.kubo.edu.pe/mat-1a
+--kubo
+Content-Disposition: form-data; name="visible"
+
+true
+--kubo--
+
+### 10. Publicar un borrador o un material oculto (avisa a los alumnos de la sección)
+@material = 00000000-0000-0000-0000-000000000000
+POST {{base}}/aula-virtual/materiales/{{material}}/publicar
+
+### 11. Ocultar un material publicado
+POST {{base}}/aula-virtual/materiales/{{material}}/ocultar
+
+### 12. Eliminar un material y su archivo
+DELETE {{base}}/aula-virtual/materiales/{{material}}
+
+### 13. Registrar un enlace de clase virtual visible (US62); inicio y fin en hora de Lima
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/enlaces
+Content-Type: application/json
+
+{
+  "tipo": "CLASE_VIRTUAL",
+  "titulo": "Clase de Matemática · 1° A",
+  "url": "https://meet.google.com/abc-defg-hij",
+  "inicio": "2026-11-24T10:00",
+  "fin": "2026-11-24T11:30",
+  "visible": true
+}
+
+### 14. Fin anterior al inicio → 400 FECHAS_ENLACE_INVALIDAS
+POST {{base}}/aula-virtual/asignaciones/{{asignacion}}/enlaces
+Content-Type: application/json
+
+{
+  "tipo": "TALLER",
+  "titulo": "Taller de problemas",
+  "url": "https://zoom.us/j/123456789",
+  "inicio": "2026-11-28T10:00",
+  "fin": "2026-11-28T09:00",
+  "visible": true
+}
+
+### 15. Editar un enlace
+@enlace = 00000000-0000-0000-0000-000000000000
+PUT {{base}}/aula-virtual/enlaces/{{enlace}}
+Content-Type: application/json
+
+{
+  "tipo": "ASESORIA",
+  "titulo": "Asesoría de reforzamiento",
+  "url": "https://meet.google.com/ase-sori-aaa",
+  "inicio": "2026-11-26T15:00",
+  "fin": "2026-11-26T16:00",
+  "visible": true
+}
+
+### 16. Ocultar y volver a mostrar un enlace
+POST {{base}}/aula-virtual/enlaces/{{enlace}}/ocultar
+
+###
+POST {{base}}/aula-virtual/enlaces/{{enlace}}/publicar
+
+### 17. Eliminar un enlace
+DELETE {{base}}/aula-virtual/enlaces/{{enlace}}
+
+### ---------- Alumno (AL-05, US67) ----------
+
+### 18. Aula de un curso de su sección: materiales publicados por unidad y enlaces visibles con su estado.
+### Curso de otra sección → 404; sin matrícula vigente → 403 SIN_MATRICULA_VIGENTE
+@curso = 00000000-0000-0000-0000-000000000000
+GET {{base}}/aula-virtual/alumno/cursos/{{curso}}
+
+### 19. Descargar el archivo de un material (docente o alumno). Ajeno, en borrador u oculto → 404
+GET {{base}}/aula-virtual/materiales/{{material}}/archivo

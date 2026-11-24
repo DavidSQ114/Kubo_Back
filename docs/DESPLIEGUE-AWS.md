@@ -314,7 +314,7 @@ journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
 
 ## Archivos (evidencias y aula virtual)
 
-Las evidencias pedagógicas (US38) y, más adelante, el material del aula virtual y los trabajos se guardan con `platform/archivos`. La variable `ARCHIVOS_DRIVER` de `/etc/kubo/kubo.env` elige dónde:
+Las evidencias pedagógicas (US38, carpeta `evidencias/`), los materiales de estudio del aula virtual (US61, carpeta `materiales/`) y, más adelante, los trabajos se guardan con `platform/archivos`. La variable `ARCHIVOS_DRIVER` de `/etc/kubo/kubo.env` elige dónde:
 
 | `ARCHIVOS_DRIVER` | Dónde quedan | Cuándo |
 |---|---|---|
