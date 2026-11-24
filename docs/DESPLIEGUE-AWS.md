@@ -13,6 +13,7 @@ Guía paso a paso para correr Kubo en **una EC2 Ubuntu 24.04 con PostgreSQL en R
 | Base de datos | RDS PostgreSQL `db.t4g.micro` | Sin acceso público: solo la EC2 llega al puerto 5432; conexión cifrada (`sslmode=require`) |
 | Despliegue | La propia EC2 | `kubo-desplegar.timer` revisa `main` al arrancar y cada 5 minutos, y ejecuta `deploy/aws/desplegar.sh` |
 | Acceso al servidor | Session Manager | Sin SSH ni puerto 22 abierto; sin llaves |
+| Archivos subidos (evidencias US38) | Bucket **privado** de S3 `kubo-archivos-<sufijo>` | La app los guarda y los entrega por su API, que valida el permiso; nunca hay URLs públicas. Plan B: disco de la EC2 en `/opt/kubo/shared/archivos`. Ver [Archivos](#archivos-evidencias-y-aula-virtual) |
 
 **Sin credenciales de AWS en GitHub.** Las del Learner Lab caducan en cada sesión, así que GitHub no despliega: es la EC2 la que hace `git fetch` del repositorio público. Cada push o PR unido a `main` llega solo en menos de 5 minutos.
 
@@ -44,6 +45,7 @@ En el servidor:
 /opt/kubo/releases/<sha>/          Un release por commit (los últimos 3)
 /opt/kubo/current → releases/<sha> El que está en uso
 /opt/kubo/shared/logs/             despliegue.log y el log de la aplicación (LOG_DIR)
+/opt/kubo/shared/archivos/         Archivos subidos si ARCHIVOS_DRIVER=disco (dueño kubo, chmod 750)
 /etc/kubo/kubo.env                 Variables (dueño kubo, chmod 600)
 /etc/kubo/caddy.env                Solo los dominios (principal y respaldo), para Caddy
 /etc/kubo/dominio                  Dominio propio, opcional (una línea)
@@ -310,6 +312,63 @@ journalctl -u kubo-conciliar-pagos.service -n 20 | grep -i bandeja
 2. Como apoderado de prueba: AP-02 → «Pagar» → «Ir a pagar». Paga en el checkout con el comprador de prueba y una tarjeta de prueba. La pantalla de retorno debe mostrar «Pago aprobado».
 3. Resultado de la conciliación: `journalctl -u kubo-conciliar-pagos.service -n 20`.
 
+## Archivos (evidencias y aula virtual)
+
+Las evidencias pedagógicas (US38) y, más adelante, el material del aula virtual y los trabajos se guardan con `platform/archivos`. La variable `ARCHIVOS_DRIVER` de `/etc/kubo/kubo.env` elige dónde:
+
+| `ARCHIVOS_DRIVER` | Dónde quedan | Cuándo |
+|---|---|---|
+| `s3` | Bucket privado `ARCHIVOS_S3_BUCKET` en `AWS_REGION` | **Lo normal.** Los archivos sobreviven aunque se borre la EC2 |
+| `disco` | `ARCHIVOS_DIR` = `/opt/kubo/shared/archivos` (fuera de los releases) | Plan B si el Learner Lab no deja crear o usar el bucket. Se pierden si se borra la EC2 o su volumen |
+| vacío | — | No se suben ni descargan archivos (`503 ALMACEN_NO_CONFIGURADO`); las evidencias de solo comentario siguen funcionando |
+
+Reglas que no dependen del almacén: solo PDF y JPG en las evidencias (el tipo se decide por el contenido, no por la extensión), máximo 5 MB, clave interna `evidencias/<uuid>` y descarga siempre por `GET /api/v1/evaluacion/evidencias/{id}/archivo`, que valida quién la pide. Cada subida y borrado queda en `registro_auditoria`.
+
+### 1. Crear el bucket (una sola vez)
+
+S3 → **Create bucket**, en **us-east-1**:
+
+1. Bucket name: `kubo-archivos-<sufijo>` (el nombre es único en todo AWS; por ejemplo, con las iniciales del equipo y el año).
+2. Object Ownership: **ACLs disabled**.
+3. **Block all public access: activado** (las cuatro casillas). Nunca se desactiva: la app es la única que lee el bucket.
+4. Bucket Versioning: **Disable** (se puede activar si se quiere recuperar archivos borrados; ocupa más espacio).
+5. Default encryption: **SSE-S3** (viene por defecto).
+6. **Create bucket**.
+
+No hay que crear claves ni usuarios de IAM: la EC2 usa el rol del perfil `LabInstanceProfile` (paso 3), que en el Learner Lab ya permite leer y escribir en S3. El SDK toma esas credenciales temporales del servicio de metadatos y las renueva solo. **Nunca** se escriben claves de AWS en `kubo.env` ni en el repositorio.
+
+### 2. Configurar la EC2
+
+```bash
+sudo nano /etc/kubo/kubo.env
+```
+
+```
+ARCHIVOS_DRIVER="s3"
+ARCHIVOS_S3_BUCKET="kubo-archivos-<sufijo>"
+AWS_REGION="us-east-1"
+```
+
+Reinicia y comprueba (guarda, lee y borra un objeto `verificacion/<uuid>`):
+
+```bash
+systemctl restart kubo.service
+sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && set +a && npm run archivos:verificar'
+```
+
+Debe terminar con «El almacenamiento de archivos funciona.» y los cuatro pasos en `OK`. Si falla en «guardar» con `AccessDenied`, el rol de la instancia no tiene permiso sobre el bucket (revisa que la EC2 tenga `LabInstanceProfile` y el nombre del bucket); con `CredentialsProviderError`, la EC2 no tiene perfil; con `NoSuchBucket`, el nombre o la región no coinciden.
+
+### Plan B: disco de la EC2
+
+Si el bucket no se puede usar, en `/etc/kubo/kubo.env`:
+
+```
+ARCHIVOS_DRIVER="disco"
+ARCHIVOS_DIR="/opt/kubo/shared/archivos"
+```
+
+`instalar.sh` crea la carpeta con dueño `kubo` y permisos `750`, fuera de `releases/`, así que un despliegue no la borra. Reinicia y corre `npm run archivos:verificar` como arriba. Para no perder los archivos, haz un snapshot del volumen de la EC2 antes de borrar o cambiar la instancia (EC2 → Volumes → **Create snapshot**). Para pasar después a S3, copia la carpeta al bucket con la misma clave (`aws s3 sync /opt/kubo/shared/archivos s3://kubo-archivos-<sufijo>/`) y cambia `ARCHIVOS_DRIVER`.
+
 ## Datos de demostración de morosidad
 
 US24, US26 y US59. El cronograma (US21) solo genera las pensiones que vencen **después** de la fecha de matrícula. Si los alumnos se matricularon en noviembre, nadie tiene pensiones vencidas y no se pueden mostrar el panel de morosidad, la restricción de la libreta ni los recordatorios de pago. `npm run demo:morosidad` adelanta la fecha de matrícula de **un** estudiante y le agrega las pensiones que le faltan.
@@ -357,6 +416,8 @@ Con `--desde 2026-09-01`, una matrícula de noviembre queda con las pensiones de
 | Conciliar pagos en línea ya (US71) | `systemctl start kubo-conciliar-pagos.service` y `journalctl -u kubo-conciliar-pagos.service -n 20` |
 | Reintentar ya los correos pendientes (US55) | `systemctl start kubo-conciliar-pagos.service` (concilia y luego procesa la bandeja de salida) |
 | Dejar pensiones vencidas a un estudiante **ficticio** (demostración de US24, US26, US59) | Ver [Datos de demostración de morosidad](#datos-de-demostración-de-morosidad) |
+| Comprobar el almacenamiento de archivos (US38) | `sudo -u kubo bash -c 'cd /opt/kubo/current && set -a && . /etc/kubo/kubo.env && set +a && npm run archivos:verificar'` |
+| Ver cuánto ocupan los archivos en disco (plan B) | `du -sh /opt/kubo/shared/archivos` |
 
 Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve al anterior, la base ya tiene la migración nueva: por eso las migraciones deben ser compatibles con la versión anterior (agregar columnas o tablas, no borrarlas en el mismo cambio).
 
@@ -377,6 +438,8 @@ Las migraciones se aplican antes de cambiar de release. Si un despliegue vuelve 
 | El build se corta (`Killed` o `JavaScript heap out of memory`) | Memoria: el build es el pico | Revisar que el swap esté activo (`swapon --show`); volver a desplegar |
 | El log muestra el error de un commit y luego nada más | Un commit fallido no se reintenta solo | Corregir y unir otro commit a `main`, o forzar: `sudo -u kubo FORZAR=1 /opt/kubo/bin/desplegar.sh` |
 | «No pasó la salud» y volvió al anterior | La app no arrancó o no llega a la base | `journalctl -u kubo.service -n 100`; `curl -s localhost:3000/api/v1/salud` |
+| Subir una evidencia responde «El almacenamiento de archivos no está disponible…» (`503 ALMACEN_NO_CONFIGURADO`) | Falta `ARCHIVOS_DRIVER` (o `ARCHIVOS_S3_BUCKET` / `ARCHIVOS_DIR`) en `kubo.env` | [Archivos](#archivos-evidencias-y-aula-virtual), reiniciar y `npm run archivos:verificar` |
+| Subir una evidencia da `500` y el log dice `AccessDenied` o `CredentialsProviderError` | El rol de la instancia no llega al bucket | Revisar `LabInstanceProfile` y el nombre del bucket; mientras tanto, el plan B en disco |
 | El disco se llena | Releases y logs | `df -h /`; se guardan solo 3 releases; `rm -rf /opt/kubo/releases/<sha-viejo>` si hace falta (nunca el de `current`) |
 | La base aparece encendida sin haberla iniciado | AWS reinicia una RDS detenida a los 7 días | Detenerla otra vez al terminar la sesión |
 | No aparece «Pagar» en AP-02 | Falta `PASARELA`, `MP_ACCESS_TOKEN` o `MP_WEBHOOK_SECRET`, o tienen un valor demasiado corto | `journalctl -u kubo.service \| grep -i pasarela` (solo nombra las variables); paso 3 de «Pago en línea» |

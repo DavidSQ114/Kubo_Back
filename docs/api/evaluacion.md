@@ -1,7 +1,7 @@
-# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51), libreta en PDF (US66), rectificación de nota (US41) y bitácora de notas (US03)
+# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51), libreta en PDF (US66), rectificación de nota (US41), bitácora de notas (US03) y evidencias pedagógicas (US38, US47)
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)); M-08, la bandeja de AD-15 y AD-16 «Cambios de notas» ([frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md), [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md) y [pruebas/casos-sprint3-rectificacion.md](../pruebas/casos-sprint3-rectificacion.md); ejemplos en [evaluacion.http](evaluacion.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)); M-08, la bandeja de AD-15 y AD-16 «Cambios de notas» ([frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md)); M-07 y M-09, las evidencias en DO-04, AP-04 y AL-03 ([frontend-evidencias.md](../frontend-evidencias.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md), [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md), [pruebas/casos-sprint3-rectificacion.md](../pruebas/casos-sprint3-rectificacion.md) y [pruebas/casos-sprint4-evidencias.md](../pruebas/casos-sprint4-evidencias.md); ejemplos en [evaluacion.http](evaluacion.http).
 
 La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
@@ -14,6 +14,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 - **Trigger `tg_nota_borrado_registro_cerrado`** (migración `nota_borrado_registro_cerrado`, D-15): tampoco se borra una nota de un registro `CERRADO` o `PUBLICADO`, con el mismo mensaje y sin excepciones (una rectificación cambia la nota, no la borra). La aplicación no tiene ninguna operación que borre notas; borrar el registro completo (`cierre_calificacion`) arrastra sus notas por la cascada, y ningún flujo lo hace (ver [AD-16](../arquitectura/AD-16-bitacora-notas.md)).
 - **Solicitud de rectificación** (`solicitud_rectificacion`): pedido del docente para corregir una nota de un registro cerrado o publicado (US41), con el valor anterior, el solicitado, el motivo, quién la pidió y, al resolverla, quién, cuándo y el motivo del rechazo.
 - **Bitácora de notas** (`bitacora_nota`): una fila inmutable por cada nota registrada o cambiada (US03).
+- **Evidencia pedagógica** (`evidencia_pedagogica`): comentario y/o archivo del docente sobre una nota (US38). Ver [Evidencias pedagógicas](#evidencias-pedagógicas-us38-y-su-consulta-us47).
 
 ## Endpoints del docente
 
@@ -171,6 +172,31 @@ Pantalla AD-16 «Auditoría», pestaña «Cambios de notas» (`/admin/auditoria`
 - **Escritura (criterio 1):** cada nota creada o cambiada deja una fila en la **misma transacción** que la nota: `PUT …/notas` (una por cada nota nueva y cada cambio; las que llegan con el mismo valor no) y la aprobación de una rectificación. Guarda los ids (nota, registro, matrícula, competencia, usuario, docente, solicitud) y una copia de los nombres al momento del cambio.
 - **Inmutable (criterio 3):** `tg_bitacora_nota_inmutable` rechaza `UPDATE` y `DELETE` y `tg_bitacora_nota_sin_vaciar`, `TRUNCATE`, aunque se intente fuera de la aplicación. La aplicación lo traduce a `422 BITACORA_NOTA_INMUTABLE` «La bitácora de notas no se puede modificar.». No hay ningún endpoint que la cambie.
 
+## Evidencias pedagógicas (US38) y su consulta (US47)
+
+Una **evidencia** (`evidencia_pedagogica`) pertenece a una calificación: la nota de un estudiante en una competencia de un registro. Tiene un **comentario** del docente (hasta 1000 caracteres), un **archivo** PDF o JPG de hasta 5 MB, o ambos; al menos uno (`ck_evidencia_contenido`). Una calificación puede tener varias. El archivo se guarda en el almacén de `platform/archivos` (bucket privado de S3 o disco, según `ARCHIVOS_DRIVER`) con la clave interna `evidencias/<uuid>`; la base guarda la clave, el nombre original saneado, el tipo real y el tamaño. La clave **nunca** sale hacia el navegador y no hay URLs públicas: el archivo se pide siempre a la API. `entrega_trabajo_id` queda preparado para las evidencias que vendrán de una entrega de trabajo (US64).
+
+| Método y ruta | Quién | Cuerpo | Respuesta `data` |
+|---|---|---|---|
+| `POST /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias` | Docente del curso y la sección | `multipart/form-data`: `matriculaId`, `competenciaPlanId`, `comentario` (opcional) y `archivo` (opcional) | `201` `{ evidencia: EvidenciaVista, registro: RegistroDeNotas }` |
+| `DELETE /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias/{evidenciaId}` | Docente del curso y la sección | — | `RegistroDeNotas` |
+| `GET /evaluacion/evidencias/{id}/archivo` | Docente del curso; apoderado del estudiante y el propio alumno con el registro **publicado** | — | El archivo (no JSON) |
+
+- `EvidenciaVista`: `{ id, comentario | null, archivo: { nombre, tipo («PDF», «JPG»…), mime, tamanoBytes } | null, subidoEn }`.
+- En `RegistroDeNotas`, cada nota de `alumnos[].notas` trae `evidencias: EvidenciaVista[]` (la celda muestra el clip con su número). En la libreta del apoderado y en «Mis notas», cada competencia de un curso publicado trae `evidencias: EvidenciaVista[]` (vacío si no tiene; los cursos sin publicar no traen competencias). La libreta restringida por deuda (US26) no trae ninguna.
+
+Reglas:
+
+- **Validación del archivo en el servidor:** el tipo se decide por los primeros bytes (`%PDF-` o `FF D8 FF`), nunca por la extensión ni el `Content-Type` del navegador; un archivo renombrado («tarea.pdf» que en realidad es HTML) se rechaza. 0 bytes → `400 ARCHIVO_VACIO`. Más de 5 MB (5 242 880 bytes) → `413 ARCHIVO_DEMASIADO_GRANDE`; exactamente 5 MB se acepta. Otro formato (PNG, DOCX…) → `400 ARCHIVO_NO_PERMITIDO`. Los dos últimos con el mensaje del backlog: «Formato no permitido o archivo demasiado pesado (máx. 5 MB, formatos PDF/JPG)».
+- **Límite antes de leer:** si el `Content-Length` del pedido supera 5 MB más 64 KB de holgura del formulario, se responde `413` sin leer el cuerpo; si no lo declara, se cuenta mientras se lee y se corta al pasarse.
+- **Nombre:** se quitan carpetas, caracteres de control y reservados (`< > : " | ? *`), se recorta a 120 caracteres y se pone la extensión del tipo real («C:\fakepath\Ficha.PDF» → «Ficha.pdf»).
+- **Calificación guardada:** la evidencia se asocia a una nota que ya existe; si la celda no tiene nota guardada → `422 NOTA_SIN_CALIFICAR`.
+- **Registro abierto:** se agregan y eliminan mientras el registro esté `ABIERTO` (aunque el bimestre ya no sea el activo); con el registro `CERRADO` o `PUBLICADO` quedan en solo lectura → `409 REGISTRO_CERRADO`. El trigger `tg_evidencia_registro_cerrado` lo impide también directo en la base.
+- **Permisos de la descarga:** el docente solo de sus cursos y secciones (en cualquier estado del registro); el apoderado solo de sus hijos vinculados y el alumno solo las suyas, y ambos solo con el registro publicado. A quien no le corresponde se le responde `404 NO_ENCONTRADO` (no se revela que la evidencia existe). El apoderado con 2 o más pensiones vencidas recibe `403 LIBRETA_RESTRINGIDA` con el mensaje de US26; al alumno no se le aplica, como en «Mis notas» (US51). Una evidencia de solo comentario no tiene archivo → `404`.
+- **Descarga:** `Content-Type` del tipo real; `Content-Disposition` `inline` para JPG y PDF (el navegador los muestra) y `attachment` para el resto, con el nombre en ASCII y en UTF-8 (`filename*`); `Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+- **Orden:** el archivo se guarda en el almacén antes de la transacción; si la transacción falla, se borra. Al eliminar, la fila se borra en la transacción y el archivo después; si el almacén falla, la evidencia ya no existe y la clave queda en el log como huérfana (WARN).
+- **Sin almacén** (`ARCHIVOS_DRIVER` vacío en producción, como en Vercel): subir o descargar un archivo → `503 ALMACEN_NO_CONFIGURADO`; las evidencias de solo comentario funcionan.
+
 ## Códigos de error
 
 | Estado | Código | Cuándo |
@@ -178,16 +204,21 @@ Pantalla AD-16 «Auditoría», pestaña «Cambios de notas» (`/admin/auditoria`
 | 400 | `VALOR_NO_PERMITIDO` | Un logro que no es `AD`, `A`, `B` o `C` («Solo se permiten los valores AD, A, B o C») |
 | 400 | `DATOS_INVALIDOS` | Ids no válidos, lista vacía, más de 500 notas o la misma celda dos veces; solicitud o rechazo sin motivo |
 | 400 | `RANGO_FECHAS_INVALIDO` | Bitácora con «Desde» posterior a «Hasta» |
+| 400 | `EVIDENCIA_VACIA` | Evidencia sin comentario (o solo con espacios) y sin archivo |
+| 400 | `COMENTARIO_DEMASIADO_LARGO` | Comentario de evidencia de más de 1000 caracteres (por la API llega antes como `DATOS_INVALIDOS`) |
+| 400 | `ARCHIVO_VACIO` | Archivo de 0 bytes |
+| 400 | `ARCHIVO_NO_PERMITIDO` | El contenido no es PDF ni JPG (aunque la extensión lo diga) |
+| 413 | `ARCHIVO_DEMASIADO_GRANDE` | Más de 5 MB, por el `Content-Length` o al leer el cuerpo |
 | 401 | `NO_AUTENTICADO` | Sin sesión |
 | 403 | `ACCESO_DENEGADO` | Otro perfil, o un curso o sección que no es del docente (o una asignación ya desactivada) |
 | 403 | `ESTUDIANTE_NO_VINCULADO` | Libreta, PDF u horario de un estudiante que no es hijo del apoderado en sesión |
 | 403 | `SIN_MATRICULA_VIGENTE` | «Mis notas» de un alumno sin matrícula vigente |
-| 403 | `LIBRETA_RESTRINGIDA` | PDF de la libreta con 2 o más pensiones vencidas (mensaje de US26) |
+| 403 | `LIBRETA_RESTRINGIDA` | PDF de la libreta o archivo de una evidencia pedido por el apoderado con 2 o más pensiones vencidas (mensaje de US26) |
 | 403 | `SOLICITUD_PROPIA` | Aprobar o rechazar una solicitud de rectificación que pidió el mismo usuario |
-| 404 | `NO_ENCONTRADO` | La asignación no existe, el bimestre no es del año del curso o de la libreta, o el registro no existe o está abierto |
+| 404 | `NO_ENCONTRADO` | La asignación no existe, el bimestre no es del año del curso o de la libreta, o el registro no existe o está abierto; la evidencia no existe, no es de ese registro o no le corresponde a quien la pide |
 | 409 | `REGISTRO_NO_CERRADO` | Publicar un registro abierto |
 | 409 | `REGISTRO_YA_PUBLICADO` | Publicar un registro ya publicado (también el segundo de dos clics a la vez) |
-| 409 | `REGISTRO_CERRADO` | Escritura o cierre sobre un registro cerrado (también el segundo de dos cierres simultáneos) |
+| 409 | `REGISTRO_CERRADO` | Escritura o cierre sobre un registro cerrado (también el segundo de dos cierres simultáneos); agregar o eliminar evidencias de un registro cerrado o publicado |
 | 409 | `REGISTRO_ABIERTO` | Solicitar rectificación en un registro abierto |
 | 409 | `RECTIFICACION_PENDIENTE` | La nota ya tiene una solicitud pendiente de aprobación |
 | 409 | `SOLICITUD_YA_RESUELTA` | Aprobar o rechazar una solicitud ya resuelta (también la segunda de dos aprobaciones a la vez) |
@@ -201,6 +232,8 @@ Pantalla AD-16 «Auditoría», pestaña «Cambios de notas» (`/admin/auditoria`
 | 422 | `LIBRETA_SIN_PUBLICAR` | PDF de un bimestre sin cursos publicados |
 | 422 | `VALOR_IGUAL_AL_ACTUAL` | Rectificación con el mismo valor que ya tiene la nota |
 | 422 | `BITACORA_NOTA_INMUTABLE` | Intento de cambiar o borrar la bitácora de notas directo en la base |
+| 422 | `NOTA_SIN_CALIFICAR` | Evidencia para una celda sin calificación guardada |
+| 503 | `ALMACEN_NO_CONFIGURADO` | Subir o descargar un archivo sin almacén configurado (`ARCHIVOS_DRIVER`) |
 
 ## Auditoría (RF03)
 
@@ -210,6 +243,10 @@ Pantalla AD-16 «Auditoría», pestaña «Cambios de notas» (`/admin/auditoria`
 | `PUBLICAR_NOTAS` | `cierre_calificacion` | `{ estado: "CERRADO" }` | `{ estado: "PUBLICADO", anio, curso, seccion, bimestre, estudiantes }` |
 | `APROBAR_RECTIFICACION_NOTA` | `nota` | `{ logro, consolidado }` | `{ logro, consolidado, solicitudId, anio, curso, seccion, bimestre, competencia, estadoRegistro }`; `motivo`: el del docente |
 | `RECHAZAR_RECTIFICACION_NOTA` | `solicitud_rectificacion` | `{ estado }` | `{ estado: "RECHAZADA", notaId, valorAnterior, valorSolicitado, curso, seccion, bimestre }`; `motivo`: el del rechazo |
+| `AGREGAR_EVIDENCIA` | `evidencia_pedagogica` | — | `{ notaId, anio, curso, seccion, bimestre, competenciaPlanId, largoComentario, archivo: { clave, mime, tamanoBytes } \| null }` |
+| `ELIMINAR_EVIDENCIA` | `evidencia_pedagogica` | lo mismo que `AGREGAR_EVIDENCIA` | — |
+
+La auditoría y los logs de las evidencias **no** llevan el comentario ni el nombre del archivo (pueden tener datos personales), solo su largo, la clave, el tipo y el tamaño.
 
 Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo, y una fila en la bitácora de notas (US03). Pedir una rectificación no se audita aparte: la solicitud misma guarda quién, cuándo y el motivo.
 
@@ -220,5 +257,7 @@ Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo
 - `academico`: `asignacionParaNotas` y `asignacionesParaNotas` (curso, sección, año y plan de una o varias asignaciones), `listarSecciones`, `listarGrados`, `planDeSeccion` (cursos de la sección para la libreta), `competenciasDelPlan`, `listarAsignaciones`, `listarAnios`, `reglaDelBimestre` (versión de la regla que rige en un bimestre, nueva en este bloque) y `consolidarLogro` (US12).
 - `comunidad`: `docentesProviderComunidad` (docente en sesión y nombres de docentes), `resumenEstudiantes`, `nombresDeUsuarios`, `contactosDeAdministradores` (cierre y solicitud de rectificación), `contactosDeDocentes` (resultado de la rectificación) y `apoderadosDeEstudiantes` (correo de notas publicadas).
 - `matricula`: `matriculasDeSeccionEnFecha`, `datosDeMatriculas`, `matriculaDelHijo` (vínculo del apoderado), `matriculaVigenteDelAlumno` y `restriccionPorDeuda` (US26).
+- `comunidad`, para el archivo de una evidencia (US47): `estudiantesVinculadosAPersona` (vínculo del apoderado) y `estudianteDePersona` (el alumno en sesión).
+- `platform/archivos`: `validarArchivo`, `guardarArchivo`, `abrirArchivo`, `eliminarArchivo`, `leerFormulario` y `respuestaArchivo`.
 
 Académico sigue consultando los cierres y las notas por su puerto `CierresProvider`, que implementa evaluación.

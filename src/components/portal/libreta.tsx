@@ -1,11 +1,14 @@
 // Libreta de notas en los portales: tipos de la API (/api/v1/evaluacion/…/libreta), pestañas por bimestre, tabla por
 // curso y competencia (AP-04), escala y resumen del bimestre, y estados de carga y error. La usan la libreta del
 // apoderado (US46) y «Mis notas» del alumno (US51). Las notas que llegan son solo de registros publicados: los cursos
-// sin publicar vienen sin calificación y se muestran como pendientes.
+// sin publicar vienen sin calificación y se muestran como pendientes. Cada calificación con evidencia del docente
+// (US47) muestra «Ver evidencia» o «Ver comentario», que abren M-09.
 "use client";
 
 import type { ReactNode } from "react";
+import type { EvidenciaVista } from "@/components/docente/evidencias";
 import { BadgeLogro, LOGROS, NOMBRE_LOGRO, type Logro } from "@/components/docente/notas";
+import { EnlaceEvidencia } from "@/components/portal/evidencias";
 import { Alerta, Badge, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { cantidad, diaMes, fechaDia } from "@/lib/formato";
 
@@ -16,6 +19,8 @@ export interface CompetenciaDeLibreta {
   codigo: string;
   nombre: string;
   logro: Logro | null;
+  /** Evidencias del docente (US47); vacío si la calificación no tiene. */
+  evidencias: EvidenciaVista[];
 }
 
 export interface CursoDeLibreta {
@@ -136,8 +141,13 @@ export function TarjetaEscala() {
   );
 }
 
+/** Evidencias adjuntas por los docentes en los cursos publicados del bimestre (AP-04). */
+export const evidenciasDelBimestre = (bimestre: BimestreDeLibreta) =>
+  bimestre.cursos.flatMap((c) => c.competencias).reduce((total, k) => total + (k.evidencias?.length ?? 0), 0);
+
 export function ResumenDelBimestre({ bimestre }: { bimestre: BimestreDeLibreta }) {
   const conLogro = LOGROS.filter((l) => bimestre.resumen[l] > 0);
+  const evidencias = evidenciasDelBimestre(bimestre);
   return (
     <Tarjeta className="flex flex-col gap-4 p-5">
       <h2 className="text-[18px] font-semibold leading-[1.3] text-texto">Resumen del bimestre</h2>
@@ -153,13 +163,29 @@ export function ResumenDelBimestre({ bimestre }: { bimestre: BimestreDeLibreta }
           ))}
         </ul>
       )}
+      {evidencias > 0 && (
+        <p className="text-[14px] leading-[1.5] text-texto-2">
+          {cantidad(evidencias, "evidencia adjunta", "evidencias adjuntas")} por los docentes.
+        </p>
+      )}
     </Tarjeta>
   );
 }
 
 // ---------- Tabla por curso y competencia (AP-04) ----------
 
-function FilaCurso({ curso, pendiente }: { curso: CursoDeLibreta; pendiente: string }) {
+/** Abre M-09 con las evidencias de una calificación. */
+export type VerEvidencia = (curso: CursoDeLibreta, competencia: CompetenciaDeLibreta) => void;
+
+function FilaCurso({
+  curso,
+  pendiente,
+  onVerEvidencia,
+}: {
+  curso: CursoDeLibreta;
+  pendiente: string;
+  onVerEvidencia?: VerEvidencia;
+}) {
   return (
     <>
       <tr className="border-b border-borde bg-fondo">
@@ -185,13 +211,33 @@ function FilaCurso({ curso, pendiente }: { curso: CursoDeLibreta; pendiente: str
           <td className="py-2.5 pl-8 pr-4 text-[14px] leading-[1.4] text-texto">
             <span className="flex items-start gap-2">
               <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-texto-3" />
-              {c.nombre}
+              <span className="flex flex-col items-start gap-1">
+                {c.nombre}
+                {/* en el celular la columna «Evidencia del docente» no entra: el enlace va bajo la competencia */}
+                {onVerEvidencia && (
+                  <span className="sm:hidden">
+                    <EnlaceEvidencia
+                      evidencias={c.evidencias ?? []}
+                      etiqueta={c.nombre}
+                      onAbrir={() => onVerEvidencia(curso, c)}
+                    />
+                  </span>
+                )}
+              </span>
             </span>
           </td>
           <td className="px-4 py-2.5 text-center">
             {c.logro ? <BadgeLogro logro={c.logro} /> : <span className="text-texto-3">—</span>}
           </td>
-          <td className="hidden px-4 py-2.5 text-[12px] text-texto-3 sm:table-cell">{c.codigo}</td>
+          <td className="hidden px-4 py-2.5 text-[12px] text-texto-3 sm:table-cell">
+            {!onVerEvidencia ? (
+              c.codigo
+            ) : c.evidencias?.length ? (
+              <EnlaceEvidencia evidencias={c.evidencias} etiqueta={c.nombre} onAbrir={() => onVerEvidencia(curso, c)} />
+            ) : (
+              "—"
+            )}
+          </td>
         </tr>
       ))}
     </>
@@ -199,7 +245,16 @@ function FilaCurso({ curso, pendiente }: { curso: CursoDeLibreta; pendiente: str
 }
 
 /** Cursos del bimestre con el logro de cada competencia y el consolidado; los no publicados, sin notas. */
-export function TablaLibreta({ bimestre, pendiente }: { bimestre: BimestreDeLibreta; pendiente: string }) {
+export function TablaLibreta({
+  bimestre,
+  pendiente,
+  onVerEvidencia,
+}: {
+  bimestre: BimestreDeLibreta;
+  pendiente: string;
+  /** Con él, la tercera columna es «Evidencia del docente» (US47). */
+  onVerEvidencia?: VerEvidencia;
+}) {
   return (
     <div className="overflow-x-auto rounded-lg border border-borde bg-white">
       <table className="w-full min-w-[340px] border-collapse text-left">
@@ -213,13 +268,13 @@ export function TablaLibreta({ bimestre, pendiente }: { bimestre: BimestreDeLibr
               Logro
             </th>
             <th scope="col" className="hidden w-[180px] px-4 py-3 sm:table-cell">
-              Detalle
+              {onVerEvidencia ? "Evidencia del docente" : "Detalle"}
             </th>
           </tr>
         </thead>
         <tbody>
           {bimestre.cursos.map((c) => (
-            <FilaCurso key={c.cursoId} curso={c} pendiente={pendiente} />
+            <FilaCurso key={c.cursoId} curso={c} pendiente={pendiente} onVerEvidencia={onVerEvidencia} />
           ))}
         </tbody>
       </table>

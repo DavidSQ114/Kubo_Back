@@ -1,11 +1,13 @@
 // DO-04 · Registro de notas (US37, US39, US40) y M-10 · Cerrar registro del bimestre: grilla de alumnos por
-// competencias con la escala AD, A, B o C, el consolidado por alumno, el avance del registro y el modal de cierre con
-// las calificaciones que faltan. En el celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla.
+// competencias con la escala AD, A, B o C, el consolidado por alumno, las evidencias de cada calificación (US38: clip
+// con su número y columna «Evidencia»), el avance del registro y el modal de cierre con las calificaciones que faltan.
+// En el celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla.
 "use client";
 
 import { useState } from "react";
+import type { CeldaElegida, EvidenciaVista } from "@/components/docente/evidencias";
 import { Alerta, Badge, Boton, Icono, Modal } from "@/components/ui";
-import { diaYHora } from "@/lib/formato";
+import { cantidad, diaYHora } from "@/lib/formato";
 
 // ---------- Tipos de la API (/api/v1/evaluacion) ----------
 
@@ -54,6 +56,8 @@ interface NotaVista {
   registradoEn: string;
   modificadoPor: string | null;
   modificadoEn: string | null;
+  /** Evidencias de la calificación (US38). */
+  evidencias: EvidenciaVista[];
 }
 
 export interface AlumnoDeRegistro {
@@ -274,6 +278,74 @@ function Consolidado({ alumno, cerrado }: { alumno: AlumnoDeRegistro; cerrado: b
   );
 }
 
+// ---------- Evidencias (US38) ----------
+
+/** Clip con el número de evidencias de la calificación; abre M-07. */
+function MarcaEvidencia({ total, etiqueta, onAbrir }: { total: number; etiqueta: string; onAbrir: () => void }) {
+  const texto = cantidad(total, "evidencia", "evidencias");
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      aria-label={`Evidencias de ${etiqueta}: ${texto}`}
+      title={texto}
+      className="inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[12px] font-semibold text-kubo-azul hover:bg-fondo"
+    >
+      <Icono nombre="icon-clip" size={14} />
+      {total}
+    </button>
+  );
+}
+
+/** Evidencias de todas las calificaciones del alumno. */
+const evidenciasDelAlumno = (a: AlumnoDeRegistro) => Object.values(a.notas).flatMap((n) => n.evidencias ?? []);
+
+/** «Adjuntar» (registro abierto y con alguna calificación guardada) o el resumen de lo adjuntado (columna «Evidencia»). */
+function AccionEvidencia({
+  registro,
+  alumno,
+  onAbrir,
+}: {
+  registro: RegistroDeNotas;
+  alumno: AlumnoDeRegistro;
+  onAbrir: () => void;
+}) {
+  const todas = evidenciasDelAlumno(alumno);
+  const archivos = todas.filter((e) => e.archivo).length;
+  const resumen = archivos
+    ? cantidad(archivos, "archivo", "archivos")
+    : todas.length
+      ? cantidad(todas.length, "comentario", "comentarios")
+      : null;
+  const conNotas = Object.keys(alumno.notas).length > 0;
+  if (registro.estado === "ABIERTO" && conNotas) {
+    return (
+      <button
+        type="button"
+        onClick={onAbrir}
+        aria-label={`Adjuntar evidencia de ${alumno.nombre}`}
+        className="inline-flex flex-col items-start gap-0.5 rounded-md px-2 py-1 text-left hover:bg-fondo"
+      >
+        <span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-kubo-azul">
+          <Icono nombre="icon-clip" size={16} /> Adjuntar
+        </span>
+        {resumen && <span className="text-[12px] text-texto-3">{resumen}</span>}
+      </button>
+    );
+  }
+  if (!resumen) return <span className="text-[13px] text-texto-3">—</span>;
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      aria-label={`Ver evidencias de ${alumno.nombre}`}
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-semibold text-kubo-azul hover:bg-fondo"
+    >
+      <Icono nombre={archivos ? "icon-pdf" : "icon-comentario"} size={16} /> {resumen}
+    </button>
+  );
+}
+
 // ---------- Grilla ----------
 
 export interface PropsGrilla {
@@ -281,6 +353,11 @@ export interface PropsGrilla {
   ediciones: Record<string, string>;
   invalidas: Set<string>;
   onCambiar: (clave: string, valor: string) => void;
+  /**
+   * Abre M-07 para una calificación o, sin competencia, para el alumno (columna «Evidencia»). Sin él (vista del
+   * Administrador en AD-15) no se muestran las evidencias.
+   */
+  onEvidencias?: (celda: CeldaElegida) => void;
 }
 
 /** Valor que se ve en una celda: lo editado o, si no se tocó, lo guardado. */
@@ -294,23 +371,41 @@ export function valorDeCelda(
   return clave in ediciones ? ediciones[clave] : (a.notas[competenciaPlanId]?.logro ?? "");
 }
 
-export function GrillaNotas({ registro, ediciones, invalidas, onCambiar }: PropsGrilla) {
+export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvidencias }: PropsGrilla) {
   const cerrado = registro.estado !== "ABIERTO";
   const celda = (a: AlumnoDeRegistro, c: CompetenciaDeRegistro, i: number) => {
     const clave = claveCelda(a.matriculaId, c.competenciaPlanId);
+    const evidencias = a.notas[c.competenciaPlanId]?.evidencias?.length ?? 0;
     return (
-      <CeldaLogro
-        alumno={a.nombre}
-        competencia={`${columnaDe(i)} · ${c.nombre}`}
-        valor={valorDeCelda(registro, ediciones, a, c.competenciaPlanId)}
-        nota={a.notas[c.competenciaPlanId]}
-        editable={registro.editable}
-        invalida={invalidas.has(clave)}
-        cambiada={clave in ediciones}
-        onCambiar={(v) => onCambiar(clave, v)}
-      />
+      <span className="inline-flex items-center gap-0.5">
+        <CeldaLogro
+          alumno={a.nombre}
+          competencia={`${columnaDe(i)} · ${c.nombre}`}
+          valor={valorDeCelda(registro, ediciones, a, c.competenciaPlanId)}
+          nota={a.notas[c.competenciaPlanId]}
+          editable={registro.editable}
+          invalida={invalidas.has(clave)}
+          cambiada={clave in ediciones}
+          onCambiar={(v) => onCambiar(clave, v)}
+        />
+        {onEvidencias && evidencias > 0 && (
+          <MarcaEvidencia
+            total={evidencias}
+            etiqueta={`${a.nombre} en ${columnaDe(i)}`}
+            onAbrir={() => onEvidencias({ matriculaId: a.matriculaId, competenciaPlanId: c.competenciaPlanId })}
+          />
+        )}
+      </span>
     );
   };
+  const accion = (a: AlumnoDeRegistro) =>
+    onEvidencias && (
+      <AccionEvidencia
+        registro={registro}
+        alumno={a}
+        onAbrir={() => onEvidencias({ matriculaId: a.matriculaId, competenciaPlanId: null })}
+      />
+    );
   const fila = (a: AlumnoDeRegistro) =>
     registro.competencias.some((c) => invalidas.has(claveCelda(a.matriculaId, c.competenciaPlanId)));
 
@@ -332,7 +427,7 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar }: Props
                   className="px-2 py-3 text-center text-[13px] font-semibold text-texto-2"
                 >
                   <span className="block">{columnaDe(i)}</span>
-                  <span className="mx-auto block max-w-[130px] truncate text-[12px] font-normal text-texto-3">
+                  <span className="mx-auto block max-w-[110px] truncate text-[12px] font-normal text-texto-3">
                     {c.nombre}
                   </span>
                 </th>
@@ -340,6 +435,11 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar }: Props
               <th scope="col" className="px-3 py-3 text-center text-[13px] font-semibold text-texto-2">
                 Consolidado
               </th>
+              {onEvidencias && (
+                <th scope="col" className="px-3 py-3 text-[13px] font-semibold text-texto-2">
+                  Evidencia
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -356,6 +456,7 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar }: Props
                 <td className="px-3 py-2.5 text-center">
                   <Consolidado alumno={a} cerrado={cerrado} />
                 </td>
+                {onEvidencias && <td className="px-3 py-2.5">{accion(a)}</td>}
               </tr>
             ))}
           </tbody>
@@ -383,6 +484,12 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar }: Props
                 </div>
               ))}
             </div>
+            {onEvidencias && (
+              <div className="flex items-center justify-between gap-3 border-t border-borde pt-2">
+                <span className="text-[13px] text-texto-2">Evidencia</span>
+                {accion(a)}
+              </div>
+            )}
           </li>
         ))}
       </ul>

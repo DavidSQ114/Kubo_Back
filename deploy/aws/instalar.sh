@@ -2,7 +2,8 @@
 # Prepara una EC2 Ubuntu 24.04 para Kubo (docs/DESPLIEGUE-AWS.md, paso 5). Se ejecuta una vez como root por
 # Session Manager y es idempotente: volver a ejecutarlo actualiza los scripts, las unidades y el dominio.
 #   sudo bash deploy/aws/instalar.sh
-# Deja: swap de 2 GB, Node 22, git, Caddy y cliente de PostgreSQL; usuario kubo con /opt/kubo; la plantilla
+# Deja: swap de 2 GB, Node 22, git, Caddy y cliente de PostgreSQL; usuario kubo con /opt/kubo (y la carpeta de
+# archivos subidos /opt/kubo/shared/archivos, fuera de los releases, para ARCHIVOS_DRIVER=disco); la plantilla
 # /etc/kubo/kubo.env (sin valores); el dominio para Caddy y las unidades systemd.
 # Dominio: si existe /etc/kubo/dominio (una línea, por ejemplo kubo-codecoffee.duckdns.org) y resuelve a la IP
 # pública de la instancia, es el principal y <ip-con-guiones>.sslip.io redirige a él; si no, el principal es sslip.io.
@@ -71,6 +72,9 @@ caddy version
 paso "Usuario $USUARIO y carpetas"
 id "$USUARIO" >/dev/null 2>&1 || useradd --system --create-home --home-dir "/home/$USUARIO" --shell /bin/bash "$USUARIO"
 install -d -o "$USUARIO" -g "$USUARIO" -m 755 "$RAIZ" "$RAIZ/releases" "$RAIZ/shared" "$RAIZ/shared/logs" "$RAIZ/bin"
+# archivos subidos (evidencias US38, luego aula virtual): fuera de releases para que un despliegue no los borre;
+# solo kubo los lee y escribe. Se usa con ARCHIVOS_DRIVER=disco (plan B si no hay bucket de S3).
+install -d -o "$USUARIO" -g "$USUARIO" -m 750 "$RAIZ/shared/archivos"
 install -o root -g root -m 755 "$DIR_SCRIPT/desplegar.sh" "$RAIZ/bin/desplegar.sh"
 
 paso "Configuración en $CONFIG"

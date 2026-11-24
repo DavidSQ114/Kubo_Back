@@ -1,5 +1,5 @@
-// evaluacion/application: libreta de notas del apoderado (US46, AP-04) y «Mis notas» del alumno (US51, AL-03), su PDF
-// (US66) y la restricción por deuda del apoderado (US26, AP-06). Regla central: solo se leen notas de registros
+// evaluacion/application: libreta de notas del apoderado (US46, AP-04) y «Mis notas» del alumno (US51, AL-03) con las
+// evidencias del docente (US47), su PDF (US66) y la restricción por deuda del apoderado (US26, AP-06). Regla central: solo se leen notas de registros
 // PUBLICADOS (la consulta lo filtra); los cursos sin publicar salen sin calificación. El estudiante nunca llega del
 // navegador sin verificar: el alumno sale de la sesión y el hijo, del vínculo con el apoderado (403 si no es su hijo).
 import { generarPdf, type BloquePdf } from "@/platform/pdf";
@@ -30,8 +30,10 @@ import {
   type EstadoBimestreLibreta,
   type ResumenDeLogros,
 } from "../domain/libreta";
+import type { EvidenciaVista } from "../domain/evidencias";
 import { LOGROS_NOTA, type LogroNota } from "../domain/notas";
 import { publicados } from "../infrastructure/repositorio";
+import { vistaDeEvidencia } from "./vistaEvidencias";
 
 export interface BimestreDeLibreta {
   id: string;
@@ -92,12 +94,20 @@ async function planDeLaSeccion(seccion: { id: string; grado: { id: string } } | 
 /** Arma la libreta de una matrícula con lo publicado y lo que falta publicar de su sección actual. */
 async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta> {
   const hoy = fechaEnLima(ahora);
-  const [anio, resultados, notas, secciones] = await Promise.all([
+  const [anio, resultados, notas, evidencias, secciones] = await Promise.all([
     obtenerAnio(m.anioAcademicoId),
     publicados.resultadosDeMatricula(m.matriculaId),
     publicados.notasDeMatricula(m.matriculaId),
+    publicados.evidenciasDeMatricula(m.matriculaId),
     listarSecciones(m.anioAcademicoId),
   ]);
+  const evidenciasDelCierre = (cierreId: string) => {
+    const porCompetencia: Record<string, EvidenciaVista[]> = {};
+    for (const e of evidencias.filter((x) => x.cierreId === cierreId)) {
+      (porCompetencia[e.competenciaPlanId] ??= []).push(vistaDeEvidencia(e));
+    }
+    return porCompetencia;
+  };
   const seccion = secciones.find((s) => s.id === m.seccionId);
   const [asignaciones, plan] = await Promise.all([
     asignacionesParaNotas(resultados.map((r) => r.asignacionDocenteId)),
@@ -142,6 +152,7 @@ async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta
             consolidado: r.logroConsolidado,
             competencias: competenciasDe.get(a.planEstudioId) ?? [],
             notas: Object.fromEntries(delCierre.map((n) => [n.competenciaPlanId, n.logro])),
+            evidencias: evidenciasDelCierre(r.cierreId),
           },
         ];
       });

@@ -1,7 +1,8 @@
 // DO-04 · Registro de notas · Docente (US37, US39, US40, US41): el docente elige uno de sus cursos y secciones y un
 // bimestre; en el bimestre activo califica cada competencia con AD, A, B o C (puede guardar una parte y volver luego) y
 // cierra el registro (M-10). Un bimestre no activo o un registro cerrado se muestran en solo lectura con su mensaje; en
-// uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado.
+// uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado. Cada calificación
+// guardada admite evidencias (US38, M-07): se agregan y eliminan con el registro abierto y luego quedan en solo lectura.
 "use client";
 
 import { useState } from "react";
@@ -23,6 +24,7 @@ import {
   type RegistroCerrado,
   type RegistroDeNotas,
 } from "@/components/docente/notas";
+import { ModalEvidencias, type CeldaElegida } from "@/components/docente/evidencias";
 import {
   claveNota,
   ModalSolicitarRectificacion,
@@ -96,6 +98,7 @@ function RegistroDelBimestre({
   const consulta = useConsulta<RegistroDeNotas>(`/evaluacion/registros/${asignacionId}/bimestres/${bimestreId}`);
   const mias = useConsulta<SolicitudRectificacion[]>("/evaluacion/docente/rectificaciones");
   const [rectificando, setRectificando] = useState(false);
+  const [evidencias, setEvidencias] = useState<CeldaElegida | null>(null);
   const [propio, setPropio] = useState<RegistroDeNotas | null>(null);
   const [ediciones, setEdiciones] = useState<Record<string, string>>({});
   const [invalidas, setInvalidas] = useState<Set<string>>(new Set());
@@ -119,6 +122,12 @@ function RegistroDelBimestre({
   function cambiar(clave: string, valor: string) {
     setEdiciones((e) => ({ ...e, [clave]: valor }));
     if (invalidas.has(clave)) setInvalidas((s) => new Set([...s].filter((x) => x !== clave)));
+  }
+
+  /** Tras guardar o eliminar una evidencia: el registro nuevo, sin perder las notas aún sin guardar. */
+  function conEvidencias(nuevo: RegistroDeNotas, aviso: string) {
+    setPropio(nuevo);
+    setMensaje({ tipo: "exito", titulo: aviso });
   }
 
   function actualizar(nuevo: RegistroDeNotas) {
@@ -291,7 +300,13 @@ function RegistroDelBimestre({
             Cuando la sección tenga estudiantes matriculados aparecerán aquí para calificarlos.
           </AsistenciaVacia>
         ) : (
-          <GrillaNotas registro={r} ediciones={ediciones} invalidas={invalidas} onCambiar={cambiar} />
+          <GrillaNotas
+            registro={r}
+            ediciones={ediciones}
+            invalidas={invalidas}
+            onCambiar={cambiar}
+            onEvidencias={setEvidencias}
+          />
         )}
         {r.alumnos.length > 0 && (
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -314,6 +329,15 @@ function RegistroDelBimestre({
         <SolicitudesDelRegistro solicitudes={solicitudes} />
       </Tarjeta>
 
+      {evidencias && (
+        <ModalEvidencias
+          key={`${evidencias.matriculaId}-${evidencias.competenciaPlanId ?? "alumno"}`}
+          registro={r}
+          celda={evidencias}
+          onCerrar={() => setEvidencias(null)}
+          onCambio={conEvidencias}
+        />
+      )}
       {rectificando && (
         <ModalSolicitarRectificacion
           registro={r}

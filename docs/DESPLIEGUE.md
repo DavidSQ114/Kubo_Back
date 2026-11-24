@@ -27,6 +27,7 @@ Se definen en Vercel → Project → Settings → Environment Variables. Nunca s
 | `APP_URL` | URL pública del proyecto en Vercel, sin barra final | Se usa en los enlaces de los correos |
 | `LOG_DIR` | vacío | El disco de Vercel es de solo lectura: el log va a la consola (Vercel → Logs) |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | vacíos | Sin SMTP no se envía ningún correo (ver limitaciones) |
+| `ARCHIVOS_DRIVER` | vacío | Sin almacén: subir o descargar archivos de evidencias responde `503 ALMACEN_NO_CONFIGURADO` (el disco de Vercel es de solo lectura, el límite del cuerpo es de 4,5 MB y no hay perfil de AWS sin escribir claves). Las evidencias de solo comentario funcionan. Los archivos se prueban en AWS ([DESPLIEGUE-AWS.md](DESPLIEGUE-AWS.md#archivos-evidencias-y-aula-virtual)) |
 
 Las dos URL de Neon están en su panel (Connection Details): la que tiene `-pooler` en el host va en Vercel; la directa (sin `-pooler`) solo se usa desde tu computadora para migrar.
 

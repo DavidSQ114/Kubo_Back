@@ -96,4 +96,17 @@ export const erroresEvaluacion = {
     ),
   rangoFechasInvalido: () =>
     new ErrorApp("RANGO_FECHAS_INVALIDO", "La fecha «Desde» no puede ser posterior a la fecha «Hasta».", 400),
+  // ---------- Evidencias pedagógicas (US38, US47) ----------
+  evidenciaVacia: () =>
+    new ErrorApp("EVIDENCIA_VACIA", "Escribe un comentario o adjunta un archivo para guardar la evidencia.", 400),
+  comentarioEvidenciaLargo: () =>
+    new ErrorApp("COMENTARIO_DEMASIADO_LARGO", "El comentario de la evidencia admite hasta 1000 caracteres.", 400),
+  notaSinCalificar: () =>
+    new ErrorApp(
+      "NOTA_SIN_CALIFICAR",
+      "Primero guarda la calificación de esta competencia: la evidencia se asocia a una calificación registrada.",
+      422,
+    ),
+  /** También para quien no puede verla (apoderado ajeno, otro alumno, registro sin publicar): no se revela que existe. */
+  evidenciaNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La evidencia no existe.", 404),
 };

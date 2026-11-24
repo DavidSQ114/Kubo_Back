@@ -46,3 +46,6 @@ next-env.d.ts
 
 # logs de la aplicación (LOG_DIR)
 /logs
+
+# archivos subidos en desarrollo (platform/archivos, ARCHIVOS_DRIVER=disco)
+/.archivos
