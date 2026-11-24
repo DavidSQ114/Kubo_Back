@@ -134,3 +134,56 @@ export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: n
 export function verificarCompetenciasConfiguradas(competencias: unknown[]) {
   if (competencias.length === 0) throw E.cursoSinCompetencias();
 }
+
+// ---------- Catálogo oficial de competencias (US56) ----------
+
+const CODIGO_COMPETENCIA = /^[A-Z0-9-]{2,15}$/;
+
+/** " mat-c5 " → "MAT-C5". Letras, números o guiones, como los códigos del CNEB del seed. */
+export function normalizarCodigoCompetencia(codigo: string): string {
+  const limpio = codigo.trim().toUpperCase();
+  if (!CODIGO_COMPETENCIA.test(limpio)) throw E.codigoCompetenciaInvalido();
+  return limpio;
+}
+
+export interface UsoCompetencia {
+  /** Planes de estudio (curso + grado + año) que la evalúan. */
+  planes: number;
+  /** Calificaciones registradas con ella en cualquier plan. */
+  notas: number;
+}
+
+/**
+ * US56, criterio 2: una competencia con calificaciones, o asociada a un plan de estudios, no se elimina; solo se
+ * desactiva (los planes existentes la conservan y ya no se asocia a cursos nuevos).
+ */
+export function verificarEliminacionCompetencia(uso: UsoCompetencia) {
+  if (uso.notas > 0) throw E.competenciaConCalificaciones(uso.notas);
+  if (uso.planes > 0) throw E.competenciaEnPlan(uso.planes);
+}
+
+export interface DatosCompetencia {
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+}
+
+/**
+ * Campos que cambian entre la competencia guardada y la pedida, con su valor anterior y el nuevo (para la bitácora,
+ * US56 criterio 3). Sin ningún cambio, responde que no hay nada que guardar.
+ */
+export function cambiosDeCompetencia(
+  actual: DatosCompetencia,
+  pedida: Partial<DatosCompetencia>,
+): { anterior: Partial<DatosCompetencia>; nuevo: Partial<DatosCompetencia> } {
+  const anterior: Partial<DatosCompetencia> = {};
+  const nuevo: Partial<DatosCompetencia> = {};
+  for (const campo of ["nombre", "descripcion", "activo"] as const) {
+    const valor = pedida[campo];
+    if (valor === undefined || valor === actual[campo]) continue;
+    Object.assign(anterior, { [campo]: actual[campo] });
+    Object.assign(nuevo, { [campo]: valor });
+  }
+  if (!Object.keys(nuevo).length) throw E.competenciaSinCambios();
+  return { anterior, nuevo };
+}

@@ -161,6 +161,32 @@ export const erroresAcademico = {
       competencia: nombre,
       notas,
     }),
+  // ---------- Catálogo de competencias (US56) ----------
+  codigoCompetenciaInvalido: () =>
+    new ErrorApp(
+      "CODIGO_COMPETENCIA_INVALIDO",
+      "El código de la competencia debe tener de 2 a 15 letras, números o guiones (por ejemplo, MAT-C5)",
+      400,
+    ),
+  codigoCompetenciaEnUso: () =>
+    new ErrorApp("COMPETENCIA_CODIGO_EN_USO", "Ya existe una competencia registrada con ese código", 409),
+  areaNoDisponible: () => new ErrorApp("AREA_NO_DISPONIBLE", "El área curricular no existe o está inactiva.", 422),
+  competenciaConCalificaciones: (notas: number) =>
+    new ErrorApp(
+      "COMPETENCIA_CON_CALIFICACIONES",
+      "No se puede eliminar una competencia con calificaciones registradas: solo puedes desactivarla.",
+      409,
+      { notas },
+    ),
+  competenciaEnPlan: (planes: number) =>
+    new ErrorApp(
+      "COMPETENCIA_EN_PLAN",
+      "No se puede eliminar una competencia asociada a un plan de estudios: solo puedes desactivarla.",
+      409,
+      { planes },
+    ),
+  competenciaSinCambios: () =>
+    new ErrorApp("COMPETENCIA_SIN_CAMBIOS", "No hay cambios que guardar en la competencia.", 409),
   cursoSinCompetencias: () =>
     new ErrorApp(
       "CURSO_SIN_COMPETENCIAS",

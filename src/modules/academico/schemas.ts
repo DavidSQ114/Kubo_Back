@@ -151,6 +151,33 @@ export const ConsultaCursosSchema = z.object({
 
 export const PlanesSchema = z.object({ planes: gradosPlan });
 
+// ---------- Catálogo oficial de competencias (US56) ----------
+
+const nombreCompetencia = z
+  .string({ message: "Ingresa el nombre de la competencia" })
+  .trim()
+  .min(1, "Ingresa el nombre de la competencia")
+  .max(200, "Nombre demasiado largo");
+const descripcionCompetencia = z.string().trim().max(1000, "Descripción demasiado larga").nullable().optional();
+
+export const CompetenciaSchema = z.object({
+  areaCurricularId: z.string({ message: "Selecciona el área curricular" }).uuid("Selecciona el área curricular"),
+  codigo: z
+    .string({ message: "Ingresa el código de la competencia" })
+    .trim()
+    .min(1, "Ingresa el código de la competencia")
+    .max(15, "El código de la competencia tiene como máximo 15 caracteres"),
+  nombre: nombreCompetencia,
+  descripcion: descripcionCompetencia,
+});
+
+/** Edición: nombre, descripción y estado (activo o desactivado). El código y el área no cambian. */
+export const EditarCompetenciaSchema = z
+  .object({ nombre: nombreCompetencia.optional(), descripcion: descripcionCompetencia, activo: z.boolean().optional() })
+  .refine((d) => d.nombre !== undefined || d.descripcion !== undefined || d.activo !== undefined, {
+    message: "Indica qué cambia: el nombre, la descripción o el estado",
+  });
+
 export const CompetenciasPlanSchema = z.object({
   competencias: z
     .array(
