@@ -92,3 +92,4 @@ export {
   type MatriculaReciente,
 } from "./puertos";
 export { ROLES_COMUNIDAD } from "./accesos";
+export { miPerfil, actualizarMiPerfil, type MiPerfil } from "./application/miPerfil";

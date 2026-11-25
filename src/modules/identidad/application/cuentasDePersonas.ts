@@ -13,12 +13,22 @@ export interface CuentaDePersona {
   estado: EstadoUsuario;
   /** Ingresó al sistema al menos una vez: una cuenta usada no se elimina. */
   usada: boolean;
+  /** Último ingreso registrado («Mi perfil», bloque M1). */
+  ultimoAccesoEn: Date | null;
 }
 
 /** Cuenta de la persona, o null si no tiene. */
 export async function cuentaDePersona(personaId: string, tx?: Tx): Promise<CuentaDePersona | null> {
   const u = await usuarios.porPersona(personaId, tx);
-  return u ? { usuarioId: u.id, email: u.email, estado: u.estado, usada: u.ultimoAccesoEn !== null } : null;
+  return u
+    ? {
+        usuarioId: u.id,
+        email: u.email,
+        estado: u.estado,
+        usada: u.ultimoAccesoEn !== null,
+        ultimoAccesoEn: u.ultimoAccesoEn,
+      }
+    : null;
 }
 
 /**

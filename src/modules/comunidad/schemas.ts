@@ -244,3 +244,19 @@ export const CrearAccesoAlumnoSchema = z.object({
   email: z.string({ message: "Ingresa el correo" }).trim().toLowerCase().max(254).email("Ingresa un correo válido"),
   enviarCorreo: z.boolean().optional(),
 });
+
+// ---------- Mi perfil (bloque M1) ----------
+
+/**
+ * Lo que cada usuario cambia de su propio perfil: teléfono (9 dígitos) y dirección. Cualquier otro campo (correo, DNI,
+ * nombres) se rechaza: esos datos los cambia el administrador.
+ */
+export const ActualizarMiPerfilSchema = z.strictObject(
+  { telefono: EditarPersonaSchema.shape.telefono, direccion: EditarPersonaSchema.shape.direccion },
+  {
+    error: (issue) =>
+      issue.code === "unrecognized_keys"
+        ? "Solo puedes cambiar tu teléfono y tu dirección. El correo y el DNI los cambia el administrador."
+        : undefined,
+  },
+);

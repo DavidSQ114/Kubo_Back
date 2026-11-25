@@ -83,9 +83,8 @@ export function PortalApoderado({ children }: { children: ReactNode }) {
     async function cargar() {
       const sesion = await api<Sesion>("/identidad/sesion");
       if (sesion.debeCambiarPassword) return router.replace("/cambiar-password");
-      if (sesion.rolActivo !== "APODERADO") {
-        return router.replace(`/acceso-denegado?desde=${encodeURIComponent(window.location.pathname)}`);
-      }
+      // un perfil que entra por URL a un portal ajeno vuelve al inicio de su propio portal (bloque M1)
+      if (sesion.rolActivo !== "APODERADO") return router.replace(inicioPorRol(sesion.rolActivo));
       const r = await api<RespuestaHijos>("/matricula/apoderado/hijos");
       if (vigente)
         setEstado({ fase: "listo", sesion, hijos: r.hijos, seleccionadoId: r.seleccionadoId, eligiendo: false });
@@ -276,6 +275,12 @@ function BarraLateral({ sesion, abierta, onCerrar }: { sesion: Sesion; abierta: 
             Ingresar como {NOMBRE_ROL[rol]}
           </button>
         ))}
+        <Link
+          href="/perfil"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10"
+        >
+          Mi perfil
+        </Link>
         <Link
           href="/cambiar-password"
           className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-texto-2 hover:bg-fondo"

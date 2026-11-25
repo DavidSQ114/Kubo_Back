@@ -9,4 +9,6 @@ export const ROLES_COMUNIDAD = {
   ALUMNOS_Y_APODERADOS: ["ADMINISTRADOR", "COORDINADOR"],
   /** Lecturas que ambos necesitan: personas, su historial y vínculos, y la lista de docentes. */
   CONSULTA: ["ADMINISTRADOR", "COORDINADOR"],
+  /** «Mi perfil» (bloque M1): todos los perfiles leen y cambian sus propios datos. */
+  MI_PERFIL: ["ADMINISTRADOR", "COORDINADOR", "DOCENTE", "APODERADO", "ALUMNO"],
 } as const satisfies Record<string, readonly Rol[]>;

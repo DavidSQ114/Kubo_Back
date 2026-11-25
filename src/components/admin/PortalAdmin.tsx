@@ -265,6 +265,14 @@ function BarraLateral({
           ))}
         {!minimizada && (
           <Link
+            href="/perfil"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10"
+          >
+            Mi perfil
+          </Link>
+        )}
+        {!minimizada && (
+          <Link
             href="/cambiar-password"
             className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10"
           >

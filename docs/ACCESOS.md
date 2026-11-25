@@ -106,6 +106,8 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/comunidad/estudiantes` | Administrador, Coordinador (`ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS`) |
 | POST | `/api/v1/comunidad/estudiantes` | Administrador, Coordinador (`ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS`) |
 | POST | `/api/v1/comunidad/estudiantes/{id}/acceso` | Administrador, Coordinador (`ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS`) |
+| GET | `/api/v1/comunidad/mi-perfil` | Administrador, Coordinador, Docente, Apoderado, Alumno (`ROLES_COMUNIDAD.MI_PERFIL`) |
+| PATCH | `/api/v1/comunidad/mi-perfil` | Administrador, Coordinador, Docente, Apoderado, Alumno (`ROLES_COMUNIDAD.MI_PERFIL`) |
 | GET | `/api/v1/comunidad/personas` | Administrador, Coordinador (`ROLES_COMUNIDAD.CONSULTA`) |
 | GET | `/api/v1/comunidad/personas/{id}` | Administrador, Coordinador (`ROLES_COMUNIDAD.CONSULTA`) |
 | PATCH | `/api/v1/comunidad/personas/{id}` | Administrador, Coordinador (`ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS`) |
