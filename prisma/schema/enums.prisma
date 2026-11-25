@@ -170,6 +170,15 @@ enum EstadoAsistencia {
   TARDANZA
   FALTA
   FALTA_JUSTIFICADA
+  // Bloque M3: la justifica el tutor y cuenta como asistencia
+  TARDANZA_JUSTIFICADA
+}
+
+// Bloque M3: justificación de una falta o una tardanza que envía el apoderado
+enum EstadoJustificacion {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
 }
 
 // Sprint 3 (US52): umbral de inasistencias por el que ya se avisó

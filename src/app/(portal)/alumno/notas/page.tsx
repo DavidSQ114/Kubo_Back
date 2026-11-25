@@ -18,6 +18,7 @@ import {
   type CompetenciaDeLibreta,
   type CursoDeLibreta,
   type Libreta,
+  TarjetaConducta,
 } from "@/components/portal/libreta";
 import { Alerta, Badge, Boton, Icono, Tarjeta } from "@/components/ui";
 import { ApiError, descargar } from "@/lib/api";
@@ -131,6 +132,8 @@ function Bimestre({
         />
       )}
       {evidencia && <ModalEvidenciaDocente elegida={evidencia} onCerrar={() => setEvidencia(null)} />}
+
+      <TarjetaConducta bimestre={bimestre} />
 
       {pendientes.length > 0 && (
         <Tarjeta className="flex flex-col gap-4 p-5">

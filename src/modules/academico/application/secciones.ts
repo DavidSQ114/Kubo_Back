@@ -14,6 +14,7 @@ import {
   verificarAforo,
   verificarAnioEditable,
   verificarEliminacion,
+  verificarTutoria,
   type EstadoSeccion,
   type Vacantes,
 } from "../domain/secciones";
@@ -29,6 +30,8 @@ export interface SeccionVista {
   grado: GradoFila;
   aula: { id: string; nombre: string; aforo: number; activo: boolean } | null;
   tutor: Omit<DocenteResumen, "activo"> | null;
+  /** Bloque M3: mismos permisos que el tutor. */
+  cotutor: Omit<DocenteResumen, "activo"> | null;
   vacantes: Vacantes;
 }
 
@@ -38,19 +41,23 @@ interface DatosSeccion {
   aforoMaximo: number;
   aulaId?: string | null;
   tutorId?: string | null;
+  cotutorId?: string | null;
 }
 
 export const listarGrados = () => grados.activos();
 
 async function vistas(filas: SeccionFila[]): Promise<SeccionVista[]> {
   const ids = filas.map((s) => s.id);
-  const tutores = filas.flatMap((s) => (s.tutorId ? [s.tutorId] : []));
+  const tutores = filas.flatMap((s) => [s.tutorId, s.cotutorId].filter((d): d is string => d !== null));
   const [matriculados, docentes] = await Promise.all([
     ids.length ? matriculasProvider().matriculadosPorSeccion(ids) : Promise.resolve({} as Record<string, number>),
     tutores.length ? docentesProvider().docentesPorId(tutores) : Promise.resolve([] as DocenteResumen[]),
   ]);
+  const resumenDocente = (id: string | null) => {
+    const d = docentes.find((x) => x.id === id);
+    return d ? { id: d.id, nombreCompleto: d.nombreCompleto, nombreCorto: d.nombreCorto } : null;
+  };
   return filas.map((s) => {
-    const tutor = docentes.find((d) => d.id === s.tutorId);
     return {
       id: s.id,
       anioAcademicoId: s.anioAcademicoId,
@@ -59,7 +66,8 @@ async function vistas(filas: SeccionFila[]): Promise<SeccionVista[]> {
       estado: s.estado,
       grado: s.grado,
       aula: s.aula && { id: s.aula.id, nombre: s.aula.nombre, aforo: s.aula.aforo, activo: s.aula.activo },
-      tutor: tutor ? { id: tutor.id, nombreCompleto: tutor.nombreCompleto, nombreCorto: tutor.nombreCorto } : null,
+      tutor: resumenDocente(s.tutorId),
+      cotutor: resumenDocente(s.cotutorId),
       vacantes: calcularVacantes(matriculados[s.id] ?? 0, s.aforoMaximo),
     };
   });
@@ -77,7 +85,7 @@ async function obtenerSeccion(id: string): Promise<SeccionVista> {
   return (await vistas([s]))[0];
 }
 
-/** Grado activo, aula activa y tutor docente activo (aula y tutor son opcionales). */
+/** Grado activo, aula activa y tutor y cotutor docentes activos (aula, tutor y cotutor son opcionales). */
 async function verificarReferencias(datos: Partial<DatosSeccion>, tx: Tx) {
   if (datos.gradoId) {
     const g = await grados.porId(datos.gradoId, tx);
@@ -92,6 +100,32 @@ async function verificarReferencias(datos: Partial<DatosSeccion>, tx: Tx) {
     const [d] = await docentesProvider().docentesPorId([datos.tutorId]);
     if (!d || !d.activo) throw E.tutorNoDisponible();
   }
+  if (datos.cotutorId) {
+    const [d] = await docentesProvider().docentesPorId([datos.cotutorId]);
+    if (!d || !d.activo) throw E.cotutorNoDisponible();
+  }
+}
+
+/**
+ * Tutor y cotutor finales de la sección frente a las demás del año (bloque M3). Se llama con la fila del año
+ * bloqueada: dos asignaciones simultáneas no pueden darle dos tutorías al mismo docente.
+ */
+async function verificarTutoriaDelAnio(
+  anioAcademicoId: string,
+  seccionId: string | null,
+  tutoria: { tutorId: string | null; cotutorId: string | null },
+  tx: Tx,
+) {
+  if (!tutoria.tutorId && !tutoria.cotutorId) return;
+  const otras = (await secciones.tutoriasDelAnio(anioAcademicoId, tx))
+    .filter((s) => s.id !== seccionId)
+    .map((s) => ({
+      seccionId: s.id,
+      seccion: `${s.grado.numero}° ${s.nombre}`,
+      tutorId: s.tutorId,
+      cotutorId: s.cotutorId,
+    }));
+  verificarTutoria(tutoria, otras);
 }
 
 /** Nombre repetido en el mismo año y grado: índice único de seccion. */
@@ -106,6 +140,7 @@ const resumen = (s: SeccionFila) => ({
   aforoMaximo: s.aforoMaximo,
   aulaId: s.aula?.id ?? null,
   tutorId: s.tutorId,
+  cotutorId: s.cotutorId,
   estado: s.estado,
 });
 
@@ -124,6 +159,12 @@ export async function crearSeccion(
       if (!anio) throw errores.noEncontrado("El año académico");
       verificarAnioEditable(anio.estado);
       await verificarReferencias(datos, tx);
+      await verificarTutoriaDelAnio(
+        anio.id,
+        null,
+        { tutorId: datos.tutorId ?? null, cotutorId: datos.cotutorId ?? null },
+        tx,
+      );
       const s = await secciones.crear(
         {
           anioAcademicoId: anio.id,
@@ -132,6 +173,7 @@ export async function crearSeccion(
           aforoMaximo: datos.aforoMaximo,
           aulaId: datos.aulaId ?? null,
           tutorId: datos.tutorId ?? null,
+          cotutorId: datos.cotutorId ?? null,
         },
         tx,
       );
@@ -161,12 +203,26 @@ export async function editarSeccion(
   if (datos.aforoMaximo !== undefined) verificarAforo(datos.aforoMaximo);
   try {
     await prisma.$transaction(async (tx) => {
+      const previa = await secciones.porId(id, tx);
+      if (!previa) throw errores.noEncontrado("La sección");
+      // el año se bloquea antes que la sección: serializa las tutorías del año (una por docente)
+      await anios.bloquearFila(tx, previa.anioAcademicoId);
       await secciones.bloquearFila(tx, id);
-      const actual = await secciones.porId(id, tx);
-      if (!actual) throw errores.noEncontrado("La sección");
+      const actual = (await secciones.porId(id, tx))!;
       const anio = await anios.porId(actual.anioAcademicoId, tx);
       verificarAnioEditable(anio!.estado);
       await verificarReferencias(cambios, tx);
+      if (cambios.tutorId !== undefined || cambios.cotutorId !== undefined) {
+        await verificarTutoriaDelAnio(
+          actual.anioAcademicoId,
+          id,
+          {
+            tutorId: cambios.tutorId === undefined ? actual.tutorId : cambios.tutorId,
+            cotutorId: cambios.cotutorId === undefined ? actual.cotutorId : cambios.cotutorId,
+          },
+          tx,
+        );
+      }
       const s = await secciones.actualizar(id, cambios, tx);
       await registrarAuditoria(
         tx,

@@ -1,6 +1,7 @@
 // evaluacion/application: libreta de notas del apoderado (US46, AP-04) y «Mis notas» del alumno (US51, AL-03) con las
 // evidencias del docente (US47), el detalle de los ítems de evaluación de cada competencia (bloque M2), su PDF (US66)
-// y la restricción por deuda del apoderado (US26, AP-06). Regla central: solo se leen notas de registros
+// la nota de conducta del tutor cuando el bimestre está publicado (bloque M3) y la restricción por deuda del
+// apoderado (US26, AP-06). Regla central: solo se leen notas de registros
 // PUBLICADOS (la consulta lo filtra); los cursos sin publicar salen sin calificación. El estudiante nunca llega del
 // navegador sin verificar: el alumno sale de la sesión y el hijo, del vínculo con el apoderado (403 si no es su hijo).
 import { generarPdf, type BloquePdf } from "@/platform/pdf";
@@ -16,6 +17,7 @@ import {
 import { docentesProviderComunidad } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
 import { matriculaDelHijo, matriculaVigenteDelAlumno, restriccionPorDeuda } from "@/modules/matricula";
+import { conductaVisibleEnLibreta } from "../domain/conducta";
 import { erroresEvaluacion as E } from "../domain/errores";
 import {
   bimestrePorDefecto,
@@ -35,6 +37,7 @@ import {
 import type { EvidenciaVista } from "../domain/evidencias";
 import { LOGROS_NOTA, type LogroNota } from "../domain/notas";
 import { publicados } from "../infrastructure/repositorio";
+import { conductaDeMatricula } from "./conducta";
 import { vistaDeEvidencia } from "./vistaEvidencias";
 
 export interface BimestreDeLibreta {
@@ -48,6 +51,8 @@ export interface BimestreDeLibreta {
   publicadoEn: string | null;
   cursos: CursoDeLibreta[];
   resumen: ResumenDeLogros;
+  /** Nota de conducta del tutor (bloque M3): solo cuando el bimestre está publicado (todos sus cursos). */
+  conducta: { valor: LogroNota; comentario: string | null } | null;
 }
 
 export interface Libreta {
@@ -96,13 +101,14 @@ async function planDeLaSeccion(seccion: { id: string; grado: { id: string } } | 
 /** Arma la libreta de una matrícula con lo publicado y lo que falta publicar de su sección actual. */
 async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta> {
   const hoy = fechaEnLima(ahora);
-  const [anio, resultados, notas, evidencias, items, secciones] = await Promise.all([
+  const [anio, resultados, notas, evidencias, items, secciones, conducta] = await Promise.all([
     obtenerAnio(m.anioAcademicoId),
     publicados.resultadosDeMatricula(m.matriculaId),
     publicados.notasDeMatricula(m.matriculaId),
     publicados.evidenciasDeMatricula(m.matriculaId),
     publicados.itemsDeMatricula(m.matriculaId),
     listarSecciones(m.anioAcademicoId),
+    conductaDeMatricula(m.matriculaId),
   ]);
   const itemsDelCierre = (cierreId: string) => {
     const porCompetencia: Record<string, ItemDeLibreta[]> = {};
@@ -169,16 +175,18 @@ async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta
       });
       const cursos = cursosDelBimestre(entradas, entradasPlan);
       const ultima = delBimestre.map((r) => r.publicadoEn.getTime()).sort((a, b) => b - a)[0];
+      const estado = estadoDelBimestre(p, cursos, hoy);
       return {
         id: p.id,
         numero: p.numero,
         nombre: p.nombre,
         fechaInicio: p.fechaInicio,
         fechaFin: p.fechaFin,
-        estado: estadoDelBimestre(p, cursos, hoy),
+        estado,
         publicadoEn: ultima ? new Date(ultima).toISOString() : null,
         cursos,
         resumen: resumenDeLogros(cursos),
+        conducta: conductaVisibleEnLibreta(estado) ? (conducta.get(p.id) ?? null) : null,
       };
     });
 
@@ -300,6 +308,16 @@ function bloquesDeLibreta(libreta: Libreta, bimestre: BimestreDeLibreta): Bloque
       ],
     })),
   ];
+  if (bimestre.conducta) {
+    bloques.push({
+      tipo: "datos",
+      titulo: "Conducta",
+      filas: [
+        ["Calificación del tutor", conNombre(bimestre.conducta.valor)],
+        ...(bimestre.conducta.comentario ? [["Comentario", bimestre.conducta.comentario] as [string, string]] : []),
+      ],
+    });
+  }
   if (pendientes.length) {
     bloques.push({
       tipo: "tabla",

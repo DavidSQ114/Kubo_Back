@@ -205,3 +205,27 @@ model BitacoraNota {
   @@index([notaId])
   @@map("bitacora_nota")
 }
+
+// Nota de conducta del alumno en un bimestre (bloque M3). La registra y la modifica el tutor o cotutor de la sección
+// mientras el periodo no esté FINALIZADO (tg_nota_conducta_periodo_finalizado); el comentario es opcional, de hasta 500
+// caracteres (ck_nota_conducta_comentario). Aparece en la libreta cuando el bimestre está publicado.
+model NotaConducta {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId         String            @db.Uuid @map("matricula_id")
+  matricula           Matricula         @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
+  periodoEvaluacionId String            @db.Uuid @map("periodo_evaluacion_id")
+  periodoEvaluacion   PeriodoEvaluacion @relation(fields: [periodoEvaluacionId], references: [id], onDelete: Restrict)
+  valor               Logro
+  comentario          String?
+  registradoPorId     String            @db.Uuid @map("registrado_por_id")
+  registradoPor       Usuario           @relation("NotaConductaRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  modificadoPorId     String?           @db.Uuid @map("modificado_por_id")
+  modificadoPor       Usuario?          @relation("NotaConductaModificadoPor", fields: [modificadoPorId], references: [id], onDelete: SetNull)
+  modificadoEn        DateTime?         @db.Timestamptz(3) @map("modificado_en")
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([matriculaId, periodoEvaluacionId])
+  @@index([periodoEvaluacionId])
+  @@map("nota_conducta")
+}

@@ -102,6 +102,7 @@ model AsistenciaEstudiante {
   observacion     String?
   createdAt       DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt       DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  justificaciones JustificacionAsistencia[]
 
   @@unique([sesionClaseId, matriculaId])
   @@index([matriculaId])
@@ -144,4 +145,32 @@ model AsistenciaDocente {
   @@unique([docenteId, fecha])
   @@index([fecha])
   @@map("asistencia_docente")
+}
+
+// Justificación que envía el apoderado de una falta o una tardanza de su hijo de los últimos 7 días (bloque M3): motivo
+// (hasta 500 caracteres, ck_justificacion_asistencia_motivo) y, opcional, un PDF o JPG de hasta 5 MB en
+// platform/archivos (área «justificaciones»). El tutor o cotutor la aprueba (el registro queda justificado) o la
+// rechaza con motivo. Una sola PENDIENTE por registro (uq_justificacion_pendiente_por_registro).
+model JustificacionAsistencia {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asistenciaEstudianteId String                @db.Uuid @map("asistencia_estudiante_id")
+  asistenciaEstudiante   AsistenciaEstudiante  @relation(fields: [asistenciaEstudianteId], references: [id], onDelete: Cascade)
+  presentadaPorId        String                @db.Uuid @map("presentada_por_id")
+  presentadaPor          Usuario               @relation("JustificacionPresentadaPor", fields: [presentadaPorId], references: [id], onDelete: Restrict)
+  motivo                 String
+  archivoClave           String?               @map("archivo_clave")
+  nombreArchivo          String?               @map("nombre_archivo")
+  mimeType               String?               @map("mime_type")
+  tamanoBytes            Int?                  @map("tamano_bytes")
+  estado                 EstadoJustificacion   @default(PENDIENTE)
+  revisadaPorId          String?               @db.Uuid @map("revisada_por_id")
+  revisadaPor            Usuario?              @relation("JustificacionRevisadaPor", fields: [revisadaPorId], references: [id], onDelete: SetNull)
+  revisadaEn             DateTime?             @db.Timestamptz(3) @map("revisada_en")
+  motivoRechazo          String?               @map("motivo_rechazo")
+  createdAt              DateTime              @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt              DateTime              @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([asistenciaEstudianteId])
+  @@index([estado, createdAt])
+  @@map("justificacion_asistencia")
 }

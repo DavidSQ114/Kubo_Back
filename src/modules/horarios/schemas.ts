@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { ESTADOS_ASISTENCIA } from "./domain/asistencia";
 import { DIAS } from "./domain/tipos";
+import { LARGO_MAXIMO_MOTIVO_JUSTIFICACION, ORDENES_REPORTE } from "./domain/tutoria";
 
 export const IdSchema = z.string().uuid("Identificador no válido");
 
@@ -56,7 +57,7 @@ export const FechaSchema = z
 export const MesSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mes no válido: usa el formato AAAA-MM");
 
 export const EstadoAsistenciaSchema = z.enum(ESTADOS_ASISTENCIA, {
-  message: "Estado no válido: usa PRESENTE, TARDANZA, FALTA o FALTA_JUSTIFICADA",
+  message: "Estado no válido: usa PRESENTE, TARDANZA, FALTA, FALTA_JUSTIFICADA o TARDANZA_JUSTIFICADA",
 });
 
 /** Observación opcional del docente («Cita médica con constancia»). Vacía equivale a no tenerla. */
@@ -120,3 +121,52 @@ export const JustificacionDocenteSchema = z.object({
     .min(LARGO_MINIMO_MOTIVO, `Indica el motivo de la justificación (mínimo ${LARGO_MINIMO_MOTIVO} caracteres)`)
     .max(LARGO_MAXIMO_MOTIVO, "Motivo demasiado largo"),
 });
+
+// ---------- Tutoría de sección (bloque M3) ----------
+
+/** ?fecha=2026-09-16: día cuyas clases ve el tutor (por defecto, hoy). */
+export const ConsultaClasesTutoriaSchema = z.object({ fecha: FechaSchema.optional() });
+
+/** Abrir (o reutilizar) la sesión de una clase de la sección en una fecha del bimestre en curso. */
+export const AbrirClaseTutoriaSchema = z.object({ claseId: IdSchema, fecha: FechaSchema });
+
+const MotivoSchema = (que: string) =>
+  z
+    .string({ message: `El motivo de la ${que} es obligatorio` })
+    .trim()
+    .min(LARGO_MINIMO_MOTIVO, `Indica el motivo de la ${que} (mínimo ${LARGO_MINIMO_MOTIVO} caracteres)`)
+    .max(LARGO_MAXIMO_MOTIVO, "Motivo demasiado largo");
+
+/**
+ * Lista de asistencia que guarda el tutor. El motivo solo se exige si la lista cambia registros ya guardados (la
+ * regla lo valida en el servidor y responde MOTIVO_REQUERIDO).
+ */
+export const ListaAsistenciaTutoriaSchema = ListaAsistenciaSchema.extend({
+  motivo: z.preprocess((v) => (v === "" || v === undefined ? null : v), MotivoSchema("modificación").nullable()),
+});
+
+/** Justificación de una falta o una tardanza por el tutor: el motivo es obligatorio. */
+export const JustificacionAsistenciaSchema = z.object({ motivo: MotivoSchema("justificación") });
+
+/** ?periodoId=&orden=faltas&ascendente=false: reporte de faltas y tardanzas por bimestre del tutor. */
+export const ConsultaReporteTutoriaSchema = z.object({
+  periodoId: IdSchema.optional(),
+  orden: z.enum(ORDENES_REPORTE, { message: "Orden no válido" }).optional(),
+  ascendente: z
+    .enum(["true", "false"], { message: "Usa true o false" })
+    .transform((v) => v === "true")
+    .optional(),
+});
+
+/** Justificación que envía el apoderado (bloque M3): el registro y el motivo; el archivo llega aparte en el formulario. */
+export const JustificacionApoderadoSchema = z.object({
+  registroId: IdSchema,
+  motivo: z
+    .string({ message: "Escribe el motivo de la justificación" })
+    .trim()
+    .min(LARGO_MINIMO_MOTIVO, `Indica el motivo de la justificación (mínimo ${LARGO_MINIMO_MOTIVO} caracteres)`)
+    .max(LARGO_MAXIMO_MOTIVO_JUSTIFICACION, "Motivo demasiado largo"),
+});
+
+/** Rechazo de una justificación por el tutor: el motivo es obligatorio. */
+export const RechazoJustificacionSchema = z.object({ motivo: MotivoSchema("decisión") });

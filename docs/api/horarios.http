@@ -197,3 +197,79 @@ POST {{base}}/horarios/asistencia-docente/{{registroDocente}}/justificar
 Content-Type: application/json
 
 { "motivo": "Presentó descanso médico por dos días" }
+
+# ---------- Tutoría de sección (bloque M3), bloques 37 a 49 ----------
+# Sesión de un docente que sea tutor o cotutor de @seccionA en el año en curso; otro docente recibe 403 NO_ES_TUTOR.
+
+### 37. Inicio de la tutoría → 200 con alumnos, faltas de hoy y alumnos con aviso; docente que no es tutor → 403
+GET {{base}}/horarios/tutoria/{{seccionA}}/inicio
+
+### 38. Clases de la sección en un día del bimestre en curso → 200; fecha de otro bimestre → 422 FUERA_DEL_BIMESTRE_EN_CURSO
+# @name clasesTutoria
+GET {{base}}/horarios/tutoria/{{seccionA}}/clases?fecha=2026-11-23
+
+@claseTutoria = {{clasesTutoria.response.body.$.data.clases[0].claseId}}
+
+### 39. Abrir la sesión de una clase (aunque no sea del tutor) → 201; queda a nombre del docente de la clase
+# @name sesionTutoria
+POST {{base}}/horarios/tutoria/{{seccionA}}/sesiones
+Content-Type: application/json
+
+{ "claseId": "{{claseTutoria}}", "fecha": "2026-11-23" }
+
+@sesionTutoria = {{sesionTutoria.response.body.$.data.id}}
+@matriculaTutoria = {{sesionTutoria.response.body.$.data.alumnos[0].matriculaId}}
+
+### 40. Guardar la lista; si cambia registros guardados sin motivo → 400 MOTIVO_REQUERIDO
+PUT {{base}}/horarios/tutoria/{{seccionA}}/sesiones/{{sesionTutoria}}/registros
+Content-Type: application/json
+
+{ "alumnos": [{ "matriculaId": "{{matriculaTutoria}}", "estado": "FALTA" }], "motivo": null }
+
+### 41. Modificar un registro sin el plazo de 24 horas → 200 (auditoría CORREGIR_ASISTENCIA, por: TUTOR)
+# @registroTutoria es alumnos[i].registroId de la sesión del bloque 39
+POST {{base}}/horarios/tutoria/{{seccionA}}/registros/{{registroTutoria}}/corregir
+Content-Type: application/json
+
+{ "estado": "TARDANZA", "motivo": "Llegó a las 8:10; se registró como ausente" }
+
+### 42. Justificar una falta o tardanza → 200 …_JUSTIFICADA; de nuevo → 409 YA_JUSTIFICADO
+POST {{base}}/horarios/tutoria/{{seccionA}}/registros/{{registroTutoria}}/justificar
+Content-Type: application/json
+
+{ "motivo": "Movilidad escolar retrasada" }
+
+### 43. Reporte de faltas y tardanzas del bimestre (ordenado por % de asistencia, ascendente) → 200 con filas y total
+GET {{base}}/horarios/tutoria/{{seccionA}}/reporte?orden=porcentajeAsistencia&ascendente=true
+
+### 44. Reporte en CSV → 200 text/csv
+GET {{base}}/horarios/tutoria/{{seccionA}}/reporte/csv
+
+### 45. Reporte en PDF → 200 application/pdf
+GET {{base}}/horarios/tutoria/{{seccionA}}/reporte/pdf
+
+### 46. (Apoderado) Faltas y tardanzas del hijo por justificar y justificaciones enviadas → 200
+GET {{base}}/horarios/apoderado/hijos/{{estudiante}}/justificaciones
+
+### 47. (Apoderado) Enviar una justificación con constancia → 201; fuera de 7 días → 422; repetida → 409
+POST {{base}}/horarios/apoderado/hijos/{{estudiante}}/justificaciones
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="registroId"
+
+{{registroTutoria}}
+--kubo
+Content-Disposition: form-data; name="motivo"
+
+Tuvo cita médica en la mañana
+--kubo--
+
+### 48. (Tutor) Justificaciones de la sección → 200 { pendientes, revisadas }
+# @name justificaciones
+GET {{base}}/horarios/tutoria/{{seccionA}}/justificaciones
+
+@justificacion = {{justificaciones.response.body.$.data.pendientes[0].id}}
+
+### 49. (Tutor) Aprobar → 200 (el registro queda justificado); rechazar: POST …/rechazar con { "motivo" }
+POST {{base}}/horarios/tutoria/{{seccionA}}/justificaciones/{{justificacion}}/aprobar

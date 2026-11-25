@@ -3,6 +3,7 @@
 // PLAZO_CORRECCION_ASISTENCIA_H (US36). El administrador corrige fuera de plazo con motivo y auditoría (M-20).
 // El docente sale de la sesión, nunca de la URL: una clase o una sesión de otro docente responde 403.
 import { prisma } from "@/platform/db/prisma";
+import type { Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { parametroNumero } from "@/platform/config/parametros";
 import { errores } from "@/platform/http/errores";
@@ -49,7 +50,7 @@ import { cargarSeccion, vistasDeClases, type ClaseVista, type DocenteDeClase } f
 const DIAS_DE_HISTORIAL = 7;
 const MS_POR_DIA = 86_400_000;
 
-const plazoDeCorreccion = () => parametroNumero("PLAZO_CORRECCION_ASISTENCIA_H");
+export const plazoDeCorreccion = () => parametroNumero("PLAZO_CORRECCION_ASISTENCIA_H");
 
 async function docenteEnSesion(auth: Autenticado) {
   const docente = await docentesProviderComunidad.docentePorPersona(auth.personaId);
@@ -64,14 +65,14 @@ async function anioEnCurso() {
 
 // ---------- Vistas ----------
 
-interface BloqueDeClase {
+export interface BloqueDeClase {
   id: string;
   horaInicio: string;
   horaFin: string;
   etiqueta: string;
 }
 
-interface EstadoDeRegistro {
+export interface EstadoDeRegistro {
   /** La lista ya se guardó al menos una vez. */
   registrada: boolean;
   registradaEn: string | null;
@@ -128,7 +129,7 @@ export interface SesionDetalle extends SesionVista {
   alumnos: AlumnoDeSesion[];
 }
 
-function estadoDeRegistro(
+export function estadoDeRegistro(
   sesion: Pick<SesionFila, "fecha" | "cerradaEn">,
   estados: EstadoAsistencia[] | undefined,
   plazoHoras: number,
@@ -150,7 +151,7 @@ function estadoDeRegistro(
   };
 }
 
-async function bloquesPorId(ids: string[]): Promise<Map<string, BloqueDeClase & { orden: number }>> {
+export async function bloquesPorId(ids: string[]): Promise<Map<string, BloqueDeClase & { orden: number }>> {
   const filas = await Promise.all([...new Set(ids)].map((id) => bloques.porId(id)));
   return new Map(
     filas.flatMap((b) =>
@@ -161,7 +162,7 @@ async function bloquesPorId(ids: string[]): Promise<Map<string, BloqueDeClase & 
   );
 }
 
-const sinOrden = ({ id, horaInicio, horaFin, etiqueta }: BloqueDeClase): BloqueDeClase => ({
+export const sinOrden = ({ id, horaInicio, horaFin, etiqueta }: BloqueDeClase): BloqueDeClase => ({
   id,
   horaInicio,
   horaFin,
@@ -206,7 +207,7 @@ interface AlumnoDeLista {
  * historial de secciones) y, en una sesión ya registrada, quienes tienen un registro aunque después se hayan
  * retirado o trasladado.
  */
-async function alumnosDeLista(sesion: SesionFila, registros: RegistroFila[]): Promise<AlumnoDeLista[]> {
+export async function alumnosDeLista(sesion: SesionFila, registros: RegistroFila[]): Promise<AlumnoDeLista[]> {
   const enFecha = new Set(await matriculasDeSeccionEnFecha(sesion.clase.seccionId, sesion.fecha));
   const conRegistro = new Set(registros.map((r) => r.matriculaId));
   const datos = Object.values(await datosDeMatriculas([...enFecha, ...conRegistro]));
@@ -239,7 +240,11 @@ async function contadoresDelCurso(sesion: SesionFila, matriculaIds: string[]) {
   };
 }
 
-async function armarDetalle(sesion: SesionFila, paraAdministrador: boolean, ahora: Date): Promise<SesionDetalle> {
+export async function armarDetalle(
+  sesion: SesionFila,
+  paraAdministrador: boolean,
+  ahora: Date,
+): Promise<SesionDetalle> {
   const registros = await asistencias.deSesion(sesion.id);
   const [[vista], lista] = await Promise.all([vistasDeSesiones([sesion], ahora), alumnosDeLista(sesion, registros)]);
   const [{ anioId, bimestre, contadores }, usuarios, plazoHoras] = await Promise.all([
@@ -281,7 +286,7 @@ async function armarDetalle(sesion: SesionFila, paraAdministrador: boolean, ahor
   };
 }
 
-async function cargarSesion(sesionId: string): Promise<SesionFila> {
+export async function cargarSesion(sesionId: string): Promise<SesionFila> {
   const sesion = await sesiones.porId(sesionId);
   if (!sesion) throw errores.noEncontrado("La sesión de clase");
   return sesion;
@@ -509,6 +514,88 @@ export async function guardarAsistencia(
   return { ...(await armarDetalle(await cargarSesion(sesionId), false, ahora)), avisos };
 }
 
+export interface DatosCorreccion {
+  estado: EstadoAsistencia;
+  observacion?: string | null;
+  motivo: string;
+}
+
+export interface OpcionesCorreccion {
+  /** Acción de la bitácora: CORREGIR_ASISTENCIA o, para el tutor, JUSTIFICAR_ASISTENCIA (bloque M3). */
+  accion: "CORREGIR_ASISTENCIA" | "JUSTIFICAR_ASISTENCIA";
+  /** Quién corrige: el coordinador académico o el tutor de la sección (bloque M3). */
+  por: "COORDINADOR" | "TUTOR";
+  /** Comprobación extra con la fila bloqueada (el tutor: que el registro sea de su sección y del bimestre en curso). */
+  verificar?: (sesion: SesionFila, actual: RegistroFila) => void;
+  /** Estado nuevo calculado desde el actual (la justificación); si no se da, se usa `datos.estado`. */
+  estadoDesde?: (actual: RegistroFila) => EstadoAsistencia;
+  /** Escrituras extra en la misma transacción (la aprobación de una justificación del apoderado, bloque M3). */
+  alGuardar?: (tx: Tx) => Promise<void>;
+}
+
+/**
+ * Corrige un registro dentro de una transacción con la fila bloqueada: guarda el estado anterior, quién y cuándo lo
+ * cambió y el motivo, y lo deja en la bitácora de auditoría con el valor anterior y el nuevo. La usan la corrección
+ * del coordinador (M-20) y la del tutor (bloque M3).
+ */
+export async function aplicarCorreccion(
+  actor: Autenticado,
+  registroId: string,
+  datos: DatosCorreccion,
+  meta: MetaSolicitud,
+  ahora: Date,
+  opciones: OpcionesCorreccion,
+) {
+  const plazoHoras = await plazoDeCorreccion();
+  return prisma.$transaction(async (tx) => {
+    await asistencias.bloquearFila(tx, registroId);
+    const actual = await asistencias.porId(registroId, tx);
+    if (!actual) throw errores.noEncontrado("El registro de asistencia");
+    const sesion = (await sesiones.porId(actual.sesionClaseId, tx))!;
+    opciones.verificar?.(sesion, actual);
+    const estado = opciones.estadoDesde ? opciones.estadoDesde(actual) : datos.estado;
+    // sin observación en la solicitud se conserva la que tenía
+    const observacion = datos.observacion === undefined ? actual.observacion : datos.observacion;
+    verificarCorreccion(actual, { estado, observacion });
+    await asistencias.corregir(tx, registroId, {
+      estado,
+      observacion,
+      ...(actual.estado !== estado ? { estadoAnterior: actual.estado } : {}),
+      modificadoPorId: actor.usuarioId,
+      modificadoEn: ahora,
+      motivoCambio: datos.motivo,
+    });
+    await registrarAuditoria(
+      tx,
+      {
+        usuarioId: actor.usuarioId,
+        entidad: "asistencia_estudiante",
+        entidadId: registroId,
+        accion: opciones.accion,
+        anterior: { estado: actual.estado, observacion: actual.observacion },
+        nuevo: {
+          estado,
+          observacion,
+          sesionClaseId: sesion.id,
+          matriculaId: actual.matriculaId,
+          fecha: sesion.fecha,
+          fueraDePlazo: sesion.cerradaEn ? !dentroDelPlazo(sesion.cerradaEn, plazoHoras, ahora) : false,
+          por: opciones.por,
+        },
+        motivo: datos.motivo,
+      },
+      meta,
+    );
+    await opciones.alGuardar?.(tx);
+    return {
+      sesion,
+      matriculaId: actual.matriculaId,
+      estado,
+      pasaAFalta: actual.estado !== "FALTA" && estado === "FALTA",
+    };
+  });
+}
+
 /**
  * Corrección del coordinador académico (US36, criterio 3; M-20): cambia el estado o la observación de un registro aunque el
  * plazo del docente haya vencido. El motivo es obligatorio y el cambio queda en la bitácora de auditoría con el valor
@@ -517,52 +604,13 @@ export async function guardarAsistencia(
 export async function corregirAsistencia(
   admin: Autenticado,
   registroId: string,
-  datos: { estado: EstadoAsistencia; observacion?: string | null; motivo: string },
+  datos: DatosCorreccion,
   meta: MetaSolicitud,
   ahora: Date = new Date(),
 ): Promise<SesionGuardada> {
-  const plazoHoras = await plazoDeCorreccion();
-  const corregido = await prisma.$transaction(async (tx) => {
-    await asistencias.bloquearFila(tx, registroId);
-    const actual = await asistencias.porId(registroId, tx);
-    if (!actual) throw errores.noEncontrado("El registro de asistencia");
-    const sesion = (await sesiones.porId(actual.sesionClaseId, tx))!;
-    // sin observación en la solicitud se conserva la que tenía
-    const observacion = datos.observacion === undefined ? actual.observacion : datos.observacion;
-    verificarCorreccion(actual, { estado: datos.estado, observacion });
-    await asistencias.corregir(tx, registroId, {
-      estado: datos.estado,
-      observacion,
-      ...(actual.estado !== datos.estado ? { estadoAnterior: actual.estado } : {}),
-      modificadoPorId: admin.usuarioId,
-      modificadoEn: ahora,
-      motivoCambio: datos.motivo,
-    });
-    await registrarAuditoria(
-      tx,
-      {
-        usuarioId: admin.usuarioId,
-        entidad: "asistencia_estudiante",
-        entidadId: registroId,
-        accion: "CORREGIR_ASISTENCIA",
-        anterior: { estado: actual.estado, observacion: actual.observacion },
-        nuevo: {
-          estado: datos.estado,
-          observacion,
-          sesionClaseId: sesion.id,
-          matriculaId: actual.matriculaId,
-          fecha: sesion.fecha,
-          fueraDePlazo: sesion.cerradaEn ? !dentroDelPlazo(sesion.cerradaEn, plazoHoras, ahora) : false,
-        },
-        motivo: datos.motivo,
-      },
-      meta,
-    );
-    return {
-      sesion,
-      matriculaId: actual.matriculaId,
-      pasaAFalta: actual.estado !== "FALTA" && datos.estado === "FALTA",
-    };
+  const corregido = await aplicarCorreccion(admin, registroId, datos, meta, ahora, {
+    accion: "CORREGIR_ASISTENCIA",
+    por: "COORDINADOR",
   });
 
   const avisos = await avisarPorInasistencias(

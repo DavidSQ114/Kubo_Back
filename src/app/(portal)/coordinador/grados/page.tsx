@@ -299,7 +299,7 @@ function TablaSecciones({
       if (grado && s.grado.id !== grado) return false;
       if (estado === "COMPLETO" && !(s.estado === "ACTIVA" && s.vacantes.completo)) return false;
       if ((estado === "ACTIVA" || estado === "INACTIVA") && s.estado !== estado) return false;
-      const etiqueta = `${s.grado.numero}${s.nombre}${s.aula?.nombre ?? ""}${s.tutor?.nombreCompleto ?? ""}`;
+      const etiqueta = `${s.grado.numero}${s.nombre}${s.aula?.nombre ?? ""}${s.tutor?.nombreCompleto ?? ""}${s.cotutor?.nombreCompleto ?? ""}`;
       return !texto || etiqueta.toUpperCase().replace(/\s/g, "").includes(texto);
     });
   }, [secciones, grado, estado, q]);
@@ -394,6 +394,11 @@ function TablaSecciones({
                           <span title={s.tutor.nombreCompleto}>{s.tutor.nombreCorto}</span>
                         ) : (
                           <span className="text-texto-3">Sin tutor</span>
+                        )}
+                        {s.cotutor && (
+                          <span className="block text-[12px] text-texto-3" title={s.cotutor.nombreCompleto}>
+                            Cotutor: {s.cotutor.nombreCorto}
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-4">

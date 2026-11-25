@@ -254,3 +254,25 @@ GET {{base}}/evaluacion/reportes/logro-competencias/pdf?periodoId={{bimestre}}
 ### 39. Notas por alumno: libreta completa del año (lo no publicado sale «Sin publicar»)
 GET {{base}}/evaluacion/reportes/alumnos/{{matricula}}/notas
 
+# ---------- Tutoría: conducta y notas de la sección (bloque M3) ----------
+# Sesión de un docente tutor o cotutor de @seccion; otro docente recibe 403 NO_ES_TUTOR.
+# usa @periodo y @matricula definidos arriba
+@seccionTutoria = 00000000-0000-0000-0000-000000000000
+
+### Conducta del bimestre actual → 200 con alumnos, resumen y editable
+GET {{base}}/evaluacion/tutoria/{{seccionTutoria}}/conducta
+
+### Registrar o modificar la conducta → 200 con guardadas { creadas, modificadas }; periodo FINALIZADO → 409
+PUT {{base}}/evaluacion/tutoria/{{seccionTutoria}}/conducta/{{periodo}}
+Content-Type: application/json
+
+{ "notas": [{ "matriculaId": "{{matricula}}", "valor": "A", "comentario": "Participa y ayuda a sus compañeros" }] }
+
+### Libreta completa del alumno con la conducta → 200; alumno de otra sección → 403 ALUMNO_DE_OTRA_SECCION
+GET {{base}}/evaluacion/tutoria/{{seccionTutoria}}/alumnos/{{matricula}}/notas
+
+### Consolidado del bimestre → 200 con cursos, alumnos y resumen
+GET {{base}}/evaluacion/tutoria/{{seccionTutoria}}/consolidado?periodoId={{periodo}}
+
+### Consolidado en CSV → 200 text/csv
+GET {{base}}/evaluacion/tutoria/{{seccionTutoria}}/consolidado/csv?periodoId={{periodo}}

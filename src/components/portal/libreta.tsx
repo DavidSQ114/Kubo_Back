@@ -55,6 +55,8 @@ export interface BimestreDeLibreta {
   publicadoEn: string | null;
   cursos: CursoDeLibreta[];
   resumen: Record<Logro, number>;
+  /** Nota de conducta del tutor (bloque M3): solo cuando el bimestre está publicado. */
+  conducta?: { valor: Logro; comentario: string | null } | null;
 }
 
 export interface Libreta {
@@ -180,6 +182,24 @@ export function ResumenDelBimestre({ bimestre }: { bimestre: BimestreDeLibreta }
           {cantidad(evidencias, "evidencia adjunta", "evidencias adjuntas")} por los docentes.
         </p>
       )}
+    </Tarjeta>
+  );
+}
+
+/** Nota de conducta del tutor del bimestre (bloque M3); no se muestra si el bimestre aún no está publicado. */
+export function TarjetaConducta({ bimestre }: { bimestre: BimestreDeLibreta }) {
+  if (!bimestre.conducta) return null;
+  return (
+    <Tarjeta className="flex flex-col gap-3 p-5">
+      <h2 className="text-[18px] font-semibold leading-[1.3] text-texto">Conducta</h2>
+      <div className="flex items-center gap-3">
+        <BadgeLogro logro={bimestre.conducta.valor} />
+        <span className="text-[14px] font-medium text-texto">{NOMBRE_LOGRO[bimestre.conducta.valor]}</span>
+      </div>
+      {bimestre.conducta.comentario && (
+        <p className="text-[14px] leading-[1.5] text-texto-2">«{bimestre.conducta.comentario}»</p>
+      )}
+      <p className="text-[12px] leading-[1.4] text-texto-3">Registrada por el tutor de la sección.</p>
     </Tarjeta>
   );
 }

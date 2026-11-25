@@ -3,7 +3,7 @@
 // publicado en los portales del docente, del apoderado y del alumno, US34, US48 y US50, la asistencia de alumnos por
 // sesión de clase, US35 y US36, su consulta en los portales, US45 y US52, y el puerto que académico usa para no borrar
 // cursos ni asignaciones con horario, US10 y US14), y el registro de ingreso del personal docente con su
-// verificación automática de la hora límite (US32).
+// verificación automática de la hora límite (US32), y la asistencia de la tutoría de sección (bloque M3).
 export { horariosProviderHorarios } from "./infrastructure/horariosProvider";
 export {
   DIAS,
@@ -57,6 +57,40 @@ export {
   type SesionGuardada,
   type AlumnoDeSesion,
 } from "./application/asistencia";
+export {
+  inicioDeTutoria,
+  clasesDelDiaDeTutoria,
+  abrirClaseDeTutoria,
+  sesionDeTutoria,
+  guardarAsistenciaDeTutoria,
+  corregirAsistenciaDeTutoria,
+  justificarAsistenciaDeTutoria,
+  alumnosDeLaSeccion,
+  type InicioDeTutoria,
+  type ClasesDelDiaDeTutoria,
+  type SesionDeTutoria,
+  type SesionDeTutoriaGuardada,
+  type AlumnoDeTutoria,
+} from "./application/asistenciaTutoria";
+export {
+  reporteDeAsistencia,
+  reporteDeAsistenciaCsv,
+  reporteDeAsistenciaPdf,
+  type ReporteDeAsistencia,
+  type FilaDelReporte,
+} from "./application/reporteTutoria";
+export { ORDENES_REPORTE, type OrdenReporte } from "./domain/tutoria";
+export {
+  justificacionesDelHijo,
+  enviarJustificacion,
+  justificacionesDeTutoria,
+  archivoDeJustificacion,
+  aprobarJustificacion,
+  rechazarJustificacion,
+  MENSAJE_ARCHIVO_JUSTIFICACION,
+  type JustificacionesDelHijo,
+  type JustificacionDeTutoria,
+} from "./application/justificaciones";
 export {
   asistenciaDelHijo,
   asistenciaDelAlumno,

@@ -74,6 +74,7 @@ export const SeccionSchema = z.object({
   aforoMaximo: aforo,
   aulaId: idOpcional("Aula"),
   tutorId: idOpcional("Tutor"),
+  cotutorId: idOpcional("Cotutor"),
 });
 
 export const EditarSeccionSchema = SeccionSchema.omit({ anioAcademicoId: true })

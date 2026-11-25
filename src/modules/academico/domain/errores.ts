@@ -126,6 +126,20 @@ export const erroresAcademico = {
       422,
     ),
   tutorNoDisponible: () => new ErrorApp("TUTOR_NO_DISPONIBLE", "El tutor debe ser un docente activo.", 422),
+  // ---------- Tutor y cotutor (bloque M3) ----------
+  cotutorNoDisponible: () => new ErrorApp("COTUTOR_NO_DISPONIBLE", "El cotutor debe ser un docente activo.", 422),
+  cotutorSinTutor: () =>
+    new ErrorApp("COTUTOR_SIN_TUTOR", "Asigna primero al tutor de la sección y luego al cotutor.", 422),
+  tutorIgualCotutor: () =>
+    new ErrorApp("TUTOR_IGUAL_COTUTOR", "El tutor y el cotutor no pueden ser el mismo docente.", 422),
+  docenteYaEsTutor: (como: "tutor" | "cotutor", seccion: string) =>
+    new ErrorApp(
+      "DOCENTE_YA_ES_TUTOR",
+      `El docente elegido como ${como} ya es tutor o cotutor de ${seccion} este año. Un docente tiene una sola tutoría por año.`,
+      409,
+      { seccion },
+    ),
+  noEsTutor: () => new ErrorApp("NO_ES_TUTOR", "No eres tutor ni cotutor de esta sección del año en curso.", 403),
   // ---------- Cursos y competencias (US10, US11) ----------
   codigoCursoInvalido: () =>
     new ErrorApp(

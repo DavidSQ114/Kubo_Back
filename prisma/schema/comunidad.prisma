@@ -87,7 +87,8 @@ model Docente {
   activo              Boolean             @default(true)
   createdAt           DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt           DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
-  secciones           Seccion[]
+  secciones           Seccion[]           @relation("TutorSeccion")
+  cotutorias          Seccion[]           @relation("CotutorSeccion")
   asignacionesDocente AsignacionDocente[]
   detallesHorario     DetalleHorario[]
   sesionesClase       SesionClase[]

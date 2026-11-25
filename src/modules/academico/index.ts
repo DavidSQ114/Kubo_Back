@@ -2,7 +2,7 @@
 // (US06 año, US07 periodos, US08 grados y secciones, US09 aulas, US10 cursos, US11 competencias,
 // US12 reglas de consolidación y la versión que rige en cada bimestre para el cierre de notas (US39), US14
 // asignaciones, montos del año para US18 y US21, y la carga horaria de una
-// sección para los horarios, US27–US31).
+// sección para los horarios, US27–US31; tutor y cotutor de la sección y la guardia de la tutoría, bloque M3).
 export { ESTADOS_ANIO, NOMBRE_ESTADO_ANIO, ESTADOS_PERIODO, type EstadoAnio, type EstadoPeriodo } from "./domain/tipos";
 export {
   ESTADOS_SECCION,
@@ -10,7 +10,9 @@ export {
   verificarVacantes,
   type EstadoSeccion,
   type Vacantes,
+  type RolTutoria,
 } from "./domain/secciones";
+export { tutoriaDelDocente, misTutorias, type TutoriaDelDocente } from "./application/tutoria";
 export { aCentimos, deCentimos, type MontosAnio } from "./domain/montos";
 export { anioPorDefecto, fechaEnLima } from "./domain/reglas";
 export { montosDelAnio, guardarMontos, seccionBloqueadaParaMatricula } from "./application/montos";

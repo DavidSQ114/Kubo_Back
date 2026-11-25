@@ -33,6 +33,7 @@ model PeriodoEvaluacion {
   updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   reglasConsolidacion ReglaConsolidacion[]
   cierresCalificacion CierreCalificacion[]
+  notasConducta       NotaConducta[]
 
   @@unique([anioAcademicoId, numero])
   @@map("periodo_evaluacion")
@@ -75,7 +76,11 @@ model Seccion {
   aulaId              String?             @db.Uuid @map("aula_id")
   aula                Aula?               @relation(fields: [aulaId], references: [id], onDelete: SetNull)
   tutorId             String?             @db.Uuid @map("tutor_id")
-  tutor               Docente?            @relation(fields: [tutorId], references: [id], onDelete: SetNull)
+  tutor               Docente?            @relation("TutorSeccion", fields: [tutorId], references: [id], onDelete: SetNull)
+  // Bloque M3: cotutor con los mismos permisos que el tutor; distinto del tutor (ck_seccion_cotutor_distinto) y un
+  // docente es tutor o cotutor de una sola sección por año (tg_seccion_tutoria_unica)
+  cotutorId           String?             @db.Uuid @map("cotutor_id")
+  cotutor             Docente?            @relation("CotutorSeccion", fields: [cotutorId], references: [id], onDelete: SetNull)
   nombre              String
   aforoMaximo         Int                 @map("aforo_maximo")
   estado              EstadoSeccion       @default(ACTIVA)

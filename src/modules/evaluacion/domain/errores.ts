@@ -1,6 +1,6 @@
 // evaluacion/domain: errores del registro de notas (US37), del cierre de bimestre (US39), del bloqueo del registro
 // cerrado (US40), de la rectificación de nota (US41) y de la bitácora de notas (US03). Los mensajes entre comillas son
-// los del Product Backlog v3.3.
+// los del Product Backlog v3.3. erroresTutoriaNotas: conducta y notas de la tutoría (bloque M3).
 import { ErrorApp } from "@/platform/http/errores";
 
 /** Estudiante con competencias sin calificar: impide cerrar el registro (US39, criterio 2). */
@@ -154,4 +154,24 @@ export const erroresEvaluacion = {
     new ErrorApp("CSV_DEMASIADO_GRANDE", `El archivo admite como máximo ${maximo} filas.`, 400),
   /** También para quien no puede verla (apoderado ajeno, otro alumno, registro sin publicar): no se revela que existe. */
   evidenciaNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La evidencia no existe.", 404),
+};
+
+/** Nota de conducta y notas de la tutoría (bloque M3). */
+export const erroresTutoriaNotas = {
+  periodoFinalizado: () =>
+    new ErrorApp(
+      "PERIODO_FINALIZADO",
+      "El bimestre está finalizado: su nota de conducta ya no se registra ni se modifica.",
+      409,
+    ),
+  periodoDeOtroAnio: () => new ErrorApp("NO_ENCONTRADO", "El bimestre no pertenece al año de la tutoría.", 404),
+  alumnoFueraDeLaSeccion: () =>
+    new ErrorApp(
+      "ALUMNO_FUERA_DE_LA_SECCION",
+      "La lista incluye alumnos que no son de la sección de tu tutoría. Vuelve a cargar la página.",
+      422,
+    ),
+  conductaVacia: () => new ErrorApp("DATOS_INVALIDOS", "Indica al menos una nota de conducta.", 400),
+  alumnoDeOtraSeccion: () =>
+    new ErrorApp("ALUMNO_DE_OTRA_SECCION", "Este alumno no es de la sección de tu tutoría.", 403),
 };

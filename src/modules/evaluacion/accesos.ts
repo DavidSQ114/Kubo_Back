@@ -7,4 +7,9 @@ export const ROLES_EVALUACION = {
   GESTION: ["COORDINADOR"],
   /** Reportes de notas: notas por alumno y logro de competencias (bloque M2). */
   REPORTES: ["COORDINADOR"],
+  /**
+   * Conducta y notas de la tutoría (bloque M3): solo docentes; cada caso de uso exige con tutoriaDelDocente que sea
+   * tutor o cotutor de la sección.
+   */
+  TUTORIA: ["DOCENTE"],
 } as const satisfies Record<string, readonly Rol[]>;

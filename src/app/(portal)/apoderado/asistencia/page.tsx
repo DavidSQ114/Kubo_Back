@@ -1,10 +1,12 @@
 // AP-03 · Asistencia · Apoderado (US45): resumen mensual del hijo elegido por día de clases (Presente, Ausente,
 // Tardanza o Justificado; un día es «Ausente» si faltó a todas sus clases), sus inasistencias y tardanzas con las
 // observaciones del docente y la alerta al llegar a UMBRAL_FALTAS_MES. Sin registros: «No hay registros de asistencia
-// disponibles para este periodo». El servidor valida el vínculo: un estudiante que no es su hijo responde 403.
+// disponibles para este periodo». El servidor valida el vínculo: un estudiante que no es su hijo responde 403. Al
+// final, «Justificar inasistencias» de los últimos 7 días (bloque M3).
 "use client";
 
 import { useState } from "react";
+import { JustificacionesDelHijo } from "@/components/apoderado/justificaciones";
 import { useHijo } from "@/components/apoderado/PortalApoderado";
 import { EncabezadoPagina } from "@/components/portal";
 import {
@@ -232,6 +234,7 @@ export default function AsistenciaApoderadoPage() {
       {carga.fase === "cargando" && <CargandoAsistencia />}
       {carga.fase === "error" && <ErrorAsistencia mensaje={carga.mensaje} onReintentar={reintentar} />}
       {carga.fase === "listo" && <PantallaDelMes datos={carga.datos} nombre={nombre} onMes={setMes} />}
+      <JustificacionesDelHijo key={hijo.estudianteId} estudianteId={hijo.estudianteId} nombre={nombre} />
     </>
   );
 }

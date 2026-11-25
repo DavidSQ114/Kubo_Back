@@ -194,6 +194,7 @@ export interface SeccionFila {
   aforoMaximo: number;
   estado: EstadoSeccion;
   tutorId: string | null;
+  cotutorId: string | null;
   grado: GradoFila;
   aula: AulaFila | null;
 }
@@ -206,6 +207,7 @@ const selectSeccion = {
   aforoMaximo: true,
   estado: true,
   tutorId: true,
+  cotutorId: true,
   grado: { select: { id: true, numero: true, nombre: true } },
   aula: { select: selectAula },
 } as const;
@@ -248,6 +250,7 @@ export const secciones = {
       aforoMaximo: number;
       aulaId: string | null;
       tutorId: string | null;
+      cotutorId: string | null;
     },
     db: Db = prisma,
   ) => db.seccion.create({ data, select: selectSeccion }) as Promise<SeccionFila>,
@@ -260,12 +263,28 @@ export const secciones = {
       aforoMaximo?: number;
       aulaId?: string | null;
       tutorId?: string | null;
+      cotutorId?: string | null;
       estado?: EstadoSeccion;
     },
     db: Db = prisma,
   ) => db.seccion.update({ where: { id }, data, select: selectSeccion }) as Promise<SeccionFila>,
 
   eliminar: (id: string, db: Db = prisma) => db.seccion.delete({ where: { id }, select: { id: true } }),
+
+  /** Tutor y cotutor de las secciones del año (bloque M3: un docente tiene una sola tutoría por año). */
+  tutoriasDelAnio: (anioAcademicoId: string, db: Db = prisma) =>
+    db.seccion.findMany({
+      where: { anioAcademicoId, OR: [{ tutorId: { not: null } }, { cotutorId: { not: null } }] },
+      select: { id: true, nombre: true, tutorId: true, cotutorId: true, grado: { select: { numero: true } } },
+    }),
+
+  /** Secciones del año en las que el docente es tutor o cotutor (a lo más una por la regla del bloque M3). */
+  deTutor: (docenteId: string, anioAcademicoId: string, db: Db = prisma) =>
+    db.seccion.findMany({
+      where: { anioAcademicoId, OR: [{ tutorId: docenteId }, { cotutorId: docenteId }] },
+      orderBy: [{ grado: { numero: "asc" } }, { nombre: "asc" }],
+      select: selectSeccion,
+    }) as Promise<SeccionFila[]>,
 
   async bloquearFila(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM seccion WHERE id = ${id}::uuid FOR UPDATE`;
@@ -668,7 +687,7 @@ export const asignaciones = {
   /** Asignaciones del docente, activas o no, y secciones donde es tutor, de cualquier año (US69). */
   async totalDelDocente(docenteId: string, db: Db = prisma) {
     const cursos = await db.asignacionDocente.count({ where: { docenteId } });
-    const tutorias = await db.seccion.count({ where: { tutorId: docenteId } });
+    const tutorias = await db.seccion.count({ where: { OR: [{ tutorId: docenteId }, { cotutorId: docenteId }] } });
     return cursos + tutorias;
   },
 };

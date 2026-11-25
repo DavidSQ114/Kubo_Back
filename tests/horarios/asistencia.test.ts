@@ -139,12 +139,22 @@ describe("lista completa antes de guardar (US35, criterio 3)", () => {
   });
 
   it("cuenta presentes, tardanzas, ausentes, justificados y sin marcar", () => {
-    const estados = ["PRESENTE", "PRESENTE", "TARDANZA", "FALTA", "FALTA_JUSTIFICADA", null, null] as const;
+    const estados = [
+      "PRESENTE",
+      "PRESENTE",
+      "TARDANZA",
+      "FALTA",
+      "FALTA_JUSTIFICADA",
+      "TARDANZA_JUSTIFICADA",
+      null,
+      null,
+    ] as const;
     expect(resumenDeSesion([...estados])).toEqual({
       presentes: 2,
       tardanzas: 1,
       ausentes: 1,
       justificados: 1,
+      tardanzasJustificadas: 1,
       sinMarcar: 2,
     });
   });
@@ -227,6 +237,9 @@ describe("estado del día (US45, criterio 1)", () => {
   it("es Tardanza si llegó tarde a alguna clase y Presente si asistió a todas a tiempo", () => {
     expect(estadoDelDia(["PRESENTE", "TARDANZA", "PRESENTE"])).toBe("TARDANZA");
     expect(estadoDelDia(["PRESENTE", "PRESENTE"])).toBe("PRESENTE");
+    // bloque M3: la tardanza justificada por el tutor cuenta como asistencia, no como tardanza
+    expect(estadoDelDia(["PRESENTE", "TARDANZA_JUSTIFICADA"])).toBe("PRESENTE");
+    expect(estadoDelDia(["FALTA", "TARDANZA_JUSTIFICADA"])).toBe("PRESENTE");
   });
 
   it("agrupa los registros por día, en orden, y resume el mes con su porcentaje de asistencia", () => {

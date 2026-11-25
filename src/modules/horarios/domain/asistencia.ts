@@ -4,15 +4,25 @@
 import { erroresAsistencia as E, type AlumnoSinMarcar } from "./errores";
 import { DIAS, type Dia } from "./tipos";
 
-export const ESTADOS_ASISTENCIA = ["PRESENTE", "TARDANZA", "FALTA", "FALTA_JUSTIFICADA"] as const;
+export const ESTADOS_ASISTENCIA = [
+  "PRESENTE",
+  "TARDANZA",
+  "FALTA",
+  "FALTA_JUSTIFICADA",
+  "TARDANZA_JUSTIFICADA",
+] as const;
 export type EstadoAsistencia = (typeof ESTADOS_ASISTENCIA)[number];
 
-/** Nombres del Product Backlog (US35): la falta se muestra como «Ausente» y la falta justificada, como «Justificado». */
+/**
+ * Nombres del Product Backlog (US35): la falta se muestra como «Ausente» y la falta justificada, como «Justificado».
+ * La tardanza justificada (bloque M3) la marca el tutor y cuenta como asistencia.
+ */
 export const NOMBRE_ESTADO_ASISTENCIA: Record<EstadoAsistencia, string> = {
   PRESENTE: "Presente",
   TARDANZA: "Tardanza",
   FALTA: "Ausente",
   FALTA_JUSTIFICADA: "Justificado",
+  TARDANZA_JUSTIFICADA: "Tardanza justificada",
 };
 
 export interface Rango {
@@ -103,6 +113,8 @@ export interface ResumenDeSesion {
   tardanzas: number;
   ausentes: number;
   justificados: number;
+  /** Bloque M3: tardanzas que justificó el tutor. */
+  tardanzasJustificadas: number;
   sinMarcar: number;
 }
 
@@ -114,6 +126,7 @@ export function resumenDeSesion(estados: (EstadoAsistencia | null)[]): ResumenDe
     tardanzas: cuenta("TARDANZA"),
     ausentes: cuenta("FALTA"),
     justificados: cuenta("FALTA_JUSTIFICADA"),
+    tardanzasJustificadas: cuenta("TARDANZA_JUSTIFICADA"),
     sinMarcar: cuenta(null),
   };
 }
@@ -226,6 +239,8 @@ const ESTADO_DIA_DE_CLASE: Record<EstadoAsistencia, EstadoDia> = {
   TARDANZA: "TARDANZA",
   FALTA: "AUSENTE",
   FALTA_JUSTIFICADA: "JUSTIFICADO",
+  // una clase con tardanza justificada se lista como «Justificado» (bloque M3)
+  TARDANZA_JUSTIFICADA: "JUSTIFICADO",
 };
 
 const esFalta = (e: EstadoAsistencia) => e === "FALTA" || e === "FALTA_JUSTIFICADA";
@@ -233,7 +248,7 @@ const esFalta = (e: EstadoAsistencia) => e === "FALTA" || e === "FALTA_JUSTIFICA
 /**
  * Estado de un día a partir de sus clases (al menos una). Es «Ausente» solo si faltó a TODAS las clases del día
  * (US45, criterio 1) y «Justificado» si todas esas faltas están justificadas. Si asistió a alguna, el día cuenta como
- * «Presente», o «Tardanza» si llegó tarde a alguna clase.
+ * «Presente», o «Tardanza» si llegó tarde a alguna clase sin justificar (una tardanza justificada es asistencia).
  */
 export function estadoDelDia(estados: EstadoAsistencia[]): EstadoDia {
   if (estados.every(esFalta)) return estados.includes("FALTA") ? "AUSENTE" : "JUSTIFICADO";

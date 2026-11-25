@@ -46,16 +46,20 @@ const MENSAJES_BD: Record<string, string> = {
   BITACORA_NOTA_INMUTABLE: "La bitácora de notas no se puede modificar.",
   // tg_nota_registro_cerrado (US40)
   REGISTRO_CERRADO: "Este registro está cerrado y no puede modificarse directamente.",
+  // tg_seccion_tutoria_unica (bloque M3)
+  DOCENTE_YA_ES_TUTOR: "El docente ya es tutor o cotutor de otra sección del año.",
+  // tg_nota_conducta_periodo_finalizado (bloque M3)
+  PERIODO_FINALIZADO: "El bimestre está finalizado: su nota de conducta ya no se modifica.",
 };
 
 /** Códigos de la base de datos que no son una regla incumplida (422): un registro cerrado es un conflicto (409). */
-const ESTADO_BD: Record<string, number> = { REGISTRO_CERRADO: 409 };
+const ESTADO_BD: Record<string, number> = { REGISTRO_CERRADO: 409, DOCENTE_YA_ES_TUTOR: 409, PERIODO_FINALIZADO: 409 };
 
 /** Convierte errores lanzados por la base de datos (triggers con código al inicio). */
 export function errorDeBaseDeDatos(e: unknown): ErrorApp | null {
   const texto = String((e as { message?: string })?.message ?? "");
   const m = texto.match(
-    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE|BITACORA_NOTA_INMUTABLE|REGISTRO_CERRADO)\b/,
+    /\b(AFORO_EXCEDE_AULA|RESPONSABLE_NO_VINCULADO|DETALLE_INCOHERENTE|REGISTRO_AUDITORIA_INMUTABLE|BITACORA_NOTA_INMUTABLE|REGISTRO_CERRADO|DOCENTE_YA_ES_TUTOR|PERIODO_FINALIZADO)\b/,
   );
   if (!m) return null;
   // El trigger de aforo informa ambos números: «el aforo de la sección (32) supera el del aula (28)».

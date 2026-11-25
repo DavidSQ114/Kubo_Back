@@ -491,3 +491,14 @@ PUT {{base}}/academico/parametros/HORA_LIMITE_ASISTENCIA_DOCENTE
 Content-Type: application/json
 
 { "valor": "8 am" }
+
+# ---------- Tutor y cotutor (bloque M3) ----------
+
+### Asignar tutor y cotutor → 200; mismo docente → 422 TUTOR_IGUAL_COTUTOR; con otra tutoría en el año → 409
+PATCH {{base}}/academico/secciones/{{seccion}}
+Content-Type: application/json
+
+{ "tutorId": "{{docente}}", "cotutorId": "{{otroDocente}}" }
+
+### (Docente) Mis tutorías del año en curso → 200 { tutorias }
+GET {{base}}/academico/mi-tutoria
