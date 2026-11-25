@@ -82,7 +82,10 @@ export {
   competenciasDePlan,
   guardarCompetenciasPlan,
   competenciasDelPlan,
+  competenciasDeMiCurso,
+  guardarCompetenciasDeMiCurso,
   type CompetenciaDelPlan,
+  type CompetenciasDeMiCurso,
 } from "./application/competencias";
 export {
   catalogoDeCompetencias,

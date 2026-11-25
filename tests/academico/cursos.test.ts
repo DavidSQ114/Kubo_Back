@@ -7,6 +7,7 @@ import {
   verificarArea,
   verificarCambioArea,
   verificarCompetenciasConfiguradas,
+  verificarEdicionDocente,
   verificarEliminacionCurso,
   verificarGradosPlan,
   verificarQuitarCompetencias,
@@ -158,5 +159,24 @@ describe("competencias del plan (US11, RF09)", () => {
       "CURSO_SIN_COMPETENCIAS",
       "Este curso no tiene competencias configuradas. Contacte al administrador.",
     );
+  });
+});
+
+describe("competencias de mi curso por el docente (bloque M2, DO-04)", () => {
+  it("permite cambiar las competencias mientras ninguna tenga notas en el año", () => {
+    expect(() => verificarEdicionDocente(0)).not.toThrow();
+  });
+
+  it("con alguna nota en el año, el docente ya no las cambia y se le dice a quién pedirlo", () => {
+    esperarError(() => verificarEdicionDocente(3), "PLAN_CON_NOTAS");
+    try {
+      verificarEdicionDocente(1);
+    } catch (e) {
+      expect((e as Error).message).toContain("coordinación académica");
+    }
+  });
+
+  it("el docente tampoco agrega una competencia desactivada en el catálogo", () => {
+    esperarError(() => prepararCompetencias([{ competenciaId: "mat-c9" }], MAT, catalogo, []), "COMPETENCIA_INACTIVA");
   });
 });

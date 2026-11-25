@@ -130,6 +130,14 @@ export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: n
   if (conNotas) throw E.competenciaConNotas(conNotas.nombre, conNotas.notas);
 }
 
+/**
+ * Bloque M2: el docente cambia las competencias de su curso y grado solo mientras ninguna tenga notas en el año (el
+ * plan es del año). Con notas, el cambio lo hace la coordinación académica en AD-04.
+ */
+export function verificarEdicionDocente(notasDelPlan: number) {
+  if (notasDelPlan > 0) throw E.planConNotas(notasDelPlan);
+}
+
 /** Para registrar notas: el plan debe tener al menos una competencia configurada. */
 export function verificarCompetenciasConfiguradas(competencias: unknown[]) {
   if (competencias.length === 0) throw E.cursoSinCompetencias();

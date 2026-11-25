@@ -161,6 +161,14 @@ export const erroresAcademico = {
   competenciaInactiva: () =>
     new ErrorApp("COMPETENCIA_INACTIVA", "La competencia está desactivada en el catálogo oficial", 422),
   pesoInvalido: () => new ErrorApp("PESO_INVALIDO", "El peso debe ser un número mayor a 0", 400),
+  planConNotas: (notas: number) =>
+    new ErrorApp(
+      "PLAN_CON_NOTAS",
+      "Este curso ya tiene notas registradas en el año: sus competencias ya no se pueden cambiar desde aquí. " +
+        "Si necesitas un cambio, pídelo a la coordinación académica.",
+      409,
+      { notas },
+    ),
   competenciaConNotas: (nombre: string, notas: number) =>
     new ErrorApp("COMPETENCIA_CON_NOTAS", "No se puede eliminar una competencia con notas registradas.", 409, {
       competencia: nombre,

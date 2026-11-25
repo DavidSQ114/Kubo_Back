@@ -3,6 +3,7 @@
 // cierra el registro (M-10). Un bimestre no activo o un registro cerrado se muestran en solo lectura con su mensaje; en
 // uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado. Cada calificación
 // guardada admite evidencias (US38, M-07): se agregan y eliminan con el registro abierto y luego quedan en solo lectura.
+// «Competencias de mi curso» (bloque M2) agrega o quita competencias del plan mientras ninguna tenga notas en el año.
 "use client";
 
 import { useState } from "react";
@@ -24,6 +25,7 @@ import {
   type RegistroCerrado,
   type RegistroDeNotas,
 } from "@/components/docente/notas";
+import { ModalCompetenciasDelCurso } from "@/components/docente/competencias";
 import { ModalEvidencias, type CeldaElegida } from "@/components/docente/evidencias";
 import {
   claveNota,
@@ -365,6 +367,10 @@ export default function RegistroDeNotasPage() {
   const mis = useConsulta<MisRegistros>("/evaluacion/registros");
   const [cursoElegido, setCursoElegido] = useState<string | null>(null);
   const [bimestreElegido, setBimestreElegido] = useState<string | null>(null);
+  const [editandoCompetencias, setEditandoCompetencias] = useState(false);
+  const [avisoCompetencias, setAvisoCompetencias] = useState<string | null>(null);
+  // al cambiar las competencias del plan, el registro se vuelve a montar con las columnas nuevas
+  const [versionRegistro, setVersionRegistro] = useState(0);
 
   const datos = mis.carga.fase === "listo" ? mis.carga.datos : null;
   const curso = datos?.cursos.find((c) => c.asignacionId === cursoElegido) ?? datos?.cursos[0];
@@ -393,20 +399,29 @@ export default function RegistroDeNotasPage() {
       {datos && curso && bimestreId && (
         <>
           <Tarjeta className="flex flex-col gap-4 p-4 lg:p-5">
-            <label className="flex max-w-[360px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">
-              Curso y sección
-              <select
-                value={curso.asignacionId}
-                onChange={(e) => setCursoElegido(e.target.value)}
-                className="h-11 w-full rounded-lg border border-borde bg-white px-3 text-[16px] font-normal text-texto outline-none focus:border-kubo-azul"
-              >
-                {datos.cursos.map((c) => (
-                  <option key={c.asignacionId} value={c.asignacionId}>
-                    {c.curso.nombre} · {c.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="flex w-full max-w-[360px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">
+                Curso y sección
+                <select
+                  value={curso.asignacionId}
+                  onChange={(e) => {
+                    setCursoElegido(e.target.value);
+                    setAvisoCompetencias(null);
+                  }}
+                  className="h-11 w-full rounded-lg border border-borde bg-white px-3 text-[16px] font-normal text-texto outline-none focus:border-kubo-azul"
+                >
+                  {datos.cursos.map((c) => (
+                    <option key={c.asignacionId} value={c.asignacionId}>
+                      {c.curso.nombre} · {c.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Boton variante="secundario" icono="icon-award" onClick={() => setEditandoCompetencias(true)}>
+                Competencias de mi curso
+              </Boton>
+            </div>
+            {avisoCompetencias && <Alerta tipo="exito" titulo={avisoCompetencias} icono="icon-check-verde" />}
             <div
               role="tablist"
               aria-label="Bimestres"
@@ -440,12 +455,22 @@ export default function RegistroDeNotasPage() {
             aria-label={`Registro de notas de ${curso.curso.nombre} ${curso.etiqueta}`}
           >
             <RegistroDelBimestre
-              key={`${curso.asignacionId}-${bimestreId}`}
+              key={`${curso.asignacionId}-${bimestreId}-${versionRegistro}`}
               asignacionId={curso.asignacionId}
               bimestreId={bimestreId}
               onCambio={mis.recargar}
             />
           </section>
+          {editandoCompetencias && (
+            <ModalCompetenciasDelCurso
+              asignacionId={curso.asignacionId}
+              onCerrar={() => setEditandoCompetencias(false)}
+              onGuardado={(aviso) => {
+                setAvisoCompetencias(aviso);
+                setVersionRegistro((v) => v + 1);
+              }}
+            />
+          )}
         </>
       )}
     </>
