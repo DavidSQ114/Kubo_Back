@@ -1,12 +1,12 @@
 // DO-04 · «Ítems» de una competencia (bloque M2): el docente agrega, edita, reordena y elimina los ítems de evaluación
 // con su nombre y su peso, con el total visible («100 %» en verde u otro valor en rojo). Se guarda la lista completa;
 // si el cambio borra calificaciones o deja alumnos sin nota, el servidor pide confirmación y aquí se explica qué se
-// pierde antes de confirmar.
+// pierde antes de confirmar. Cada ítem guardado puede importar sus calificaciones desde un CSV (fase 7).
 "use client";
 
 import { useState } from "react";
 import { mensajeError } from "@/components/portal";
-import { Alerta, Boton, Icono, Modal } from "@/components/ui";
+import { Alerta, Boton, Icono, Modal, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { cantidad } from "@/lib/formato";
 import { porcentaje, type CompetenciaDeRegistro, type RegistroDeNotas } from "./notas";
@@ -62,6 +62,7 @@ export function ModalItems({
   columna,
   onCerrar,
   onGuardado,
+  onImportar,
 }: {
   registro: RegistroDeNotas;
   competencia: CompetenciaDeRegistro;
@@ -69,6 +70,8 @@ export function ModalItems({
   columna: string;
   onCerrar: () => void;
   onGuardado: (nuevo: ItemsGuardados) => void;
+  /** Abre «Importar CSV» de un ítem ya guardado (fase 7). */
+  onImportar?: (item: { id: string; nombre: string }) => void;
 }) {
   const [filas, setFilas] = useState<Fila[]>(() =>
     competencia.items.map((i) => ({ clave: i.id, id: i.id, nombre: i.nombre, peso: String(i.peso) })),
@@ -232,10 +235,21 @@ export function ModalItems({
                   <Icono nombre="act-trash" size={16} />
                 </button>
               </div>
-              {f.id && (calificadas.get(f.id) ?? 0) > 0 && (
-                <p className="basis-full text-[12px] text-texto-3">
-                  {cantidad(calificadas.get(f.id)!, "alumno calificado", "alumnos calificados")}
-                </p>
+              {f.id && (
+                <div className="flex basis-full flex-wrap items-center justify-between gap-2">
+                  <p className="text-[12px] text-texto-3">
+                    {cantidad(calificadas.get(f.id) ?? 0, "alumno calificado", "alumnos calificados")}
+                  </p>
+                  {onImportar && (
+                    <button
+                      type="button"
+                      onClick={() => onImportar({ id: f.id!, nombre: f.nombre.trim() || `Ítem ${i + 1}` })}
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold text-kubo-azul hover:underline"
+                    >
+                      <Icono nombre="icon-subir" size={14} /> Importar calificaciones (CSV)
+                    </button>
+                  )}
+                </div>
               )}
             </li>
           ))}
@@ -272,6 +286,181 @@ export function ModalItems({
         </Alerta>
       )}
       {error && <Alerta tipo="error" titulo={error} />}
+    </Modal>
+  );
+}
+
+// ---------- Importar calificaciones de un ítem desde CSV (fase 7) ----------
+
+interface FilaImportada {
+  linea: number;
+  dni: string;
+  calificativo: string;
+  matriculaId: string | null;
+  nombre: string | null;
+  motivo: string | null;
+}
+
+interface ImportacionItem {
+  item: { id: string; nombre: string };
+  filas: FilaImportada[];
+  validas: number;
+  rechazadas: number;
+  guardado: (RegistroDeNotas & { guardado: { recalculo: { calculadas: number; cambiadas: number } } }) | null;
+}
+
+/** 300 filas «dni,calificativo» ocupan unos 4 KB: un archivo de más de 50 KB no es el que se espera. */
+const TAMANO_MAXIMO_CSV = 50_000;
+
+/**
+ * «Importar CSV» de un ítem: el docente elige un archivo «dni,calificativo», ve cada fila válida o rechazada con su
+ * motivo y confirma; solo se guardan las válidas, con el mismo recálculo que «Guardar cambios».
+ */
+export function ModalImportarCsv({
+  registro,
+  item,
+  columna,
+  onCerrar,
+  onImportado,
+}: {
+  registro: RegistroDeNotas;
+  item: { id: string; nombre: string };
+  columna: string;
+  onCerrar: () => void;
+  onImportado: (nuevo: RegistroDeNotas, mensaje: string) => void;
+}) {
+  const [csv, setCsv] = useState<string | null>(null);
+  const [vista, setVista] = useState<ImportacionItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const ruta = `/evaluacion/registros/${registro.asignacionId}/bimestres/${registro.bimestre.id}/items/${item.id}/importar`;
+
+  async function enviar(texto: string, confirmar: boolean) {
+    setCargando(true);
+    setError(null);
+    try {
+      const r = await api<ImportacionItem>(ruta, { method: "POST", body: { csv: texto, confirmar } });
+      if (confirmar && r.guardado) {
+        const calculadas = r.guardado.guardado.recalculo.calculadas + r.guardado.guardado.recalculo.cambiadas;
+        onImportado(
+          r.guardado,
+          `Se importaron ${cantidad(r.validas, "calificación", "calificaciones")} de «${item.nombre}»` +
+            (calculadas ? ` y se calcularon ${cantidad(calculadas, "nota", "notas")}.` : "."),
+        );
+      } else setVista(r);
+    } catch (e) {
+      setError(mensajeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function elegir(archivo: File | undefined) {
+    setVista(null);
+    if (!archivo) return;
+    if (archivo.size > TAMANO_MAXIMO_CSV) {
+      setError("El archivo es demasiado grande: usa uno de hasta 300 filas «dni,calificativo».");
+      return;
+    }
+    const texto = await archivo.text();
+    setCsv(texto);
+    await enviar(texto, false);
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="icon-subir"
+      tonoIcono="azul"
+      titulo={`Importar calificaciones · ${item.nombre}`}
+      subtitulo={`${columna} · ${registro.curso.nombre} ${registro.seccion.etiqueta}`}
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={cargando}>
+            Cancelar
+          </Boton>
+          <Boton
+            icono="check-blanco"
+            cargando={cargando && !!vista}
+            disabled={!vista || vista.validas === 0 || !csv}
+            onClick={() => csv && enviar(csv, true)}
+          >
+            {vista ? `Importar ${cantidad(vista.validas, "calificación", "calificaciones")}` : "Importar"}
+          </Boton>
+        </>
+      }
+    >
+      <p className="text-[13px] leading-[1.4] text-texto-2">
+        Sube un archivo CSV con una fila por alumno: <code className="rounded bg-fondo px-1">dni,calificativo</code>{" "}
+        (por ejemplo, <code className="rounded bg-fondo px-1">71234567,AD</code>). La cabecera es opcional. Revisarás
+        las filas antes de guardarlas; las rechazadas no se importan.
+      </p>
+      <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto-2">
+        Archivo CSV
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => void elegir(e.target.files?.[0])}
+          className="text-[14px] text-texto file:mr-3 file:rounded-lg file:border file:border-borde file:bg-white file:px-3 file:py-2 file:text-[14px] file:font-semibold file:text-kubo-azul"
+        />
+      </label>
+      {cargando && !vista && (
+        <p className="flex items-center gap-2 text-[14px] text-texto-2">
+          <Spinner claro={false} /> Revisando el archivo…
+        </p>
+      )}
+      {error && <Alerta tipo="error" titulo={error} />}
+      {vista && (
+        <>
+          <p className="text-[14px] text-texto">
+            <span className="font-semibold text-verde-oscuro">
+              {cantidad(vista.validas, "fila válida", "filas válidas")}
+            </span>
+            {" · "}
+            <span className={vista.rechazadas ? "font-semibold text-rojo-oscuro" : "text-texto-3"}>
+              {cantidad(vista.rechazadas, "fila rechazada", "filas rechazadas")}
+            </span>
+          </p>
+          <div className="max-h-[320px] overflow-auto rounded-lg border border-borde">
+            <table className="w-full border-collapse text-left text-[13px]">
+              <caption className="sr-only">Filas del archivo</caption>
+              <thead className="sticky top-0 bg-fondo text-texto-2">
+                <tr>
+                  <th scope="col" className="px-2 py-2">
+                    Línea
+                  </th>
+                  <th scope="col" className="px-2 py-2">
+                    DNI
+                  </th>
+                  <th scope="col" className="px-2 py-2">
+                    Alumno
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-center">
+                    Logro
+                  </th>
+                  <th scope="col" className="px-2 py-2">
+                    Estado
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {vista.filas.map((f) => (
+                  <tr key={f.linea} className={`border-t border-borde ${f.motivo ? "bg-rojo/5" : ""}`}>
+                    <td className="px-2 py-1.5 text-texto-3">{f.linea}</td>
+                    <td className="px-2 py-1.5">{f.dni || "—"}</td>
+                    <td className="px-2 py-1.5">{f.nombre ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-center font-semibold">{f.calificativo || "—"}</td>
+                    <td className={`px-2 py-1.5 ${f.motivo ? "text-rojo-oscuro" : "text-verde-oscuro"}`}>
+                      {f.motivo ?? "Válida"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

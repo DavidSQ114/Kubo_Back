@@ -253,3 +253,64 @@ export function cambiosDeCalificaciones(
   }
   return cambios;
 }
+
+// ---------- Importar calificaciones de un ítem desde CSV (bloque M2, fase 7) ----------
+
+/** Un archivo de una sección tiene a lo más unos 40 alumnos: 300 filas sobran y evitan archivos enormes. */
+export const MAXIMO_FILAS_CSV = 300;
+const DNI = /^\d{8}$/;
+
+export interface FilaImportada {
+  /** Línea del archivo (1 = la primera). */
+  linea: number;
+  dni: string;
+  calificativo: string;
+  /** Alumno del registro con ese DNI; null si no se encontró. */
+  matriculaId: string | null;
+  nombre: string | null;
+  /** Por qué se rechaza la fila; null si es válida. */
+  motivo: string | null;
+}
+
+/**
+ * Analiza un CSV «dni,calificativo» (también con «;») contra los alumnos del registro: la cabecera es opcional y las
+ * líneas vacías se ignoran. Cada fila sale válida o con su motivo de rechazo; ninguna se guarda aquí.
+ *   analizarCsvCalificaciones("dni,calificativo\n71234567,AD", alumnos)
+ */
+export function analizarCsvCalificaciones(
+  texto: string,
+  alumnos: { matriculaId: string; nombre: string; dni?: string }[],
+): FilaImportada[] {
+  const porDni = new Map(alumnos.flatMap((a) => (a.dni ? [[a.dni, a] as const] : [])));
+  const vistos = new Set<string>();
+  const lineas = texto.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const filas: FilaImportada[] = [];
+  lineas.forEach((cruda, i) => {
+    const linea = cruda.trim();
+    if (!linea) return;
+    const [dniCrudo = "", valorCrudo = "", ...resto] = linea.split(/[,;]/).map((c) => c.trim().replace(/^"|"$/g, ""));
+    if (filas.length === 0 && i === lineas.findIndex((l) => l.trim()) && !/\d/.test(dniCrudo)) return; // cabecera
+    const calificativo = valorCrudo.toUpperCase();
+    const alumno = porDni.get(dniCrudo);
+    let motivo: string | null = null;
+    if (resto.some((c) => c !== "")) motivo = "La fila tiene más de dos columnas: usa «dni,calificativo».";
+    else if (!DNI.test(dniCrudo)) motivo = "El DNI debe tener 8 dígitos.";
+    else if (!LOGROS_IMPORTABLES.includes(calificativo)) motivo = "Solo se permiten los valores AD, A, B o C.";
+    else if (vistos.has(dniCrudo)) motivo = "El DNI aparece más de una vez en el archivo.";
+    else if (!alumno) motivo = "No hay un alumno con ese DNI en este registro.";
+    if (DNI.test(dniCrudo)) vistos.add(dniCrudo);
+    filas.push({
+      linea: i + 1,
+      dni: dniCrudo,
+      calificativo,
+      matriculaId: alumno?.matriculaId ?? null,
+      nombre: alumno?.nombre ?? null,
+      motivo,
+    });
+  });
+  if (filas.length > MAXIMO_FILAS_CSV) throw E.csvDemasiadoGrande(MAXIMO_FILAS_CSV);
+  if (filas.length === 0) throw E.csvVacio();
+  return filas;
+}
+
+const LOGROS_IMPORTABLES: string[] = ["AD", "A", "B", "C"];

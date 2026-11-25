@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { consolidarLogro } from "@/modules/academico";
 import {
+  analizarCsvCalificaciones,
   cambiosDeCalificaciones,
   notaDeItems,
   pesosCompletos,
@@ -215,5 +216,40 @@ describe("calificaciones de ítems y notas directas (bloque M2)", () => {
     expect(r.nuevas).toEqual([{ itemId: "p", matriculaId: "m3", logro: "C" }]);
     expect(r.modificadas).toEqual([{ id: "c1", anterior: "A", logro: "AD", itemId: "p", matriculaId: "m1" }]);
     expect(r.sinCambio).toBe(1);
+  });
+});
+
+describe("importar calificaciones de un ítem desde CSV (bloque M2, fase 7)", () => {
+  const alumnos = [
+    { matriculaId: "m1", nombre: "Álvarez, Ana", dni: "90002421" },
+    { matriculaId: "m2", nombre: "Castillo, Bruno", dni: "90002422" },
+  ];
+
+  it("acepta la cabecera, «;» y minúsculas, y marca cada fila válida con su alumno", () => {
+    const filas = analizarCsvCalificaciones("dni;calificativo\r\n90002421;ad\n\n90002422;B\n", alumnos);
+    expect(filas.map((f) => [f.linea, f.matriculaId, f.calificativo, f.motivo])).toEqual([
+      [2, "m1", "AD", null],
+      [4, "m2", "B", null],
+    ]);
+  });
+
+  it("rechaza cada fila con su motivo sin perder las válidas", () => {
+    const filas = analizarCsvCalificaciones(
+      ["90002421,A", "9000242,A", "90002422,15", "90002421,B", "90009999,C", "90002422,A,extra"].join("\n"),
+      alumnos,
+    );
+    expect(filas.map((f) => f.motivo)).toEqual([
+      null,
+      "El DNI debe tener 8 dígitos.",
+      "Solo se permiten los valores AD, A, B o C.",
+      "El DNI aparece más de una vez en el archivo.",
+      "No hay un alumno con ese DNI en este registro.",
+      "La fila tiene más de dos columnas: usa «dni,calificativo».",
+    ]);
+  });
+
+  it("un archivo vacío o con solo la cabecera se rechaza", () => {
+    esperarError(() => analizarCsvCalificaciones("dni,calificativo\n", alumnos), "CSV_VACIO");
+    esperarError(() => analizarCsvCalificaciones("   ", alumnos), "CSV_VACIO");
   });
 });

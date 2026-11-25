@@ -2,7 +2,8 @@
 // «Ítems»): crea, edita, reordena y elimina con la lista completa en una sola transacción. Solo el docente de la
 // asignación, en el bimestre activo y con el registro ABIERTO, con el cierre bloqueado. Si el cambio borra
 // calificaciones o deja alumnos sin nota (y sin sus evidencias), pide confirmación; luego recalcula las notas de la
-// competencia y lo deja en la auditoría (GUARDAR_ITEMS_EVALUACION) y en la bitácora de notas (origen ITEMS).
+// competencia y lo deja en la auditoría (GUARDAR_ITEMS_EVALUACION) y en la bitácora de notas (origen ITEMS). También
+// importa las calificaciones de un ítem desde CSV (fase 7).
 import { prisma } from "@/platform/db/prisma";
 import { registrarAuditoria } from "@/platform/auditoria";
 import type { MetaSolicitud } from "@/platform/http/ruta";
@@ -10,14 +11,16 @@ import { competenciasDelPlan, fechaEnLima, reglaDelBimestre } from "@/modules/ac
 import type { Autenticado } from "@/modules/identidad";
 import { erroresEvaluacion as E, type ImpactoCambioItems } from "../domain/errores";
 import {
+  analizarCsvCalificaciones,
   prepararItems,
   recalcularNotas,
   sumaDePesos,
   verificarConfirmacion,
+  type FilaImportada,
   type ItemDeCompetencia,
   type ItemPedido,
 } from "../domain/items";
-import { situacionDelRegistro, verificarEditable } from "../domain/notas";
+import { situacionDelRegistro, verificarEditable, type LogroNota } from "../domain/notas";
 import { columnasDelRegistro } from "../domain/rectificacion";
 import {
   calificacionesItem,
@@ -28,7 +31,15 @@ import {
   notas,
 } from "../infrastructure/repositorio";
 import { aplicarRecalculo, calcularNotaDeItems, type ResumenRecalculo } from "./recalculoItems";
-import { alumnosDelRegistro, armarRegistro, cargarContexto, etiquetaDe, type RegistroDeNotas } from "./registroNotas";
+import {
+  alumnosDelRegistro,
+  armarRegistro,
+  cargarContexto,
+  etiquetaDe,
+  guardarNotas,
+  type NotasGuardadas,
+  type RegistroDeNotas,
+} from "./registroNotas";
 
 export interface ItemsGuardados extends RegistroDeNotas {
   itemsGuardados: {
@@ -171,4 +182,60 @@ export async function guardarItems(
     return { creados, editados, eliminados: eliminados.length, impacto, recalculo };
   });
   return { ...(await armarRegistro(asignacion, bimestre, ahora)), itemsGuardados: resumen };
+}
+
+// ---------- Importar calificaciones de un ítem desde CSV (fase 7) ----------
+
+export interface ImportacionItem {
+  item: { id: string; nombre: string };
+  filas: FilaImportada[];
+  validas: number;
+  rechazadas: number;
+  /** Con `confirmar`: el registro tras guardar las filas válidas (el mismo guardado que «Guardar cambios»). */
+  guardado: NotasGuardadas | null;
+}
+
+/**
+ * Importa las calificaciones de un ítem desde un CSV «dni,calificativo» (bloque M2, COULD). Sin `confirmar`, solo
+ * valida y devuelve cada fila con su motivo de rechazo; con `confirmar`, guarda las válidas con guardarNotas (registro
+ * ABIERTO, bimestre activo, recálculo en la misma transacción y bitácora). Las rechazadas nunca se guardan.
+ */
+export async function importarCalificacionesItem(
+  auth: Autenticado,
+  ids: { asignacionId: string; periodoId: string; itemId: string },
+  datos: { csv: string; confirmar: boolean },
+  ahora: Date = new Date(),
+): Promise<ImportacionItem> {
+  const { asignacion, bimestre } = await cargarContexto(auth, ids.asignacionId, ids.periodoId, ahora);
+  const cierre = await cierres.de(asignacion.id, bimestre.id);
+  verificarEditable(situacionDelRegistro(estadoDeRegistro(cierre), bimestre.activo));
+  const item = cierre ? (await itemsEvaluacion.delCierre(cierre.id)).find((i) => i.id === ids.itemId) : undefined;
+  if (!item) throw E.itemAjeno();
+  const alumnos = await alumnosDelRegistro(asignacion.seccion.id, null, fechaEnLima(ahora));
+  const filas = analizarCsvCalificaciones(datos.csv, alumnos);
+  const validas = filas.filter((f) => !f.motivo);
+  const guardado =
+    datos.confirmar && validas.length
+      ? await guardarNotas(
+          auth,
+          ids.asignacionId,
+          ids.periodoId,
+          {
+            notas: [],
+            calificaciones: validas.map((f) => ({
+              itemId: item.id,
+              matriculaId: f.matriculaId!,
+              logro: f.calificativo as LogroNota,
+            })),
+          },
+          ahora,
+        )
+      : null;
+  return {
+    item: { id: item.id, nombre: item.nombre },
+    filas,
+    validas: validas.length,
+    rechazadas: filas.length - validas.length,
+    guardado,
+  };
 }

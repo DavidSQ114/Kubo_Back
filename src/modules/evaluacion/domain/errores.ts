@@ -148,6 +148,10 @@ export const erroresEvaluacion = {
       409,
       { ...impacto },
     ),
+  csvVacio: () =>
+    new ErrorApp("CSV_VACIO", "El archivo no tiene filas: escribe una fila «dni,calificativo» por alumno.", 400),
+  csvDemasiadoGrande: (maximo: number) =>
+    new ErrorApp("CSV_DEMASIADO_GRANDE", `El archivo admite como máximo ${maximo} filas.`, 400),
   /** También para quien no puede verla (apoderado ajeno, otro alumno, registro sin publicar): no se revela que existe. */
   evidenciaNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La evidencia no existe.", 404),
 };

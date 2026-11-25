@@ -24,6 +24,7 @@ import {
   cerrarRegistro,
   guardarItems,
   guardarNotas,
+  importarCalificacionesItem,
   libretaDelHijo,
   libretaPdfDelHijo,
   notasDelAlumno,
@@ -455,6 +456,25 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
     // Ana solo tiene el examen (AD) con peso 100 → AD; Bruno sigue sin examen → sin nota
     expect((await notaEnBase("ana", 0))?.logro).toBe("AD");
     expect(await notaEnBase("bruno", 0)).toBeNull();
+  });
+
+  it("importa las calificaciones de un ítem desde CSV: valida, muestra las rechazadas y guarda solo las válidas", async () => {
+    const csv = "dni,calificativo\n90002422,b\n90009999,A\n90002421,15\n";
+    const ids = { asignacionId: asignacion, periodoId: bimestre, itemId: examen };
+    const vista = await importarCalificacionesItem(propio, ids, { csv, confirmar: false }, ABRIL);
+    expect(vista).toMatchObject({ validas: 1, rechazadas: 2, guardado: null });
+    expect(vista.filas.map((f) => f.motivo)).toEqual([
+      null,
+      "No hay un alumno con ese DNI en este registro.",
+      "Solo se permiten los valores AD, A, B o C.",
+    ]);
+    expect(await notaEnBase("bruno", 0)).toBeNull();
+
+    const r = await importarCalificacionesItem(propio, ids, { csv, confirmar: true }, ABRIL);
+    expect(r.guardado?.guardado.calificaciones).toEqual({ nuevas: 1, modificadas: 0 });
+    // Bruno: examen B con peso 100 → B; Ana no cambia
+    expect((await notaEnBase("bruno", 0))?.logro).toBe("B");
+    expect((await notaEnBase("ana", 0))?.logro).toBe("AD");
   });
 
   it("con notas en el año, el docente ya no cambia las competencias de su curso", async () => {

@@ -218,3 +218,17 @@ export const NuevaEvidenciaSchema = z.object({
       `El comentario admite hasta ${LARGO_MAXIMO_COMENTARIO_EVIDENCIA} caracteres`,
     ),
 });
+
+/** Ruta /registros/{asignacionId}/bimestres/{periodoId}/items/{itemId}/importar. */
+export const ImportarItemParamsSchema = RegistroParamsSchema.extend({ itemId: IdSchema });
+
+/** 300 filas «dni,calificativo» ocupan unos 4 KB; 50 KB sobran. */
+const LARGO_MAXIMO_CSV = 50_000;
+
+/** Cuerpo de POST …/importar: el texto del CSV y si se guardan ya las filas válidas. */
+export const ImportarCalificacionesSchema = z.object({
+  csv: z
+    .string({ message: "Envía el contenido del archivo CSV" })
+    .max(LARGO_MAXIMO_CSV, "El archivo es demasiado grande: usa uno de hasta 300 filas"),
+  confirmar: z.boolean({ message: "confirmar debe ser verdadero o falso" }).default(false),
+});

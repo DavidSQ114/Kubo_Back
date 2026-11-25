@@ -80,7 +80,12 @@ export {
   MAXIMO_ITEMS_POR_COMPETENCIA,
   type MotivoSinNota,
 } from "./domain/items";
-export { guardarItems, type ItemsGuardados } from "./application/items";
+export {
+  guardarItems,
+  importarCalificacionesItem,
+  type ItemsGuardados,
+  type ImportacionItem,
+} from "./application/items";
 export {
   reporteLogroCompetencias,
   reporteLogroCsv,

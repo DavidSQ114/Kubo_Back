@@ -220,7 +220,7 @@ export async function alumnosDelRegistro(seccionId: string, cerrados: string[] |
   return datos
     .flatMap((m): AlumnoDelRegistro[] => {
       const e = estudiantes[m.estudianteId];
-      return e ? [{ matriculaId: m.matriculaId, nombre: nombreDeLista(e) }] : [];
+      return e ? [{ matriculaId: m.matriculaId, nombre: nombreDeLista(e), dni: e.dni }] : [];
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }

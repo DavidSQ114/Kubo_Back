@@ -31,7 +31,7 @@ import {
 } from "@/components/docente/notas";
 import { ModalCompetenciasDelCurso } from "@/components/docente/competencias";
 import { ModalEvidencias, type CeldaElegida } from "@/components/docente/evidencias";
-import { ModalItems, type ItemsGuardados } from "@/components/docente/items";
+import { ModalImportarCsv, ModalItems, type ItemsGuardados } from "@/components/docente/items";
 import {
   claveNota,
   ModalSolicitarRectificacion,
@@ -117,6 +117,7 @@ function RegistroDelBimestre({
   const [modal, setModal] = useState<{ pendientes: Pendiente[] | null; error: string | null } | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [itemsDe, setItemsDe] = useState<string | null>(null);
+  const [importando, setImportando] = useState<{ id: string; nombre: string; columna: string } | null>(null);
 
   const carga: Carga<RegistroDeNotas> = propio ? { fase: "listo", datos: propio } : consulta.carga;
   if (carga.fase === "cargando") return <CargandoAsistencia />;
@@ -427,6 +428,24 @@ function RegistroDelBimestre({
           columna={columnaDe(r.competencias.findIndex((c) => c.competenciaPlanId === itemsDe))}
           onCerrar={() => setItemsDe(null)}
           onGuardado={itemsGuardados}
+          onImportar={(item) => {
+            const columna = columnaDe(r.competencias.findIndex((c) => c.competenciaPlanId === itemsDe));
+            setItemsDe(null);
+            setImportando({ ...item, columna });
+          }}
+        />
+      )}
+      {importando && (
+        <ModalImportarCsv
+          registro={r}
+          item={importando}
+          columna={importando.columna}
+          onCerrar={() => setImportando(null)}
+          onImportado={(nuevo, aviso) => {
+            setImportando(null);
+            actualizar(nuevo);
+            setMensaje({ tipo: "exito", titulo: aviso });
+          }}
         />
       )}
       {rectificando && (
