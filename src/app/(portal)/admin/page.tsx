@@ -1,47 +1,42 @@
-// AD-01 · Inicio del Administrador. Sus indicadores dependen de los módulos académico, matrícula y pagos,
-// que aún no existen; por ahora muestra la bienvenida y los accesos disponibles.
+// AD-01 · Inicio del Administrador (bloque M1): accesos a usuarios, espacios, parámetros del sistema, asistencia
+// docente y auditoría. Lo académico, la matrícula y los pagos están en el portal del Coordinador académico.
 "use client";
 
-import Link from "next/link";
-import { useSesion } from "@/components/admin/PortalAdmin";
-import { Alerta, Icono, Tarjeta } from "@/components/ui";
+import { InicioGestion, type AccesoInicio } from "@/components/admin/inicio";
+
+const ACCESOS: AccesoInicio[] = [
+  {
+    href: "/admin/usuarios",
+    titulo: "Usuarios",
+    descripcion: "Registra cuentas de todos los roles, modifica sus datos y suspende, reactiva o desbloquea accesos.",
+    icono: "kpi-users",
+  },
+  {
+    href: "/admin/espacios",
+    titulo: "Espacios",
+    descripcion: "Registra las aulas del colegio con su aforo, modifícalas o desactívalas.",
+    icono: "icon-puerta",
+  },
+  {
+    href: "/admin/parametros",
+    titulo: "Parámetros del sistema",
+    descripcion: "Ajusta los intentos de inicio de sesión, los umbrales de asistencia y las horas de la jornada.",
+    icono: "icon-sliders",
+  },
+  {
+    href: "/admin/asistencia-docente",
+    titulo: "Asistencia docente",
+    descripcion: "Registra el ingreso y la salida del personal docente y justifica sus faltas.",
+    icono: "icon-calendar",
+  },
+  {
+    href: "/admin/auditoria",
+    titulo: "Auditoría y errores",
+    descripcion: "Consulta quién hizo cada operación crítica y los errores registrados por el sistema.",
+    icono: "icon-lock",
+  },
+];
 
 export default function InicioAdminPage() {
-  const sesion = useSesion();
-  return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[14px] leading-[1.4] text-texto-3">Inicio</p>
-        <h1 className="text-[32px] font-bold leading-[1.2] text-texto">Hola, {sesion.usuario.nombres}</h1>
-        <p className="text-[16px] leading-[1.5] text-texto-2">Este es tu panel de administración de Kubo.</p>
-      </div>
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <Link href="/admin/anio" className="group">
-          <Tarjeta className="flex h-full flex-col gap-3 p-5 transition group-hover:border-kubo-azul">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-kubo-azul/10">
-              <Icono nombre="icon-calendar" size={20} />
-            </div>
-            <p className="text-[16px] font-semibold text-texto">Año y bimestres</p>
-            <p className="text-[14px] leading-[1.4] text-texto-2">
-              Crea el año académico, registra sus bimestres y abre la matrícula.
-            </p>
-          </Tarjeta>
-        </Link>
-        <Link href="/admin/usuarios" className="group">
-          <Tarjeta className="flex h-full flex-col gap-3 p-5 transition group-hover:border-kubo-azul">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-[rgba(27,77,137,0.12)]">
-              <Icono nombre="kpi-users" size={20} />
-            </div>
-            <p className="text-[16px] font-semibold text-texto">Usuarios</p>
-            <p className="text-[14px] leading-[1.4] text-texto-2">
-              Busca usuarios, registra administradores y suspende o reactiva accesos.
-            </p>
-          </Tarjeta>
-        </Link>
-      </div>
-      <Alerta tipo="info" titulo="Más módulos en camino">
-        Matrícula, pensiones, horarios, notas y auditoría se habilitarán en el menú a medida que se construyan.
-      </Alerta>
-    </>
-  );
+  return <InicioGestion descripcion="Este es tu panel de administración de Kubo." accesos={ACCESOS} />;
 }

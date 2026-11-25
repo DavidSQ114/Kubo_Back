@@ -47,7 +47,7 @@ export function mensajeError(e: unknown): string {
 
 /**
  * Guardia de un portal: devuelve la sesión solo si su perfil activo es `rol`. Sin sesión va al login; con la
- * contraseña temporal, a cambiarla; con otro perfil, a «No tiene permisos para acceder a este recurso.» (AC-07).
+ * contraseña temporal, a cambiarla; con otro perfil, al inicio de su propio portal (bloque M1).
  */
 export function useSesionDeRol(rol: Rol): Sesion | null {
   const router = useRouter();
@@ -58,8 +58,8 @@ export function useSesionDeRol(rol: Rol): Sesion | null {
     api<Sesion>("/identidad/sesion")
       .then((s) => {
         if (s.debeCambiarPassword) router.replace("/cambiar-password");
-        else if (s.rolActivo !== rol)
-          router.replace(`/acceso-denegado?desde=${encodeURIComponent(window.location.pathname)}`);
+        // un perfil que entra por URL a un portal ajeno vuelve al inicio de su propio portal (bloque M1)
+        else if (s.rolActivo !== rol) router.replace(inicioPorRol(s.rolActivo));
         else if (vigente) setSesion(s);
       })
       .catch((e) => router.replace(destinoPorErrorDeSesion(e) ?? "/login"));

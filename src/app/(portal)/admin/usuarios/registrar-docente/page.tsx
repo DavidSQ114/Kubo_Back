@@ -1,15 +1,14 @@
-// AD-07 · Registrar docente y asignar cursos (US13, US14, defecto D-07)
+// AD-07 · Registrar docente (US13, defecto D-07) · portal del Administrador. Bloque M1: la carga académica (US14)
+// la asigna el Coordinador académico en «Asignaciones docentes».
 "use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { anioPorDefecto, type AnioAcademico } from "@/components/admin/anio";
 import type { Area } from "@/components/admin/cursos";
 import {
   AccesoSistema,
   avisoPersonaExistente,
-  CargaAcademica,
   cuerpoDocente,
   DatosPersonales,
   DOCENTE_VACIO,
@@ -21,15 +20,12 @@ import {
   type DocenteRegistrado,
   type PersonaEncontrada,
 } from "@/components/admin/docentes";
-import type { Docente } from "@/components/admin/grados";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
 
 interface Catalogos {
-  anios: AnioAcademico[];
   especialidades: string[];
-  docentes: Docente[];
 }
 
 export default function RegistrarDocentePage() {
@@ -42,8 +38,6 @@ export default function RegistrarDocentePage() {
   const [enviarCorreo, setEnviarCorreo] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [registrado, setRegistrado] = useState<DocenteRegistrado | null>(null);
-  const [docenteId, setDocenteId] = useState("");
-  const [anioElegido, setAnioElegido] = useState<string | null>(null);
   // D-07: persona ya registrada con el DNI escrito (null = DNI nuevo); se consulta al completar los 8 dígitos
   const [consulta, setConsulta] = useState<{ dni: string; persona: PersonaEncontrada | null } | null>(null);
   const dniCompleto = /^\d{8}$/.test(datos.dni.trim()) ? datos.dni.trim() : null;
@@ -98,24 +92,16 @@ export default function RegistrarDocentePage() {
   useEffect(() => {
     async function cargar() {
       try {
-        const [anios, areas, docentes] = await Promise.all([
-          api<AnioAcademico[]>("/academico/anios"),
-          api<Area[]>("/academico/areas"),
-          api<Docente[]>("/comunidad/docentes"),
-        ]);
+        const areas = await api<Area[]>("/academico/areas");
         // la especialidad se elige entre las áreas curriculares, sin las competencias transversales
         const especialidades = areas.filter((a) => a.codigo !== "TRV").map((a) => a.nombre);
-        setCatalogos({ anios, especialidades, docentes });
+        setCatalogos({ especialidades });
       } catch (e) {
         setErrorCatalogos(alertaError(e));
       }
     }
     void cargar();
   }, []);
-
-  const anio = catalogos
-    ? (catalogos.anios.find((a) => a.id === anioElegido) ?? anioPorDefecto(catalogos.anios))
-    : undefined;
 
   async function registrar() {
     setGeneral(null);
@@ -130,9 +116,6 @@ export default function RegistrarDocentePage() {
         body: cuerpoDocente(datos, enviarCorreo),
       });
       setRegistrado(r);
-      setDocenteId(r.docenteId);
-      const docentes = await api<Docente[]>("/comunidad/docentes");
-      setCatalogos((c) => c && { ...c, docentes });
     } catch (err) {
       const r = erroresDeRegistro(err);
       setErrores(r.campos);
@@ -168,8 +151,7 @@ export default function RegistrarDocentePage() {
         </Link>
         <h1 className="mt-3 text-[32px] font-bold leading-[1.2] text-texto">Registrar docente</h1>
         <p className="text-[16px] leading-[1.5] text-texto-2">
-          Crea la cuenta del docente y asígnale los cursos y secciones que dictará
-          {anio ? ` en ${anio.anio}` : ""}.
+          Crea la cuenta del docente. El coordinador académico le asignará los cursos y secciones que dictará.
         </p>
       </div>
 
@@ -181,7 +163,7 @@ export default function RegistrarDocentePage() {
               ? `Enviamos sus credenciales a ${registrado.email}.`
               : `No se envió el correo a ${registrado.email}: entrégale la contraseña temporal.`
             : "Ya tenía una cuenta, así que ingresa con su contraseña actual."}{" "}
-          Ahora asígnale sus cursos.
+          El coordinador académico le asignará sus cursos.
         </Alerta>
       )}
       {general && <Alerta tipo="error" titulo={general} />}
@@ -198,14 +180,6 @@ export default function RegistrarDocentePage() {
               agregaPerfil && !registrado ? <Alerta tipo="info" titulo={avisoPersonaExistente(persona!)} /> : undefined
             }
             onCambiar={cambiarDatos}
-          />
-          <CargaAcademica
-            docentes={catalogos.docentes}
-            docenteId={docenteId}
-            onDocente={setDocenteId}
-            anios={catalogos.anios}
-            anio={anio}
-            onAnio={setAnioElegido}
           />
         </div>
         <div className="flex flex-col gap-6">

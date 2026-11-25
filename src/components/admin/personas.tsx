@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alerta, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
 import { api, ApiError, NOMBRE_ROL, type Rol } from "@/lib/api";
 import { fechaDia, fechaHora, hoyEnLima } from "@/lib/formato";
-import { alertaError } from "./PortalAdmin";
+import { alertaError, useSesion } from "./PortalAdmin";
 import { BadgeEstado, BadgeRol, type EstadoCuenta } from "./usuarios";
 
 const CAMPOS = [
@@ -69,6 +69,17 @@ interface AccesoCreado {
   email: string;
   correoEnviado: boolean;
   passwordTemporal: string | null;
+}
+
+/** Perfiles cuyos datos también modifica el coordinador académico (bloque M1; el servidor lo vuelve a verificar). */
+const PERFILES_DEL_COORDINADOR: readonly Rol[] = ["APODERADO", "ALUMNO"];
+
+/** Qué acciones del detalle muestra cada portal: el coordinador no da de baja y solo edita a alumnos y apoderados. */
+function accionesPermitidas(rol: Rol, d: DetallePersona, esYo: boolean) {
+  const esCoordinador = rol === "COORDINADOR";
+  const soloFamilia =
+    d.perfilesRegistrados.length > 0 && d.perfilesRegistrados.every((p) => PERFILES_DEL_COORDINADOR.includes(p));
+  return { editar: !esCoordinador || soloFamilia, eliminar: !esYo && !esCoordinador };
 }
 
 /** Estudiante activo que todavía no tiene cuenta: se le puede crear el acceso al portal (US49). */
@@ -422,6 +433,7 @@ export function ModalPersona({
   onVerPersona?: (personaId: string) => void;
 }) {
   const router = useRouter();
+  const sesion = useSesion();
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [carga, setCarga] = useState<{
     detalle?: DetallePersona;
@@ -541,7 +553,7 @@ export function ModalPersona({
       </Boton>
     ) : modo === "detalle" ? (
       <>
-        {!esYo && (
+        {accionesPermitidas(sesion.rolActivo, detalle, esYo).eliminar && (
           <Boton variante="secundario" onClick={() => setModo("eliminar")}>
             Eliminar
           </Boton>
@@ -550,7 +562,9 @@ export function ModalPersona({
         <Boton variante="secundario" onClick={onCerrar}>
           Cerrar
         </Boton>
-        <Boton onClick={() => setModo("editar")}>Editar</Boton>
+        {accionesPermitidas(sesion.rolActivo, detalle, esYo).editar && (
+          <Boton onClick={() => setModo("editar")}>Editar</Boton>
+        )}
       </>
     ) : modo === "editar" ? (
       <>

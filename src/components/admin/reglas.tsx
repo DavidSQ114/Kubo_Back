@@ -206,7 +206,7 @@ export function FormularioRegla({
       {datos.metodo === "PONDERADO" ? (
         <Alerta tipo="info" titulo="Los pesos se configuran por curso">
           Indica el peso de cada competencia en{" "}
-          <Link href="/admin/cursos" className="font-semibold text-kubo-azul hover:underline">
+          <Link href="/coordinador/cursos" className="font-semibold text-kubo-azul hover:underline">
             Cursos y competencias
           </Link>
           . Si un curso no tiene pesos, todas sus competencias pesan igual.
