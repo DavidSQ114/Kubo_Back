@@ -2,9 +2,9 @@
 import "@/server/wiring";
 import { ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { resumenUsuarios } from "@/modules/comunidad";
+import { resumenUsuarios, ROLES_COMUNIDAD } from "@/modules/comunidad";
 
 export const GET = ruta(async (req) => {
-  await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  await requerirSesion(req, { roles: ROLES_COMUNIDAD.USUARIOS });
   return ok(await resumenUsuarios());
 });

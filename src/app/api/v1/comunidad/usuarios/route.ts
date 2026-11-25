@@ -2,10 +2,10 @@
 import "@/server/wiring";
 import { ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { esquemasComunidad, listarUsuarios } from "@/modules/comunidad";
+import { esquemasComunidad, listarUsuarios, ROLES_COMUNIDAD } from "@/modules/comunidad";
 
 export const GET = ruta(async (req) => {
-  await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  await requerirSesion(req, { roles: ROLES_COMUNIDAD.USUARIOS });
   const consulta = Object.fromEntries(new URL(req.url).searchParams);
   const filtro = esquemasComunidad.FiltroUsuariosSchema.parse(consulta);
   return ok(await listarUsuarios(filtro));

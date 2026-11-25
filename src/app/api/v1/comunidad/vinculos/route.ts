@@ -1,11 +1,11 @@
-// POST /api/v1/comunidad/vinculos · Vincular un apoderado con un estudiante (US15 «Vincular a un estudiante», US17) · Solo Administrador
+// POST /api/v1/comunidad/vinculos · Vincular un apoderado con un estudiante (US15 «Vincular a un estudiante», US17) · Administrador y Coordinador académico
 import "@/server/wiring";
 import { ok, leerCuerpo, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { esquemasComunidad, vincularApoderado } from "@/modules/comunidad";
+import { esquemasComunidad, vincularApoderado, ROLES_COMUNIDAD } from "@/modules/comunidad";
 
 export const POST = ruta(async (req, { meta }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS });
   const datos = await leerCuerpo(req, esquemasComunidad.VincularSchema);
   return ok(await vincularApoderado(admin, datos, meta), 201);
 });

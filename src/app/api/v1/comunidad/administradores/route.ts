@@ -2,10 +2,10 @@
 import "@/server/wiring";
 import { ok, leerCuerpo, ruta, urlBase } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { esquemasComunidad, registrarAdministrador } from "@/modules/comunidad";
+import { esquemasComunidad, registrarAdministrador, ROLES_COMUNIDAD } from "@/modules/comunidad";
 
 export const POST = ruta(async (req, { meta }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_COMUNIDAD.USUARIOS });
   const datos = await leerCuerpo(req, esquemasComunidad.RegistrarAdministradorSchema);
   return ok(await registrarAdministrador(admin, datos, urlBase(req), meta), 201);
 });
