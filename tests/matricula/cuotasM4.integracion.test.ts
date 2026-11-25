@@ -275,10 +275,15 @@ describe.skipIf(!ACTIVA)("cuotas de ingreso, mora y extraordinarias (bloque M4)"
     const antes = await prisma.notificacion.count({ where: { usuarioId: usuarioApoderado } });
     const lote = await crearLote(admin, datos, meta);
     expect(lote.resumen).toMatchObject({ cuotas: 2, pendientes: 2, total: "91.00" });
-    expect(await prisma.notificacion.count({ where: { usuarioId: usuarioApoderado } })).toBe(antes + 2);
+    // un segundo lote para los mismos alumnos (antes lo impedía uq_concepto_matricula_sin_mes)
+    const segundo = await crearLote(admin, { ...datos, concepto: "Materiales de arte", monto: "10.00" }, meta);
+    expect(segundo.resumen.cuotas).toBe(2);
+    await anularLote(admin, segundo.loteId, { motivo: "Prueba" }, meta);
+    // dos avisos de cada lote nuevo y dos de la anulación del segundo
+    expect(await prisma.notificacion.count({ where: { usuarioId: usuarioApoderado } })).toBe(antes + 6);
 
     // la extraordinaria no entra en el orden: se paga sola aunque haya pensiones pendientes
-    const extra = (await cuotasDe(matriculas[0])).find((c) => c.tipo === "EXTRAORDINARIA")!;
+    const extra = (await cuotasDe(matriculas[0])).find((c) => c.tipo === "EXTRAORDINARIA" && c.estado === "PENDIENTE")!;
     expect((await pagar([extra])).operacion.estado).toBe("CONFIRMADO");
 
     const anulado = await anularLote(admin, lote.loteId, { motivo: "Actividad cancelada" }, meta);

@@ -19,6 +19,9 @@ import { Alerta, Boton, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
 
+/** «1 cuota», «3 cuotas». */
+const cantidad = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
+
 /** Año por defecto: el «En curso» y, si no hay, el «En matrícula». */
 const anioPorDefecto = (anios: AnioAcademico[]) =>
   anios.find((a) => a.estado === "EN_CURSO") ?? anios.find((a) => a.estado === "EN_MATRICULA") ?? anios[0];
@@ -173,20 +176,22 @@ export default function CuotasExtraordinariasPage() {
                       {l.destinoNombre}
                       <span className="block text-[12px] text-texto-3">{l.nombreDestino}</span>
                     </td>
-                    <td className="px-3 py-2 text-texto-2">{fechaDia(l.fechaVencimiento)}</td>
-                    <td className="px-3 py-2 text-texto">{soles(l.monto)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-texto-2">{fechaDia(l.fechaVencimiento)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-texto">{soles(l.monto)}</td>
                     <td className="px-3 py-2 text-texto-2">
-                      {`${l.resumen.pagadas} pagadas · ${l.resumen.pendientes} pendientes`}
+                      {`${cantidad(l.resumen.pagadas, "pagada", "pagadas")} · ${cantidad(l.resumen.pendientes, "pendiente", "pendientes")}`}
                       {l.resumen.anuladas > 0 && (
-                        <span className="block text-[12px] text-texto-3">{`${l.resumen.anuladas} anuladas`}</span>
+                        <span className="block text-[12px] text-texto-3">
+                          {cantidad(l.resumen.anuladas, "anulada", "anuladas")}
+                        </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 font-semibold text-texto">{soles(l.resumen.total)}</td>
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap text-texto">{soles(l.resumen.total)}</td>
                     <td className="px-3 py-2">
                       <BadgeLote estado={l.estado} />
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <span className="inline-flex flex-wrap justify-end gap-2">
+                      <span className="inline-flex justify-end gap-2">
                         <Boton variante="secundario" onClick={() => abrir(l.loteId)} cargando={abriendo === l.loteId}>
                           Ver
                         </Boton>
@@ -196,7 +201,7 @@ export default function CuotasExtraordinariasPage() {
                             onClick={() =>
                               setAnulando({
                                 titulo: "Anular lote",
-                                detalle: `${l.concepto} · ${l.destinoNombre} · ${l.resumen.pendientes} cuotas sin pagar`,
+                                detalle: `${l.concepto} · ${l.destinoNombre} · ${cantidad(l.resumen.pendientes, "cuota", "cuotas")} sin pagar`,
                                 ruta: `/matricula/extraordinarias/${l.loteId}/anular`,
                                 exito: `El lote «${l.concepto}» quedó anulado.`,
                               })
@@ -223,7 +228,9 @@ export default function CuotasExtraordinariasPage() {
           onCerrar={() => setCreando(false)}
           onCreado={(l) => {
             setCreando(false);
-            setExito(`Se generaron ${l.resumen.cuotas} cuotas «${l.concepto}» por ${soles(l.resumen.total)}.`);
+            setExito(
+              `${l.resumen.cuotas === 1 ? "Se generó 1 cuota" : `Se generaron ${l.resumen.cuotas} cuotas`} «${l.concepto}» por ${soles(l.resumen.total)}.`,
+            );
             setRecarga((n) => n + 1);
           }}
         />

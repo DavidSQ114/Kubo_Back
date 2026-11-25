@@ -136,7 +136,7 @@ export function ModalNuevoLote({
     <Modal
       abierto
       onCerrar={onCerrar}
-      icono="nav-wallet"
+      icono="nav-wallet-azul"
       tonoIcono="azul"
       titulo={previa ? "Confirmar cuota extraordinaria" : "Nueva cuota extraordinaria"}
       subtitulo={
@@ -327,7 +327,7 @@ export function ModalDetalleLote({
     <Modal
       abierto
       onCerrar={onCerrar}
-      icono="nav-wallet"
+      icono="nav-wallet-azul"
       tonoIcono="azul"
       titulo={lote.concepto}
       subtitulo={`${lote.destinoNombre} · ${soles(lote.monto)} · vence el ${fechaDia(lote.fechaVencimiento)}`}

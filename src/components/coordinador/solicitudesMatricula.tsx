@@ -210,7 +210,7 @@ export function ModalSolicitud({
     <Modal
       abierto
       onCerrar={onCerrar}
-      icono="nav-clipboard"
+      icono="nav-usercheck-azul"
       tonoIcono="azul"
       titulo={`Solicitud de matrícula · ${nombre}`}
       subtitulo={`${solicitud.estudiante ? `DNI ${solicitud.estudiante.dni} · ` : ""}${solicitud.grado} · enviada el ${fechaEnvio(solicitud.enviadaEn)}`}
