@@ -5,6 +5,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Badge, Boton, Casilla, Icono, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
+import { hoyEnLima } from "@/lib/formato";
 import { alertaError } from "./PortalAdmin";
 
 /** Mismos valores que comunidad/domain (PARENTESCOS): el backend los valida. */
@@ -289,11 +290,10 @@ export function FilaVinculo({
 
 // ---------- Validaciones del navegador (mismos mensajes que el backend, que igual valida todo) ----------
 
-const HOY = () => new Date().toISOString().slice(0, 10);
-
 export function errorFechaNacimiento(fecha: string, obligatoria: boolean): string | null {
   if (!fecha) return obligatoria ? "Ingresa la fecha de nacimiento" : null;
-  if (fecha > HOY()) return "La fecha de nacimiento no puede ser futura";
+  // la fecha de hoy en Lima (en UTC, después de las 19:00 ya sería mañana)
+  if (fecha > hoyEnLima()) return "La fecha de nacimiento no puede ser futura";
   return null;
 }
 

@@ -163,7 +163,7 @@ export async function consolidadoDeLaSeccionCsv(auth: Autenticado, seccionId: st
     [],
     ["Estado del curso", "", "", "", ...c.cursos.map((k) => k.etiquetaEstado), ""],
     ...logros.map((l) => [
-      `Alumnos con ${l === "SIN_NOTA" ? "sin nota" : l}`,
+      l === "SIN_NOTA" ? "Alumnos sin nota" : `Alumnos con ${l}`,
       "",
       "",
       "",
