@@ -48,6 +48,22 @@ export const cierres = {
       select: selectCierre,
     }),
 
+  /**
+   * Registros de cualquier estado en los que la matrícula tiene notas, resultado o calificaciones de ítems («Notas por
+   * alumno» del coordinador, bloque M2).
+   */
+  deMatricula: (matriculaId: string, db: Db = prisma): Promise<CierreFila[]> =>
+    db.cierreCalificacion.findMany({
+      where: {
+        OR: [
+          { notas: { some: { matriculaId } } },
+          { resultadosConsolidados: { some: { matriculaId } } },
+          { itemsEvaluacion: { some: { calificaciones: { some: { matriculaId } } } } },
+        ],
+      },
+      select: selectCierre,
+    }),
+
   /** Cierres de varias asignaciones (estado de cada bimestre en las pestañas de DO-04). */
   deAsignaciones: (asignacionIds: string[], db: Db = prisma): Promise<CierreFila[]> =>
     db.cierreCalificacion.findMany({ where: { asignacionDocenteId: { in: asignacionIds } }, select: selectCierre }),
@@ -123,6 +139,22 @@ export const notas = {
         modificadoEn: true,
         createdAt: true,
       },
+    }),
+
+  /** Notas de varios registros (reporte de logro de competencias, bloque M2). */
+  deCierres: (cierreIds: string[], db: Db = prisma) =>
+    cierreIds.length
+      ? db.nota.findMany({
+          where: { cierreId: { in: cierreIds } },
+          select: { cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
+        })
+      : Promise.resolve([]),
+
+  /** Notas de una matrícula en cualquier registro («Notas por alumno», bloque M2). */
+  deMatricula: (matriculaId: string, db: Db = prisma) =>
+    db.nota.findMany({
+      where: { matriculaId },
+      select: { cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
     }),
 
   /** Crea las notas y devuelve sus ids: la bitácora guarda el id de cada nota (US03). */
@@ -289,6 +321,15 @@ export const resultados = {
       where: { cierreId_matriculaId: { cierreId, matriculaId } },
       data: { ...datos, calculadoEn: new Date() },
     }),
+
+  /** Resultados de varios registros (reporte de logro de competencias y notas por alumno, bloque M2). */
+  deCierres: (cierreIds: string[], db: Db = prisma) =>
+    cierreIds.length
+      ? db.resultadoConsolidado.findMany({
+          where: { cierreId: { in: cierreIds } },
+          select: { cierreId: true, matriculaId: true, logroConsolidado: true },
+        })
+      : Promise.resolve([]),
 
   /** Estudiantes consolidados por registro (columna «Estudiantes» de AD-15). */
   async conteoPorCierre(cierreIds: string[], db: Db = prisma): Promise<Record<string, number>> {

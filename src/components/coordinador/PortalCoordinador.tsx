@@ -1,6 +1,7 @@
 // Portal del Coordinador académico (bloque M1): mismo diseño que el del Administrador (AD-06; el Figma no tiene frames
 // propios del coordinador) con su menú: configuración académica, matrícula y tesorería, horarios, asistencia de
-// alumnos y notas. Es la guardia de las páginas /coordinador: exige sesión con perfil COORDINADOR (RF04).
+// alumnos, notas y los reportes de notas por alumno y de logro de competencias (bloque M2). Es la guardia de las
+// páginas /coordinador: exige sesión con perfil COORDINADOR (RF04).
 "use client";
 
 import type { ReactNode } from "react";
@@ -33,6 +34,8 @@ const NAVEGACION: NavegacionGestion = [
       { texto: "Horarios", icono: "nav-grid", href: "/coordinador/horarios" },
       { texto: "Asistencia de alumnos", icono: "nav-usercheck", href: "/coordinador/asistencia" },
       { texto: "Notas y rectificaciones", icono: "nav-award", href: "/coordinador/notas" },
+      { texto: "Notas por alumno", icono: "nav-book", href: "/coordinador/notas-alumno" },
+      { texto: "Logro de competencias", icono: "nav-grid", href: "/coordinador/reporte-competencias" },
       { texto: "Bitácora de notas", icono: "nav-shield", href: "/coordinador/bitacora-notas" },
     ],
   },

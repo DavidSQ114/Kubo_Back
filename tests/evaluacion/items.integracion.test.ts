@@ -15,6 +15,9 @@ import { hashPassword } from "@/platform/auth/tokens";
 import { prisma } from "@/platform/db/prisma";
 import { GET as misCompetenciasRuta } from "@/app/api/v1/academico/mis-cursos/[id]/competencias/route";
 import { PUT as itemsRuta } from "@/app/api/v1/evaluacion/registros/[asignacionId]/bimestres/[periodoId]/competencias/[competenciaPlanId]/items/route";
+import { GET as notasAlumnoRuta } from "@/app/api/v1/evaluacion/reportes/alumnos/[matriculaId]/notas/route";
+import { GET as reporteCsvRuta } from "@/app/api/v1/evaluacion/reportes/logro-competencias/csv/route";
+import { GET as reporteRuta } from "@/app/api/v1/evaluacion/reportes/logro-competencias/route";
 import { PUT as notasRuta } from "@/app/api/v1/evaluacion/registros/[asignacionId]/bimestres/[periodoId]/notas/route";
 import { competenciasDeMiCurso, guardarCompetenciasDeMiCurso } from "@/modules/academico";
 import {
@@ -23,7 +26,10 @@ import {
   guardarNotas,
   libretaDelHijo,
   libretaPdfDelHijo,
+  notasDelAlumno,
   publicarNotas,
+  reporteLogroCompetencias,
+  reporteLogroCsv,
   registroDeNotas,
   type LogroNota,
 } from "@/modules/evaluacion";
@@ -536,5 +542,44 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
     expect(JSON.stringify(r)).not.toMatch(/"items|"logro|Examen bimestral/);
     const e = await codigoDe(libretaPdfDelHijo(apoderadoAuth, estudiantes.bruno, bimestre));
     expect(e.codigo).toBe("LIBRETA_RESTRINGIDA");
+  });
+
+  // ---------- Reportes del coordinador (fase 6) ----------
+
+  it("los reportes del coordinador no los ve un docente (403)", async () => {
+    for (const r of [
+      await pedir(reporteRuta, { token: tokenAjeno }),
+      await pedir(notasAlumnoRuta, { token: tokenAjeno, params: { matriculaId: alumnos.ana } }),
+    ]) {
+      expect(r.estado).toBe(403);
+    }
+    const csv = await reporteCsvRuta(new NextRequest("http://localhost/api/v1/prueba"), {
+      params: Promise.resolve({}),
+    });
+    expect(csv.status).toBe(401);
+  });
+
+  it("reporte de logro: por competencia cuenta AD, A, B y C de los registros cerrados o publicados", async () => {
+    const r = await reporteLogroCompetencias({ anioId, periodoId: bimestre });
+    expect(r.registros).toBe(1);
+    const mat = r.resultados.find((c) => c.codigo === "MAT")!;
+    // C1 (por ítems): Ana AD y Bruno B · C2 (directo): Ana A y Bruno B
+    expect(mat.competencias.map((c) => [c.columna, c.conteo])).toEqual([
+      ["C1", { AD: 1, A: 0, B: 1, C: 0 }],
+      ["C2", { AD: 0, A: 1, B: 1, C: 0 }],
+    ]);
+    expect(mat.competencias[0].porcentajes).toEqual({ AD: 50, A: 0, B: 50, C: 0 });
+    expect(mat.alumnos.map((a) => a.nombre)).toEqual(["Álvarez Prueba, Ana", "Castillo Prueba, Bruno"]);
+    const csv = await reporteLogroCsv({ anioId, periodoId: bimestre });
+    expect(csv.nombreArchivo).toBe(`Reporte_logro_BimestreI_${ANIO}.csv`);
+    expect(csv.texto).toContain('Matemática,1° IT,"Álvarez Prueba, Ana",C1');
+  });
+
+  it("notas por alumno: libreta completa del año con el estado de cada curso y el detalle de ítems", async () => {
+    const r = await notasDelAlumno(alumnos.ana);
+    expect(r).toMatchObject({ seccion: "1° IT", estudiante: { dni: "90002421" } });
+    const mat = r.bimestres[0].cursos.find((c) => c.codigo === "MAT")!;
+    expect(mat).toMatchObject({ estado: "PUBLICADO", etiquetaEstado: "Publicado", consolidado: expect.any(String) });
+    expect(mat.competencias[0].items).toEqual([{ nombre: "Examen bimestral", peso: 100, logro: "AD" }]);
   });
 });

@@ -5,4 +5,6 @@ import type { Rol } from "@/modules/identidad";
 export const ROLES_EVALUACION = {
   /** Publicaciones, rectificaciones y bitácora de notas. */
   GESTION: ["COORDINADOR"],
+  /** Reportes de notas: notas por alumno y logro de competencias (bloque M2). */
+  REPORTES: ["COORDINADOR"],
 } as const satisfies Record<string, readonly Rol[]>;
