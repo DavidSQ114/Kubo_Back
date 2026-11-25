@@ -219,3 +219,36 @@ model Comprobante {
 
   @@map("comprobante")
 }
+
+/// Bloque M4: proceso de matrícula de un año (fechas en que el apoderado puede matricular a su hijo desde su portal).
+model ProcesoMatricula {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId   String               @unique @db.Uuid @map("anio_academico_id")
+  anioAcademico     AnioAcademico        @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  fechaInicio       DateTime             @db.Date @map("fecha_inicio")
+  fechaFin          DateTime             @db.Date @map("fecha_fin")
+  actualizadoPorId  String               @db.Uuid @map("actualizado_por_id")
+  actualizadoPor    Usuario              @relation("ProcesoActualizadoPor", fields: [actualizadoPorId], references: [id], onDelete: Restrict)
+  createdAt         DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  documentos        DocumentoRequerido[]
+
+  @@map("proceso_matricula")
+}
+
+/// Bloque M4: documento que el apoderado sube al matricular (partida de nacimiento, DNI del alumno…). Uno que se quita
+/// de la lista queda inactivo: los documentos ya subidos lo siguen nombrando.
+model DocumentoRequerido {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  procesoId   String           @db.Uuid @map("proceso_id")
+  proceso     ProcesoMatricula @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  nombre      String           @db.VarChar(100)
+  obligatorio Boolean          @default(true)
+  orden       Int
+  activo      Boolean          @default(true)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt   DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@index([procesoId, activo, orden])
+  @@map("documento_requerido")
+}

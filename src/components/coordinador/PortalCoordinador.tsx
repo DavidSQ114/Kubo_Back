@@ -23,6 +23,7 @@ const NAVEGACION: NavegacionGestion = [
     grupo: "MATRÍCULA Y PAGOS",
     items: [
       { texto: "Matrícula", icono: "nav-clipboard", href: "/coordinador/matricula" },
+      { texto: "Proceso de matrícula", icono: "nav-calendar", href: "/coordinador/proceso-matricula" },
       { texto: "Alumnos y apoderados", icono: "nav-users", href: "/coordinador/alumnos-apoderados" },
       { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/coordinador/pagos" },
       { texto: "Cuotas extraordinarias", icono: "nav-wallet", href: "/coordinador/cuotas-extraordinarias" },

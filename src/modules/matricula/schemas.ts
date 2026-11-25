@@ -7,6 +7,7 @@ import { FECHA_DEMO_POR_DEFECTO } from "./domain/demoMorosidad";
 import { DESTINOS_LOTE, LARGO_MAXIMO_CONCEPTO_EXTRA } from "./domain/extraordinarias";
 import { LARGO_MAXIMO_MOTIVO_CUOTA } from "./domain/mora";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
+import { LARGO_MAXIMO_NOMBRE_DOCUMENTO, MAXIMO_DOCUMENTOS_REQUERIDOS } from "./domain/proceso";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { MAXIMO_RECORDATORIOS } from "./domain/recordatorios";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
@@ -204,4 +205,26 @@ export const LoteExtraordinarioSchema = z.object({
   fechaVencimiento: fecha("Fecha de vencimiento no válida"),
   destino: z.enum(DESTINOS_LOTE, { message: "Elige el destino" }),
   destinoId: id("Destino no válido").nullable().optional(),
+});
+
+// ---------- Bloque M4 · Proceso de matrícula ----------
+
+export const ProcesoMatriculaSchema = z.object({
+  fechaInicio: fecha("Fecha de inicio no válida"),
+  fechaFin: fecha("Fecha de fin no válida"),
+  documentos: z
+    .array(
+      z.object({
+        id: id("Documento no válido").nullable().optional(),
+        nombre: z
+          .string({ message: "Escribe el nombre del documento" })
+          .trim()
+          .min(1, "Escribe el nombre del documento")
+          .max(LARGO_MAXIMO_NOMBRE_DOCUMENTO, "Nombre demasiado largo"),
+        obligatorio: z.boolean({ message: "Indica si el documento es obligatorio" }),
+      }),
+      { message: "Agrega los documentos requeridos" },
+    )
+    .min(1, "Agrega al menos un documento requerido.")
+    .max(MAXIMO_DOCUMENTOS_REQUERIDOS, `Puedes pedir hasta ${MAXIMO_DOCUMENTOS_REQUERIDOS} documentos.`),
 });

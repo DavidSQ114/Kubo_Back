@@ -302,4 +302,33 @@ export const erroresMatricula = {
   extraordinariaPagada: () =>
     new ErrorApp("CUOTA_PAGADA", "La cuota ya fue pagada: anula primero su pago si corresponde.", 409),
   extraordinariaAnulada: () => new ErrorApp("CUOTA_YA_ANULADA", "La cuota ya fue anulada.", 409),
+
+  // ---------- Bloque M4 · Proceso de matrícula ----------
+  fechasProcesoInvalidas: () =>
+    new ErrorApp("FECHAS_PROCESO_INVALIDAS", "La fecha de inicio no puede ser posterior a la fecha de fin.", 400),
+  sinDocumentosRequeridos: () =>
+    new ErrorApp("SIN_DOCUMENTOS_REQUERIDOS", "Agrega al menos un documento requerido.", 400),
+  demasiadosDocumentos: (maximo: number) =>
+    new ErrorApp("DEMASIADOS_DOCUMENTOS", `Puedes pedir hasta ${maximo} documentos.`, 400),
+  documentoSinNombre: () =>
+    new ErrorApp("DOCUMENTO_SIN_NOMBRE", "Escribe el nombre de cada documento (hasta 100 caracteres).", 400),
+  documentoRepetido: (nombre: string) =>
+    new ErrorApp("DOCUMENTO_REPETIDO", `El documento «${nombre}» está repetido.`, 409, { nombre }),
+  anioCerradoProceso: (anio: number) =>
+    new ErrorApp("ANIO_CERRADO", `El año ${anio} está cerrado: su proceso de matrícula ya no cambia.`, 422),
+  matriculaNoConfigurada: (anio: number) =>
+    new ErrorApp(
+      "MATRICULA_NO_CONFIGURADA",
+      `El colegio todavía no abrió la matrícula ${anio} en línea. Consulta las fechas con la coordinación.`,
+      422,
+    ),
+  matriculaAunNoAbre: (desde: string) =>
+    new ErrorApp("MATRICULA_AUN_NO_ABRE", `La matrícula en línea empieza el ${desde}.`, 422, { desde }),
+  matriculaCerrada: (hasta: string) =>
+    new ErrorApp(
+      "MATRICULA_CERRADA",
+      `La matrícula en línea terminó el ${hasta}. Comunícate con la coordinación para matricular a tu hijo.`,
+      422,
+      { hasta },
+    ),
 };

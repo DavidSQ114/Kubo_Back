@@ -16,6 +16,7 @@ model AnioAcademico {
   parametrosInstitucion ParametroInstitucion[]
   matriculas            Matricula[]
   lotesExtraordinarios  LoteCuotaExtraordinaria[]
+  procesoMatricula      ProcesoMatricula?
   bloquesHorario        BloqueHorario[]
 
   @@map("anio_academico")
