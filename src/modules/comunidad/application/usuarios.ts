@@ -5,7 +5,14 @@ import { esDuplicado } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { ErrorApp } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
-import { asegurarCuenta, enviarBienvenida, type Autenticado, type EstadoUsuario, type Rol } from "@/modules/identidad";
+import {
+  asegurarCuenta,
+  enviarBienvenida,
+  estaBloqueada,
+  type Autenticado,
+  type EstadoUsuario,
+  type Rol,
+} from "@/modules/identidad";
 import {
   administradores,
   coordinadores,
@@ -27,9 +34,11 @@ export interface UsuarioListado {
   detalle: string | null;
   estado: EstadoUsuario | "SIN_CUENTA";
   ultimoAccesoEn: Date | null;
+  /** Bloqueada por intentos fallidos (RF01): AD-06 muestra «Bloqueada por intentos» y «Desbloquear». */
+  bloqueadaPorIntentos: boolean;
 }
 
-export async function listarUsuarios(filtro: FiltroUsuarios) {
+export async function listarUsuarios(filtro: FiltroUsuarios, ahora: Date = new Date()) {
   const { total, filas } = await buscarUsuarios(filtro);
   const items: UsuarioListado[] = filas.map((p) => ({
     personaId: p.id,
@@ -48,6 +57,7 @@ export async function listarUsuarios(filtro: FiltroUsuarios) {
           : null,
     estado: (p.usuario?.estado as EstadoUsuario | undefined) ?? "SIN_CUENTA",
     ultimoAccesoEn: p.usuario?.ultimoAccesoEn ?? null,
+    bloqueadaPorIntentos: estaBloqueada(p.usuario?.bloqueadoHasta ?? null, ahora),
   }));
   return {
     items,

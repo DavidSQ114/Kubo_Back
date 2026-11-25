@@ -9,4 +9,6 @@ export const ROLES_ACADEMICO = {
   CONSULTA: ["COORDINADOR", "ADMINISTRADOR"],
   /** Espacios del colegio (aulas): los registra, modifica y desactiva el administrador. */
   ESPACIOS: ["ADMINISTRADOR"],
+  /** Parámetros generales del sistema (bloque M1): los lista y edita el administrador. */
+  PARAMETROS_SISTEMA: ["ADMINISTRADOR"],
 } as const satisfies Record<string, readonly Rol[]>;

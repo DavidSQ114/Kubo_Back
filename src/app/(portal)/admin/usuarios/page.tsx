@@ -7,6 +7,7 @@ import { alertaError, useSesion } from "@/components/admin/PortalAdmin";
 import { ModalPersona, type ModoPersona } from "@/components/admin/personas";
 import {
   Avatar,
+  BadgeBloqueada,
   BadgeEstado,
   BadgeRol,
   ModalReactivar,
@@ -59,6 +60,7 @@ function Usuarios({ qInicial }: { qInicial: string }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [aSuspender, setASuspender] = useState<UsuarioListado | null>(null);
   const [aReactivar, setAReactivar] = useState<UsuarioListado | null>(null);
+  const [aDesbloquear, setADesbloquear] = useState<UsuarioListado | null>(null);
   const [registrando, setRegistrando] = useState<PerfilGestion | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<{
     personaId: string;
@@ -316,7 +318,10 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                     <td className="px-4 py-3">{u.detalle ?? <span className="text-texto-3">—</span>}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{ultimoAcceso(u.ultimoAccesoEn)}</td>
                     <td className="px-4 py-3">
-                      <BadgeEstado estado={u.estado} />
+                      <div className="flex flex-wrap gap-1">
+                        <BadgeEstado estado={u.estado} />
+                        {u.bloqueadaPorIntentos && <BadgeBloqueada />}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-0.5">
@@ -335,6 +340,9 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                               setPersonaAbierta({ personaId: u.personaId, usuarioId: u.usuarioId, modo: "editar" })
                             }
                           />
+                        )}
+                        {u.usuarioId && u.bloqueadaPorIntentos && (
+                          <Accion icono="icon-key" texto="Desbloquear" onClick={() => setADesbloquear(u)} />
                         )}
                         {u.usuarioId && u.estado === "SUSPENDIDO" && (
                           <Accion icono="act-refresh" texto="Reactivar acceso" onClick={() => setAReactivar(u)} />
@@ -376,6 +384,12 @@ function Usuarios({ qInicial }: { qInicial: string }) {
 
       <ModalSuspender usuario={aSuspender} onCerrar={() => setASuspender(null)} onListo={alTerminarAccion} />
       <ModalReactivar usuario={aReactivar} onCerrar={() => setAReactivar(null)} onListo={alTerminarAccion} />
+      <ModalReactivar
+        usuario={aDesbloquear}
+        accion="desbloquear"
+        onCerrar={() => setADesbloquear(null)}
+        onListo={alTerminarAccion}
+      />
       {personaAbierta && (
         <ModalPersona
           key={`${personaAbierta.personaId}-${personaAbierta.modo}`}

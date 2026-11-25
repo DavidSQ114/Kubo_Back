@@ -1,5 +1,6 @@
 // identidad/application: gestión de cuentas por el Administrador.
-// Suspender y reactivar (RF05, pantalla M-04) y crear la cuenta de una persona (RF43).
+// Suspender y reactivar (RF05, pantalla M-04), desbloquear una cuenta bloqueada por intentos fallidos (RF01, bloque
+// M1) y crear la cuenta de una persona (RF43).
 import { randomInt } from "node:crypto";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -9,7 +10,7 @@ import { enviarCorreo } from "@/platform/correo";
 import { errores } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import { erroresIdentidad as E } from "../domain/errores";
-import { generarPasswordTemporal, normalizarEmail, type EstadoUsuario } from "../domain/reglas";
+import { estaBloqueada, generarPasswordTemporal, normalizarEmail, type EstadoUsuario } from "../domain/reglas";
 import { sesiones, usuarios } from "../infrastructure/repositorio";
 import type { Autenticado } from "./sesion";
 
@@ -83,6 +84,41 @@ export async function reactivarUsuario(
       meta,
     );
     return { usuarioId, estado };
+  });
+}
+
+/**
+ * Desbloquea una cuenta bloqueada por intentos fallidos (AD-06, bloque M1): pone los intentos en 0 y quita el
+ * bloqueo. Es distinto de reactivar: no cambia el estado de la cuenta ni cierra sesiones. Auditoría DESBLOQUEAR_USUARIO.
+ */
+export async function desbloquearUsuario(
+  admin: Autenticado,
+  usuarioId: string,
+  datos: { motivo?: string | null },
+  meta: MetaSolicitud,
+  ahora: Date = new Date(),
+): Promise<{ usuarioId: string; intentosFallidos: number; bloqueadoHasta: null }> {
+  return prisma.$transaction(async (tx) => {
+    await usuarios.bloquearFila(tx, usuarioId);
+    const actual = await usuarios.porId(usuarioId, tx);
+    if (!actual || actual.estado === "DADO_DE_BAJA") throw errores.noEncontrado("El usuario");
+    if (!estaBloqueada(actual.bloqueadoHasta, ahora)) throw E.noBloqueado();
+
+    await usuarios.actualizar(usuarioId, { intentosFallidos: 0, bloqueadoHasta: null }, tx);
+    await registrarAuditoria(
+      tx,
+      {
+        usuarioId: admin.usuarioId,
+        entidad: "usuario",
+        entidadId: usuarioId,
+        accion: "DESBLOQUEAR_USUARIO",
+        anterior: { intentosFallidos: actual.intentosFallidos, bloqueadoHasta: actual.bloqueadoHasta },
+        nuevo: { intentosFallidos: 0, bloqueadoHasta: null },
+        motivo: datos.motivo ?? null,
+      },
+      meta,
+    );
+    return { usuarioId, intentosFallidos: 0, bloqueadoHasta: null };
   });
 }
 

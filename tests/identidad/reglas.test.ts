@@ -11,6 +11,8 @@ import {
   normalizarEmail,
   puedeIniciarSesion,
   registrarIntentoFallido,
+  estaBloqueada,
+  ROLES,
 } from "@/modules/identidad/domain/reglas";
 
 describe("política de contraseñas (AC-06)", () => {
@@ -79,5 +81,25 @@ describe("otras reglas", () => {
     const t = new Date("2026-10-01T00:00:00Z");
     expect(expiracionSesion(false, t).toISOString()).toBe("2026-10-01T12:00:00.000Z");
     expect(expiracionSesion(true, t).toISOString()).toBe("2026-10-08T00:00:00.000Z");
+  });
+});
+
+describe("cuenta bloqueada por intentos fallidos y desbloqueo (RF01, AD-06, bloque M1)", () => {
+  const ahora = new Date("2026-11-24T15:00:00Z");
+
+  it("está bloqueada mientras bloqueadoHasta sea posterior a ahora", () => {
+    expect(estaBloqueada(new Date("2026-11-24T15:10:00Z"), ahora)).toBe(true);
+  });
+
+  it("no está bloqueada sin bloqueo, con el bloqueo vencido o justo al vencer", () => {
+    expect(estaBloqueada(null, ahora)).toBe(false);
+    expect(estaBloqueada(new Date("2026-11-24T14:59:59Z"), ahora)).toBe(false);
+    expect(estaBloqueada(ahora, ahora)).toBe(false);
+  });
+});
+
+describe("roles del sistema (bloque M1)", () => {
+  it("incluye al Coordinador académico además de los cuatro perfiles", () => {
+    expect(ROLES).toEqual(["ADMINISTRADOR", "COORDINADOR", "DOCENTE", "APODERADO", "ALUMNO"]);
   });
 });

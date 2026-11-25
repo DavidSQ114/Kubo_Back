@@ -21,7 +21,7 @@
 - Los avisos académicos (registro de notas consolidado, solicitud de rectificación) van a los coordinadores.
 
 Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES_ACADEMICO`, `ROLES_COMUNIDAD`,
-`ROLES_EVALUACION`, `ROLES_HORARIOS`, `ROLES_IDENTIDAD`, `ROLES_MATRICULA`, `ROLES_PLATAFORMA`).
+`ROLES_EVALUACION`, `ROLES_HORARIOS`, `ROLES_IDENTIDAD` y `ROLES_MATRICULA`).
 
 ## academico
 
@@ -61,6 +61,8 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | PUT | `/api/v1/academico/cursos/{id}/planes` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | GET | `/api/v1/academico/grados` | Coordinador, Administrador (`ROLES_ACADEMICO.CONSULTA`) |
 | GET | `/api/v1/academico/mis-cursos` | Docente |
+| GET | `/api/v1/academico/parametros` | Administrador (`ROLES_ACADEMICO.PARAMETROS_SISTEMA`) |
+| PUT | `/api/v1/academico/parametros/{clave}` | Administrador (`ROLES_ACADEMICO.PARAMETROS_SISTEMA`) |
 | GET | `/api/v1/academico/planes/{id}/competencias` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | PUT | `/api/v1/academico/planes/{id}/competencias` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | POST | `/api/v1/academico/reglas/simular` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
@@ -173,8 +175,9 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 
 | Método | Endpoint | Roles |
 |---|---|---|
-| GET | `/api/v1/identidad/errores` | Administrador (`ROLES_IDENTIDAD.CUENTAS`) |
-| GET | `/api/v1/identidad/errores/{id}` | Administrador (`ROLES_IDENTIDAD.CUENTAS`) |
+| GET | `/api/v1/identidad/auditoria` | Administrador (`ROLES_IDENTIDAD.AUDITORIA`) |
+| GET | `/api/v1/identidad/errores` | Administrador (`ROLES_IDENTIDAD.AUDITORIA`) |
+| GET | `/api/v1/identidad/errores/{id}` | Administrador (`ROLES_IDENTIDAD.AUDITORIA`) |
 | POST | `/api/v1/identidad/login` | Pública (sin sesión o con su propio token) |
 | POST | `/api/v1/identidad/login/perfil` | Pública (sin sesión o con su propio token) |
 | POST | `/api/v1/identidad/logout` | Pública (sin sesión o con su propio token) |
@@ -185,6 +188,7 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | POST | `/api/v1/identidad/refresh` | Pública (sin sesión o con su propio token) |
 | GET | `/api/v1/identidad/sesion` | Cualquier sesión válida |
 | PUT | `/api/v1/identidad/sesion/perfil` | Cualquier sesión válida |
+| POST | `/api/v1/identidad/usuarios/{id}/desbloquear` | Administrador (`ROLES_IDENTIDAD.CUENTAS`) |
 | POST | `/api/v1/identidad/usuarios/{id}/reactivar` | Administrador (`ROLES_IDENTIDAD.CUENTAS`) |
 | POST | `/api/v1/identidad/usuarios/{id}/suspender` | Administrador (`ROLES_IDENTIDAD.CUENTAS`) |
 

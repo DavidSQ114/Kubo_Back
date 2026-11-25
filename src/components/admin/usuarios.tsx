@@ -19,6 +19,7 @@ export interface UsuarioListado {
   detalle: string | null;
   estado: EstadoCuenta;
   ultimoAccesoEn: string | null;
+  bloqueadaPorIntentos: boolean;
 }
 
 export interface Resumen {
@@ -245,15 +246,43 @@ export function ModalSuspender({
 
 // ---------- Reactivar acceso ----------
 
+/** Insignia de una cuenta bloqueada por intentos fallidos (bloque M1): se muestra junto al estado. */
+export function BadgeBloqueada() {
+  return <Badge tono="ambar">Bloqueada por intentos</Badge>;
+}
+
+/** Textos de las dos acciones que devuelven el acceso: reactivar (RF05) y desbloquear (RF01, bloque M1). */
+const ACCION_ACCESO = {
+  reactivar: {
+    ruta: "reactivar",
+    titulo: "Reactivar acceso",
+    subtitulo: "El usuario podrá volver a ingresar con sus credenciales.",
+    boton: "Reactivar acceso",
+    ejemplo: "Ej.: Retorno de licencia",
+    listo: (nombre: string) => `Se reactivó el acceso de ${nombre}.`,
+  },
+  desbloquear: {
+    ruta: "desbloquear",
+    titulo: "Desbloquear cuenta",
+    subtitulo: "Se reinician los intentos fallidos y el usuario podrá volver a ingresar de inmediato.",
+    boton: "Desbloquear",
+    ejemplo: "Ej.: Verificó su identidad por teléfono",
+    listo: (nombre: string) => `Se desbloqueó la cuenta de ${nombre}.`,
+  },
+} as const;
+
 export function ModalReactivar({
   usuario,
+  accion = "reactivar",
   onCerrar,
   onListo,
 }: {
   usuario: UsuarioListado | null;
+  accion?: keyof typeof ACCION_ACCESO;
   onCerrar: () => void;
   onListo: (mensaje: string) => void;
 }) {
+  const textos = ACCION_ACCESO[accion];
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,11 +298,11 @@ export function ModalReactivar({
     setEnviando(true);
     setError(null);
     try {
-      await api(`/identidad/usuarios/${usuario.usuarioId}/reactivar`, {
+      await api(`/identidad/usuarios/${usuario.usuarioId}/${textos.ruta}`, {
         method: "POST",
         body: { motivo: motivo.trim() || null },
       });
-      onListo(`Se reactivó el acceso de ${usuario.nombreCompleto}.`);
+      onListo(textos.listo(usuario.nombreCompleto));
       cerrar();
     } catch (e) {
       setError(alertaError(e));
@@ -288,15 +317,15 @@ export function ModalReactivar({
       onCerrar={cerrar}
       icono="act-refresh"
       tonoIcono="azul"
-      titulo="Reactivar acceso"
-      subtitulo="El usuario podrá volver a ingresar con sus credenciales."
+      titulo={textos.titulo}
+      subtitulo={textos.subtitulo}
       pie={
         <>
           <Boton variante="secundario" onClick={cerrar} disabled={enviando}>
             Cancelar
           </Boton>
           <Boton icono="icon-refresh-blanco" onClick={confirmar} cargando={enviando}>
-            Reactivar acceso
+            {textos.boton}
           </Boton>
         </>
       }
@@ -312,7 +341,7 @@ export function ModalReactivar({
           onChange={(e) => setMotivo(e.target.value)}
           maxLength={500}
           rows={2}
-          placeholder="Ej.: Retorno de licencia"
+          placeholder={textos.ejemplo}
           className="h-[72px] w-full resize-none rounded-lg border border-borde bg-white px-4 py-3 text-[16px] leading-[1.5] text-texto outline-none placeholder:text-texto-3 focus:border-kubo-azul focus:ring-1 focus:ring-kubo-azul"
         />
       </div>

@@ -55,6 +55,9 @@ export const ReactivacionSchema = z.object({
   motivo: z.string().trim().max(500, "Motivo demasiado largo").optional().nullable(),
 });
 
+/** Desbloquear una cuenta (AD-06, bloque M1): el motivo es opcional, como al reactivar. */
+export const DesbloqueoSchema = ReactivacionSchema;
+
 export const IdSchema = z.string().uuid("Identificador no válido");
 
 const fechaDia = z
@@ -68,6 +71,18 @@ export const FiltroErroresSchema = z.object({
   hasta: fechaDia.optional(),
   nivel: z.enum(["INFO", "WARN", "ERROR", "FATAL"], { message: "Nivel no válido" }).optional(),
   codigoHttp: z.coerce.number().int().min(100).max(599).optional(),
+  pagina: z.coerce.number().int().min(1).default(1),
+  tamano: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+/** Filtros de «Operaciones auditadas» (AD-16, bloque M1). */
+export const FiltroAuditoriaSchema = z.object({
+  desde: fechaDia.optional(),
+  hasta: fechaDia.optional(),
+  accion: z
+    .string()
+    .regex(/^[A-Z][A-Z_]{1,59}$/, "Acción no válida")
+    .optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   tamano: z.coerce.number().int().min(1).max(100).default(20),
 });

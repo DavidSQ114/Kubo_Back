@@ -213,7 +213,7 @@ export async function buscarUsuarios(f: FiltroUsuarios) {
         apellidos: true,
         email: true,
         ...selectPerfiles,
-        usuario: { select: { id: true, email: true, estado: true, ultimoAccesoEn: true } },
+        usuario: { select: { id: true, email: true, estado: true, ultimoAccesoEn: true, bloqueadoHasta: true } },
       },
     }),
   ]);

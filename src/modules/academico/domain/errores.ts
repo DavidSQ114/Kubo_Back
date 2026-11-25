@@ -4,6 +4,11 @@ import { ErrorApp } from "@/platform/http/errores";
 import { fechaCorta, NOMBRE_ESTADO_ANIO, type EstadoAnio, type RangoFechas } from "./tipos";
 
 export const erroresAcademico = {
+  // ---------- Parámetros del sistema (bloque M1) ----------
+  parametroNoEditable: (clave: string) =>
+    new ErrorApp("PARAMETRO_NO_EDITABLE", `«${clave}» no es un parámetro del sistema que se pueda editar.`, 404),
+  parametroInvalido: (mensaje: string) => new ErrorApp("PARAMETRO_INVALIDO", mensaje, 400),
+
   fechasInvalidas: () =>
     new ErrorApp("FECHAS_INVALIDAS", "La fecha de fin debe ser posterior a la fecha de inicio", 400),
   anioSolapado: () => new ErrorApp("ANIO_SOLAPADO", "Ya existe un año académico activo en ese rango de fechas", 409),

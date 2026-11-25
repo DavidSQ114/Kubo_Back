@@ -4,7 +4,7 @@ import { leerTokenAcceso } from "@/platform/auth/cookies";
 import { autenticar, type Autenticado } from "./application/sesion";
 import type { Rol } from "./domain/reglas";
 
-export { ROLES, esRol, type Rol, type EstadoUsuario } from "./domain/reglas";
+export { ROLES, esRol, estaBloqueada, type Rol, type EstadoUsuario } from "./domain/reglas";
 export { configurarPerfilesProvider, type PerfilesProvider, type DatosPersona } from "./puertos";
 export {
   iniciarSesion,
@@ -19,7 +19,13 @@ export {
   type TokensSesion,
 } from "./application/sesion";
 export { cambiarPassword, solicitarRecuperacion, validarEnlace, restablecerPassword } from "./application/password";
-export { suspenderUsuario, reactivarUsuario, asegurarCuenta, enviarBienvenida } from "./application/cuentas";
+export {
+  suspenderUsuario,
+  reactivarUsuario,
+  desbloquearUsuario,
+  asegurarCuenta,
+  enviarBienvenida,
+} from "./application/cuentas";
 export {
   cuentaDePersona,
   usuariosDePersonas,
@@ -29,7 +35,13 @@ export {
   avisarCambioDeCorreo,
   type CuentaDePersona,
 } from "./application/cuentasDePersonas";
-export { listarErroresSistema, detalleErrorSistema, type FiltroErroresSistema } from "./application/erroresSistema";
+export {
+  listarErroresSistema,
+  detalleErrorSistema,
+  listarAuditoria,
+  type FiltroErroresSistema,
+  type FiltroAuditoria,
+} from "./application/erroresSistema";
 export * as esquemasIdentidad from "./schemas";
 
 /**

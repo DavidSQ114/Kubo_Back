@@ -1,4 +1,5 @@
-// AD-16 · Auditoría y registros del sistema, de solo lectura para el Administrador: «Errores del sistema» (log de
+// AD-16 · Auditoría y registros del sistema, de solo lectura para el Administrador: «Operaciones auditadas» (bitácora
+// de operaciones críticas, RF03, bloque M1) y «Errores del sistema» (log de
 // errores, US05: errores 500 con su stack trace completo y errores 400 de validación como eventos informativos; filtros
 // por fecha, nivel y código HTTP). Los textos del log ya llegan redactados (sin DNI, correos ni tokens).
 // Bloque M1: «Cambios de notas» (bitácora de notas, US03) pasó al portal del Coordinador académico.
@@ -6,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { Selector } from "@/components/admin/grados";
+import { OperacionesAuditadas } from "@/components/admin/operacionesAuditadas";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Campo, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -54,10 +56,10 @@ function BadgeNivel({ registro }: { registro: Pick<RegistroError, "nivel" | "cod
   return <Badge tono="rojo">{texto}</Badge>;
 }
 
-type Pestana = "errores";
+type Pestana = "operaciones" | "errores";
 
 export default function AuditoriaPage() {
-  const [pestana, setPestana] = useState<Pestana>("errores");
+  const [pestana, setPestana] = useState<Pestana>("operaciones");
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -69,7 +71,12 @@ export default function AuditoriaPage() {
       </div>
 
       <div role="tablist" aria-label="Bitácoras" className="flex gap-6 border-b border-borde">
-        {([["errores", "Errores del sistema"]] as const).map(([clave, texto]) => (
+        {(
+          [
+            ["operaciones", "Operaciones auditadas"],
+            ["errores", "Errores del sistema"],
+          ] as const
+        ).map(([clave, texto]) => (
           <button
             key={clave}
             type="button"
@@ -83,7 +90,7 @@ export default function AuditoriaPage() {
         ))}
       </div>
 
-      {pestana === "errores" && <LogErrores />}
+      {pestana === "operaciones" ? <OperacionesAuditadas /> : <LogErrores />}
 
       <Alerta tipo="info" titulo="Registros inmutables">
         Ningún usuario puede editar ni eliminar entradas de la bitácora. Cualquier intento de modificación directa es

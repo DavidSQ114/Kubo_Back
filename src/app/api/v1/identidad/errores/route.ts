@@ -4,7 +4,7 @@ import { ok, ruta } from "@/platform/http/ruta";
 import { esquemasIdentidad, listarErroresSistema, requerirSesion, ROLES_IDENTIDAD } from "@/modules/identidad";
 
 export const GET = ruta(async (req) => {
-  await requerirSesion(req, { roles: ROLES_IDENTIDAD.CUENTAS });
+  await requerirSesion(req, { roles: ROLES_IDENTIDAD.AUDITORIA });
   const filtro = esquemasIdentidad.FiltroErroresSchema.parse(Object.fromEntries(new URL(req.url).searchParams));
   return ok(await listarErroresSistema(filtro));
 });

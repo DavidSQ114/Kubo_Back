@@ -4,6 +4,6 @@ import { ok, ruta } from "@/platform/http/ruta";
 import { detalleErrorSistema, esquemasIdentidad, requerirSesion, ROLES_IDENTIDAD } from "@/modules/identidad";
 
 export const GET = ruta(async (req, { params }) => {
-  await requerirSesion(req, { roles: ROLES_IDENTIDAD.CUENTAS });
+  await requerirSesion(req, { roles: ROLES_IDENTIDAD.AUDITORIA });
   return ok(await detalleErrorSistema(esquemasIdentidad.IdLogSchema.parse(params.id)));
 });

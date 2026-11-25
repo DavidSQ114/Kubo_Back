@@ -779,6 +779,38 @@ export const parametros = {
     return Object.fromEntries(filas.map((f) => [f.clave, f.valor as unknown]));
   },
 
+  /** Parámetros generales (sin año) de las claves pedidas, con quién y cuándo los cambió (bloque M1). */
+  sistema: (claves: string[], db: Db = prisma) =>
+    db.parametroInstitucion.findMany({
+      where: { anioAcademicoId: null, clave: { in: claves } },
+      select: { id: true, clave: true, valor: true, descripcion: true, updatedAt: true },
+    }),
+
+  /** Bloquea el parámetro general: dos cambios a la vez no registran un «valor anterior» equivocado. */
+  async bloquearGeneral(tx: Tx, clave: string) {
+    await tx.$queryRaw`SELECT id FROM parametro_institucion
+      WHERE clave = ${clave} AND anio_academico_id IS NULL FOR UPDATE`;
+  },
+
+  /** Guarda el valor general; si la clave aún no estaba en la base, la crea con su descripción. */
+  async guardarGeneral(
+    datos: { clave: string; valor: string | number; descripcion: string; actualizadoPorId: string },
+    db: Db = prisma,
+  ) {
+    const actual = await db.parametroInstitucion.findFirst({
+      where: { clave: datos.clave, anioAcademicoId: null },
+      select: { id: true },
+    });
+    if (actual) {
+      return db.parametroInstitucion.update({
+        where: { id: actual.id },
+        data: { valor: datos.valor, actualizadoPorId: datos.actualizadoPorId },
+        select: { id: true },
+      });
+    }
+    return db.parametroInstitucion.create({ data: datos, select: { id: true } });
+  },
+
   guardar: (
     datos: { anioAcademicoId: string; clave: string; valor: string; descripcion: string; actualizadoPorId: string },
     db: Db = prisma,
