@@ -487,3 +487,16 @@ Pantalla «Parámetros del sistema» del Administrador (`/admin/parametros`). So
 ## Auditoría (RF03)
 
 `ACTUALIZAR_PARAMETRO` sobre `parametro_institucion`, con `{ clave, valor }` anterior y nuevo.
+
+# Tutor y cotutor (bloque M3)
+
+- `POST /academico/secciones` y `PATCH /academico/secciones/{id}` aceptan `cotutorId` (opcional, junto a `tutorId`);
+  la vista de la sección trae `cotutor`. El cotutor tiene los mismos permisos que el tutor.
+- Reglas (`verificarTutoria`): el cotutor necesita un tutor (`422 COTUTOR_SIN_TUTOR`), no puede ser el mismo docente
+  (`422 TUTOR_IGUAL_COTUTOR`, `ck_seccion_cotutor_distinto`) y un docente es tutor o cotutor de **una sola sección por
+  año** (`409 DOCENTE_YA_ES_TUTOR`, también el trigger `tg_seccion_tutoria_unica`). El cotutor debe ser un docente
+  activo (`422 COTUTOR_NO_DISPONIBLE`). La auditoría `CREAR_SECCION` y `EDITAR_SECCION` lleva `tutorId` y `cotutorId`.
+- `GET /academico/mi-tutoria` (solo Docente): `{ tutorias: [{ rol: "TUTOR" | "COTUTOR", seccion, anio }] }` del año en
+  curso; vacía si no tiene tutoría (el portal no muestra «Mi tutoría»).
+- Guardia `tutoriaDelDocente(auth, seccionId)` (exportada por `academico`): la usan todas las rutas de la tutoría de
+  horarios y evaluación; `403 NO_ES_TUTOR` si el docente no es tutor ni cotutor de la sección del año en curso.

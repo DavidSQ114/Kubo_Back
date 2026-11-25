@@ -19,6 +19,10 @@
 - Un rol fuera de la lista recibe **403 `ACCESO_DENEGADO`**. En la interfaz, quien entra por URL a un portal ajeno
   vuelve al inicio de su propio portal.
 - Los avisos académicos (registro de notas consolidado, solicitud de rectificación) van a los coordinadores.
+- **Tutor y cotutor (bloque M3)**: no son un rol de inicio de sesión. Un docente que es tutor o cotutor de una sección
+  del año en curso ve «Mi tutoría»; cada ruta de la tutoría exige el perfil Docente y, en el caso de uso, la guardia
+  `tutoriaDelDocente` (**403 `NO_ES_TUTOR`** para otro docente, incluido el tutor de otra sección). Las constantes son
+  `ROLES_ACADEMICO.TUTORIA` y `ROLES_EVALUACION.TUTORIA`.
 
 Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES_ACADEMICO`, `ROLES_COMUNIDAD`,
 `ROLES_EVALUACION`, `ROLES_HORARIOS`, `ROLES_IDENTIDAD` y `ROLES_MATRICULA`).
@@ -60,6 +64,7 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/academico/cursos/{id}/planes` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | PUT | `/api/v1/academico/cursos/{id}/planes` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | GET | `/api/v1/academico/grados` | Coordinador, Administrador (`ROLES_ACADEMICO.CONSULTA`) |
+| GET | `/api/v1/academico/mi-tutoria` | Docente (`ROLES_ACADEMICO.TUTORIA`) |
 | GET | `/api/v1/academico/mis-cursos` | Docente |
 | GET | `/api/v1/academico/mis-cursos/{id}/competencias` | Docente (solo su asignación) |
 | PUT | `/api/v1/academico/mis-cursos/{id}/competencias` | Docente (solo su asignación) |
@@ -135,22 +140,28 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/evaluacion/publicaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/publicaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | GET | `/api/v1/evaluacion/publicaciones/{cierreId}` | Coordinador (`ROLES_EVALUACION.GESTION`) |
-| GET | `/api/v1/evaluacion/reportes/alumnos/{matriculaId}/notas` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
-| GET | `/api/v1/evaluacion/reportes/logro-competencias` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
-| GET | `/api/v1/evaluacion/reportes/logro-competencias/csv` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
-| GET | `/api/v1/evaluacion/reportes/logro-competencias/pdf` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
 | GET | `/api/v1/evaluacion/rectificaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/rectificaciones/{id}/aprobar` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/rectificaciones/{id}/rechazar` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | GET | `/api/v1/evaluacion/registros` | Docente |
 | GET | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/cerrar` | Docente |
+| PUT | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/competencias/{competenciaPlanId}/items` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias` | Docente |
 | DELETE | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias/{evidenciaId}` | Docente |
-| PUT | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/competencias/{competenciaPlanId}/items` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/items/{itemId}/importar` | Docente |
 | PUT | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/notas` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/rectificaciones` | Docente |
+| GET | `/api/v1/evaluacion/reportes/alumnos/{matriculaId}/notas` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias/csv` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias/pdf` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/tutoria/{seccionId}/alumnos` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/evaluacion/tutoria/{seccionId}/alumnos/{matriculaId}/notas` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/evaluacion/tutoria/{seccionId}/conducta` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| PUT | `/api/v1/evaluacion/tutoria/{seccionId}/conducta/{periodoId}` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/evaluacion/tutoria/{seccionId}/consolidado` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/evaluacion/tutoria/{seccionId}/consolidado/csv` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
 
 ## horarios
 
@@ -161,6 +172,8 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/horarios/apoderado/hijos/{id}/asistencia` | Apoderado |
 | GET | `/api/v1/horarios/apoderado/hijos/{id}/horario` | Apoderado |
 | GET | `/api/v1/horarios/apoderado/hijos/{id}/horario/pdf` | Apoderado |
+| GET | `/api/v1/horarios/apoderado/hijos/{id}/justificaciones` | Apoderado (solo sus hijos) |
+| POST | `/api/v1/horarios/apoderado/hijos/{id}/justificaciones` | Apoderado (solo sus hijos) |
 | GET | `/api/v1/horarios/asistencia-docente` | Administrador (`ROLES_HORARIOS.ASISTENCIA_DOCENTE`) |
 | POST | `/api/v1/horarios/asistencia-docente/ingreso` | Administrador (`ROLES_HORARIOS.ASISTENCIA_DOCENTE`) |
 | POST | `/api/v1/horarios/asistencia-docente/salida` | Administrador (`ROLES_HORARIOS.ASISTENCIA_DOCENTE`) |
@@ -180,6 +193,20 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/horarios/secciones/{id}/ocupacion` | Coordinador (`ROLES_HORARIOS.GESTION`) |
 | GET | `/api/v1/horarios/secciones/{id}/publicado` | Coordinador (`ROLES_HORARIOS.GESTION`) |
 | POST | `/api/v1/horarios/secciones/{id}/publicar` | Coordinador (`ROLES_HORARIOS.GESTION`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/clases` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/inicio` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/justificaciones` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| POST | `/api/v1/horarios/tutoria/{seccionId}/justificaciones/{justificacionId}/aprobar` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/justificaciones/{justificacionId}/archivo` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| POST | `/api/v1/horarios/tutoria/{seccionId}/justificaciones/{justificacionId}/rechazar` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| POST | `/api/v1/horarios/tutoria/{seccionId}/registros/{registroId}/corregir` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| POST | `/api/v1/horarios/tutoria/{seccionId}/registros/{registroId}/justificar` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/reporte` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/reporte/csv` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/reporte/pdf` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| POST | `/api/v1/horarios/tutoria/{seccionId}/sesiones` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| GET | `/api/v1/horarios/tutoria/{seccionId}/sesiones/{sesionId}` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
+| PUT | `/api/v1/horarios/tutoria/{seccionId}/sesiones/{sesionId}/registros` | Docente tutor o cotutor de la sección (`TUTORIA`; 403 `NO_ES_TUTOR`) |
 
 ## identidad
 

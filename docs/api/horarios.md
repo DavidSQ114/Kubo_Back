@@ -318,3 +318,72 @@ Respuesta del listado:
 - De `comunidad`: `personalDocente` (nuevo: docentes activos, y los indicados aunque no lo estén, con su especialidad).
 - De `academico`: `listarAnios` (año en curso y bimestres) y `fechaEnLima`.
 - De `platform/config`: `parametroHora` (nuevo: parámetros «HH:MM» con valor por defecto).
+
+# Tutoría de sección (bloque M3)
+
+El tutor **no** es un rol de inicio de sesión: es un docente que es tutor o cotutor de una sección del año en curso
+(los asigna el coordinador en «Grados y secciones», ver [academico.md](academico.md#tutor-y-cotutor-bloque-m3)). Toda
+ruta de esta sección exige el perfil `DOCENTE` (`ROLES_ACADEMICO.TUTORIA`) y, en el caso de uso, la guardia
+`tutoriaDelDocente(auth, seccionId)`: **403 `NO_ES_TUTOR`** si no es tutor ni cotutor de esa sección (o si la sección
+no existe o no es del año en curso). El tutor y el cotutor tienen los mismos permisos. La asistencia del tutor es sobre
+las **clases existentes** (`sesion_clase`, `asistencia_estudiante`): no hay una asistencia diaria aparte.
+
+## Endpoints de la tutoría
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/horarios/tutoria/{seccionId}/inicio` | Sección, tutor y cotutor, bimestre en curso, alumnos, clases de hoy registradas, faltas de hoy, alumnos con aviso por umbral y justificaciones pendientes |
+| GET | `/horarios/tutoria/{seccionId}/clases?fecha=` | Clases de la sección ese día (por defecto hoy) del horario publicado, con su sesión si ya se abrió |
+| POST | `/horarios/tutoria/{seccionId}/sesiones` | `{ claseId, fecha }`: abre o reutiliza la sesión de la clase; queda a nombre del docente de la clase (201) |
+| GET | `/horarios/tutoria/{seccionId}/sesiones/{sesionId}` | La sesión con su lista, editable dentro del bimestre en curso |
+| PUT | `/horarios/tutoria/{seccionId}/sesiones/{sesionId}/registros` | `{ alumnos, motivo? }`: registra a quien falte (el tutor queda como quien registró) y, con motivo, modifica lo ya guardado |
+| POST | `/horarios/tutoria/{seccionId}/registros/{registroId}/corregir` | `{ estado, observacion?, motivo }`: modifica un registro sin el plazo de 24 horas |
+| POST | `/horarios/tutoria/{seccionId}/registros/{registroId}/justificar` | `{ motivo }`: FALTA → FALTA_JUSTIFICADA, TARDANZA → TARDANZA_JUSTIFICADA |
+| GET | `/horarios/tutoria/{seccionId}/reporte?periodoId=&orden=&ascendente=` | Reporte de faltas y tardanzas del bimestre por alumno, con totales |
+| GET | `/horarios/tutoria/{seccionId}/reporte/csv` · `/reporte/pdf` | El mismo reporte en CSV (BOM) y en PDF (platform/pdf) |
+| GET | `/horarios/tutoria/{seccionId}/justificaciones` | Justificaciones de los apoderados: pendientes y revisadas en 30 días |
+| GET | `/horarios/tutoria/{seccionId}/justificaciones/{id}/archivo` | Archivo adjunto (PDF o JPG, inline) |
+| POST | `/horarios/tutoria/{seccionId}/justificaciones/{id}/aprobar` | Aprueba: el registro queda justificado en la misma transacción |
+| POST | `/horarios/tutoria/{seccionId}/justificaciones/{id}/rechazar` | `{ motivo }`: rechaza; el registro no cambia |
+| GET | `/horarios/apoderado/hijos/{id}/justificaciones` | **Apoderado**: faltas y tardanzas del hijo por justificar (7 días) y justificaciones enviadas |
+| POST | `/horarios/apoderado/hijos/{id}/justificaciones` | **Apoderado**, multipart: `registroId`, `motivo` (5 a 500), `archivo` opcional PDF/JPG ≤ 5 MB (201) |
+
+`orden` del reporte: `nombre`, `clases`, `asistencias`, `tardanzas`, `tardanzasJustificadas`, `faltas`,
+`faltasJustificadas` o `porcentajeAsistencia` (por defecto `faltas`, de más a menos).
+
+## Reglas de la tutoría
+
+- **Bimestre en curso:** el tutor registra, modifica y justifica solo en fechas del bimestre que contiene hoy, hasta hoy
+  y de lunes a viernes (`FUERA_DEL_BIMESTRE_EN_CURSO`, `FECHA_FUTURA`, `DIA_SIN_CLASES`, `SIN_BIMESTRE_EN_CURSO`).
+- **Registrar una clase ajena:** la sesión se busca por sección, bloque y fecha (si el horario se volvió a publicar, la
+  sesión abierta es la misma) y se crea a nombre del docente de la clase; los registros nuevos llevan al tutor en
+  `registrado_por_id`. Si la sesión no estaba registrada, desde ese instante corre el plazo de 24 horas del docente.
+- **Modificar:** sin el plazo de 24 horas. Si la lista cambia registros guardados, el motivo es obligatorio
+  (`400 MOTIVO_REQUERIDO`); cada cambio queda con estado anterior, quién, cuándo y el motivo.
+- **Justificar:** solo una falta o una tardanza sin justificar (`422 NO_JUSTIFICABLE`, `409 YA_JUSTIFICADO`). La tardanza
+  justificada cuenta como asistencia: el día queda «Presente» y en los portales la clase se lista como «Justificado».
+- **Avisos por umbral:** cuentan solo los días en que el alumno faltó a todas sus clases **sin justificar** (ya era así
+  en US52). El inicio de la tutoría los calcula en vivo con esos criterios: al justificar, el alumno sale de la lista.
+- **Reporte:** cada columna cuenta clases con asistencia registrada; el porcentaje de asistencia es
+  (asistencias + tardanzas + tardanzas justificadas) / clases registradas, con un decimal. Incluye a quien tuvo
+  registros en la sección ese bimestre aunque después se trasladara o retirara.
+- **Justificación del apoderado:** falta o tardanza sin justificar de los últimos 7 días (`422
+  JUSTIFICACION_FUERA_DE_PLAZO`), de ese hijo (`403 REGISTRO_DE_OTRO_ALUMNO`), una sola pendiente por registro (`409
+  JUSTIFICACION_PENDIENTE`, `uq_justificacion_pendiente_por_registro`). Revisar una ya revisada: `409
+  JUSTIFICACION_YA_REVISADA`. Aprobar o rechazar notifica al apoderado en la aplicación.
+
+## Auditoría de la tutoría (RF03)
+
+| Acción | Entidad | Anterior → nuevo |
+|---|---|---|
+| `REGISTRAR_ASISTENCIA_TUTORIA` | `sesion_clase` | — → `{ seccionId, fecha, docenteDeLaClaseId, registros, rol }` |
+| `CORREGIR_ASISTENCIA` | `asistencia_estudiante` | `{ estado, observacion }` → `{ …, por: "TUTOR" }`, con motivo (la del coordinador lleva `por: "COORDINADOR"`) |
+| `JUSTIFICAR_ASISTENCIA` | `asistencia_estudiante` | `{ estado: FALTA/TARDANZA }` → `{ estado: …_JUSTIFICADA, por: "TUTOR" }`, con motivo |
+| `ENVIAR_JUSTIFICACION` | `justificacion_asistencia` | — → `{ registroId, matriculaId, fecha, conArchivo }` (el apoderado) |
+| `APROBAR_JUSTIFICACION` · `RECHAZAR_JUSTIFICACION` | `justificacion_asistencia` | `{ estado: PENDIENTE }` → `{ estado, registroId, rol }` |
+
+## Modelo de la tutoría
+
+- `EstadoAsistencia` suma `TARDANZA_JUSTIFICADA` (migración `20261128130000_tardanza_justificada`).
+- `justificacion_asistencia` (migración `20261128150000_justificacion_asistencia`): registro, quién la presentó, motivo,
+  archivo (`archivo_clave` del área `justificaciones` de platform/archivos), estado y revisión.

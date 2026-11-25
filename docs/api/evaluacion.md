@@ -361,3 +361,36 @@ Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo
 - `platform/archivos`: `validarArchivo`, `guardarArchivo`, `abrirArchivo`, `eliminarArchivo`, `leerFormulario` y `respuestaArchivo`.
 
 Académico sigue consultando los cierres y las notas por su puerto `CierresProvider`, que implementa evaluación; desde el bloque M2 también `itemsPorCompetenciaPlan` (una competencia con ítems no se quita del plan).
+
+# Tutoría: conducta y notas de la sección (bloque M3)
+
+Rutas del tutor o cotutor de la sección (`ROLES_EVALUACION.TUTORIA`, perfil `DOCENTE`, y la guardia
+`tutoriaDelDocente`: **403 `NO_ES_TUTOR`** para cualquier otro docente). Ver [horarios.md](horarios.md#tutoría-de-sección-bloque-m3).
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/evaluacion/tutoria/{seccionId}/conducta?periodoId=` | Conducta de los alumnos en un bimestre (por defecto, el actual), con resumen y si es editable |
+| PUT | `/evaluacion/tutoria/{seccionId}/conducta/{periodoId}` | `{ notas: [{ matriculaId, valor, comentario? }] }`: crea y modifica (solo lo que cambia) |
+| GET | `/evaluacion/tutoria/{seccionId}/alumnos` | Alumnos de la sección para ver sus notas |
+| GET | `/evaluacion/tutoria/{seccionId}/alumnos/{matriculaId}/notas` | Libreta completa del año (lo no publicado, «Sin publicar») con la conducta de cada bimestre |
+| GET | `/evaluacion/tutoria/{seccionId}/consolidado?periodoId=` | Matriz alumnos × cursos con el consolidado del bimestre, la conducta y el resumen AD/A/B/C por curso |
+| GET | `/evaluacion/tutoria/{seccionId}/consolidado/csv?periodoId=` | El consolidado en CSV (BOM) |
+
+## Reglas
+
+- **Nota de conducta** (`nota_conducta`, migración `20261128140000_nota_conducta`): AD, A, B o C y un comentario
+  opcional de hasta 500 caracteres, única por matrícula y periodo. Se registra y modifica mientras el periodo no esté
+  `FINALIZADO` (`409 PERIODO_FINALIZADO`; también el trigger `tg_nota_conducta_periodo_finalizado`). Solo de alumnos con
+  matrícula vigente en la sección en el bimestre (`422 ALUMNO_FUERA_DE_LA_SECCION`).
+- **En la libreta** (AP-04, AL-03 y su PDF) aparece la conducta del bimestre solo cuando el bimestre está publicado (todos
+  sus cursos publicados).
+- **Notas por alumno:** `403 ALUMNO_DE_OTRA_SECCION` si la matrícula no es de la sección de la tutoría.
+- **Consolidado:** el logro consolidado existe desde que el docente cierra el registro; los cursos no publicados salen
+  «Sin publicar · …». Las columnas son los cursos del plan de la sección con su asignación activa.
+
+## Auditoría
+
+| Acción | Entidad | Anterior → nuevo |
+|---|---|---|
+| `REGISTRAR_NOTA_CONDUCTA` | `nota_conducta` | — → `{ matriculaId, periodoId, valor, comentario, rol }` |
+| `MODIFICAR_NOTA_CONDUCTA` | `nota_conducta` | `{ valor, comentario }` → `{ matriculaId, periodoId, valor, comentario, rol }` |
