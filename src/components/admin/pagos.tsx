@@ -10,7 +10,6 @@ import { fechaDia, fechaHora, hoyEnLima } from "@/lib/formato";
 import {
   alternarEnOrden,
   AYUDA_ORDEN_CUOTAS,
-  esFija,
   ordenarParaPago,
   puedeMarcarse,
   seleccionEnOrden,
@@ -255,7 +254,8 @@ export function ModalRegistrarPago({
   onCerrar: () => void;
   onRegistrado: (r: ResultadoPago) => void;
 }) {
-  // D-14: en orden de pago; la matrícula pendiente va marcada y fija y las pensiones se marcan en orden
+  // D-14 (bloque M4): en orden de pago; la matrícula y el ingreso van juntos, cada pensión con su mora y las
+  // extraordinarias se marcan libremente
   const pendientes = ordenarParaPago(
     cuenta.cuotas.filter((c) => c.estado === "PENDIENTE").map((c) => ({ ...c, pagable: true })),
   );
@@ -352,7 +352,7 @@ export function ModalRegistrarPago({
                 type="checkbox"
                 aria-label={`Pagar ${c.concepto}`}
                 checked={elegidas.has(c.id)}
-                disabled={esFija(c) || (!elegidas.has(c.id) && !puedeMarcarse(pendientes, elegidas, c.id))}
+                disabled={!elegidas.has(c.id) && !puedeMarcarse(pendientes, elegidas, c.id)}
                 onChange={(e) => alternar(c.id, e.target.checked)}
                 className="size-[18px] accent-kubo-azul disabled:cursor-not-allowed disabled:opacity-60"
               />

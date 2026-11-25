@@ -15,6 +15,8 @@ export interface CuotaPortal {
   cuotaId: string;
   tipo: TipoCuota;
   mes: number | null;
+  /** Bloque M4: en una MORA, la pensión que la originó. */
+  cuotaOrigenId: string | null;
   concepto: string;
   monto: string;
   fechaVencimiento: string;

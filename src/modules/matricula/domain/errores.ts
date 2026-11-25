@@ -133,10 +133,12 @@ export const erroresMatricula = {
     ),
   cuotaAnulada: () => new ErrorApp("CUOTA_ANULADA", "La cuota está anulada y no admite pagos.", 409),
   /** D-14: no se paga una pensión con la cuota de matrícula pendiente fuera de la operación. */
-  matriculaPendiente: (anio: number) =>
+  matriculaPendiente: (anio: number, conIngreso = false) =>
     new ErrorApp(
       "MATRICULA_PENDIENTE",
-      `Primero debe pagarse la matrícula ${anio}. Inclúyela en este pago o regístrala antes.`,
+      conIngreso
+        ? `Primero deben pagarse la matrícula ${anio} y la cuota de ingreso. Inclúyelas en este pago o regístralas antes.`
+        : `Primero debe pagarse la matrícula ${anio}. Inclúyela en este pago o regístrala antes.`,
       409,
       { anio },
     ),
@@ -255,4 +257,22 @@ export const erroresMatricula = {
   moraPagada: () => new ErrorApp("MORA_PAGADA", "La mora ya fue pagada: no se puede condonar.", 409),
   moraYaCondonada: () => new ErrorApp("MORA_YA_CONDONADA", "La mora ya fue condonada o anulada.", 409),
   motivoRequerido: () => new ErrorApp("MOTIVO_REQUERIDO", "Escribe el motivo.", 400),
+
+  // ---------- Bloque M4 · Orden de pago con ingreso y mora (D-14) ----------
+  /** La cuota de ingreso y la matrícula pendientes se pagan en la misma operación. `falta`: la que no se eligió. */
+  inicioJunto: (falta: string) =>
+    new ErrorApp(
+      "INGRESO_CON_MATRICULA",
+      `La matrícula y la cuota de ingreso se pagan juntas: incluye también «${falta}».`,
+      409,
+      { falta },
+    ),
+  /** Cada mora se paga en la misma operación que su pensión, y la pensión con su mora. */
+  moraConPension: (mora: string, pension: string) =>
+    new ErrorApp(
+      "MORA_CON_PENSION",
+      `La «${pension}» y su mora se pagan en la misma operación: incluye las dos.`,
+      409,
+      { mora, pension },
+    ),
 };

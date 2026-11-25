@@ -86,31 +86,60 @@ export interface CuotaParaOrden {
   /** «AAAA-MM-DD». */
   fechaVencimiento: string;
   estado: "PENDIENTE" | "PAGADO" | "ANULADO";
+  /** Bloque M4: en una MORA, la pensión que la originó. */
+  cuotaOrigenId?: string | null;
 }
 
+/** Cuotas del inicio del año: la matrícula y la cuota de ingreso van juntas y antes que las pensiones (bloque M4). */
+const esInicio = (c: { tipo: TipoConcepto }) => c.tipo === "MATRICULA" || c.tipo === "INGRESO";
+
 /**
- * D-14 (US22, US58, US70): orden de pago de las cuotas de UNA matrícula. `cuotas` son todas las de esa matrícula;
- * los ids elegidos de otras matrículas se ignoran. Solo cuentan las Pendiente (las Anuladas y Pagadas no).
- * 1. Con la cuota de matrícula Pendiente no se paga ninguna pensión salvo que la matrícula vaya en la misma operación.
- * 2. Si se elige una pensión, todas las pensiones Pendiente con vencimiento anterior deben ir en la misma operación.
+ * D-14 (US22, US58, US70), extendido en el bloque M4: orden de pago de las cuotas de UNA matrícula. `cuotas` son todas
+ * las de esa matrícula; los ids elegidos de otras matrículas se ignoran. Solo cuentan las Pendiente.
+ * 1. La matrícula y la cuota de ingreso pendientes van en la misma operación (si se elige una, va la otra).
+ * 2. Con alguna de ellas Pendiente no se paga ninguna pensión salvo que vayan en la misma operación.
+ * 3. Si se elige una pensión, todas las pensiones Pendiente con vencimiento anterior deben ir en la misma operación.
+ * 4. Cada mora va en la misma operación que su pensión Pendiente, y la pensión con su mora Pendiente. Si la pensión ya
+ *    no está Pendiente (pagada o anulada), la mora se paga sola.
+ * 5. Las cuotas extraordinarias no entran en el orden: se pagan cuando se quiera (siempre completas).
  * Ejemplo: matrícula pagada, setiembre y octubre pendientes; elegir solo octubre → «Primero deben pagarse las cuotas
  * anteriores: Pensión setiembre.»
  */
 export function verificarOrdenDePago(idsElegidos: string[], cuotas: CuotaParaOrden[], anioMatricula: number) {
   const elegidas = new Set(idsElegidos);
   const pendientes = cuotas.filter((c) => c.estado === "PENDIENTE");
+  if (!pendientes.some((c) => elegidas.has(c.id))) return;
+
+  const inicio = pendientes.filter(esInicio);
+  const inicioElegido = inicio.some((c) => elegidas.has(c.id));
+  const faltaInicio = inicio.find((c) => !elegidas.has(c.id));
+  if (inicioElegido && faltaInicio) throw E.inicioJunto(faltaInicio.concepto);
+
   const pensionesElegidas = pendientes.filter((c) => c.tipo === "PENSION" && elegidas.has(c.id));
-  if (!pensionesElegidas.length) return;
-  const matricula = pendientes.find((c) => c.tipo === "MATRICULA");
-  if (matricula && !elegidas.has(matricula.id)) throw E.matriculaPendiente(anioMatricula);
-  const ultimoVencimiento = pensionesElegidas.reduce(
-    (max, c) => (c.fechaVencimiento > max ? c.fechaVencimiento : max),
-    "",
-  );
-  const faltan = pendientes
-    .filter((c) => c.tipo === "PENSION" && !elegidas.has(c.id) && c.fechaVencimiento < ultimoVencimiento)
-    .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
-  if (faltan.length) throw E.cuotasAnterioresPendientes(faltan.map((c) => c.concepto));
+  if (pensionesElegidas.length) {
+    if (inicio.length && !inicioElegido) {
+      throw E.matriculaPendiente(
+        anioMatricula,
+        inicio.some((c) => c.tipo === "INGRESO"),
+      );
+    }
+    const ultimoVencimiento = pensionesElegidas.reduce(
+      (max, c) => (c.fechaVencimiento > max ? c.fechaVencimiento : max),
+      "",
+    );
+    const faltan = pendientes
+      .filter((c) => c.tipo === "PENSION" && !elegidas.has(c.id) && c.fechaVencimiento < ultimoVencimiento)
+      .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+    if (faltan.length) throw E.cuotasAnterioresPendientes(faltan.map((c) => c.concepto));
+  }
+
+  const pendientePorId = new Map(pendientes.map((c) => [c.id, c]));
+  for (const mora of pendientes.filter((c) => c.tipo === "MORA" && c.cuotaOrigenId)) {
+    const pension = pendientePorId.get(mora.cuotaOrigenId!);
+    if (pension && elegidas.has(mora.id) !== elegidas.has(pension.id)) {
+      throw E.moraConPension(mora.concepto, pension.concepto);
+    }
+  }
 }
 
 /** US22: no hay pagos parciales; el monto debe ser exactamente la suma de las cuotas elegidas. */

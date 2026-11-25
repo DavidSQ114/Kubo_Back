@@ -189,6 +189,8 @@ export async function pagosDelHijo(auth: Autenticado, estudianteId: string, anio
       cuotaId: c.id,
       tipo: c.tipo,
       mes: c.mes,
+      // bloque M4: la mora se paga con su pensión (AP-02 las agrupa)
+      cuotaOrigenId: c.cuotaOrigenId,
       concepto: c.concepto,
       monto: c.monto,
       fechaVencimiento: c.fechaVencimiento,
