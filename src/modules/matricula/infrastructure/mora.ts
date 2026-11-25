@@ -1,4 +1,5 @@
-// matricula/infrastructure: consultas de la mora (bloque M4) sobre concepto_cobro y matricula, tablas del módulo. La
+// matricula/infrastructure: consultas de la mora (bloque M4) y de las cuotas que se anulan con motivo (mora condonada
+// y cuota extraordinaria) sobre concepto_cobro y matricula, tablas del módulo. La
 // generación toma un candado de PostgreSQL (se libera solo al terminar la transacción): dos corridas simultáneas de la
 // tarea programada se atienden una tras otra, y el índice único uq_concepto_cobro_cuota_origen evita duplicados.
 import { prisma } from "@/platform/db/prisma";
@@ -78,6 +79,7 @@ export interface CuotaParaAnular {
   estado: "PENDIENTE" | "PAGADO" | "ANULADO";
   cuotaOrigenId: string | null;
   loteId: string | null;
+  vinculoResponsableId: string | null;
 }
 
 export const cuotasAnulables = {
@@ -98,7 +100,8 @@ export const cuotasAnulables = {
         monto: true,
         estado: true,
         cuotaOrigenId: true,
-        matricula: { select: { estudianteId: true, anioAcademicoId: true } },
+        loteId: true,
+        matricula: { select: { estudianteId: true, anioAcademicoId: true, vinculoResponsableId: true } },
       },
     });
     if (!c) return null;
@@ -112,7 +115,8 @@ export const cuotasAnulables = {
       monto: c.monto.toFixed(2),
       estado: c.estado,
       cuotaOrigenId: c.cuotaOrigenId,
-      loteId: null,
+      loteId: c.loteId,
+      vinculoResponsableId: c.matricula.vinculoResponsableId,
     };
   },
 

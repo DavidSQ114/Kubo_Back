@@ -275,4 +275,31 @@ export const erroresMatricula = {
       409,
       { mora, pension },
     ),
+
+  // ---------- Bloque M4 · Cuotas extraordinarias ----------
+  conceptoExtraRequerido: () =>
+    new ErrorApp("CONCEPTO_REQUERIDO", "Escribe el concepto de la cuota (hasta 100 caracteres).", 400),
+  vencimientoPasado: () => new ErrorApp("VENCIMIENTO_PASADO", "El vencimiento no puede ser anterior a hoy.", 422),
+  anioSinCuotasExtra: (anio: number, estado: string) =>
+    new ErrorApp(
+      "ANIO_NO_ADMITE_CUOTAS",
+      `El año ${anio} está «${estado}»: solo se crean cuotas extraordinarias en un año en matrícula o en curso.`,
+      422,
+    ),
+  destinoRequerido: () => new ErrorApp("DESTINO_REQUERIDO", "Elige el alumno, la sección o el grado.", 400),
+  destinoNoEncontrado: () =>
+    new ErrorApp("DESTINO_NO_ENCONTRADO", "El alumno, la sección o el grado elegido no es de ese año.", 404),
+  loteSinMatriculas: () =>
+    new ErrorApp(
+      "LOTE_SIN_MATRICULAS",
+      "No hay alumnos matriculados en el destino elegido: no se generaría ninguna cuota.",
+      422,
+    ),
+  loteNoEncontrado: () => new ErrorApp("LOTE_NO_ENCONTRADO", "El lote de cuotas extraordinarias no existe.", 404),
+  loteYaAnulado: () => new ErrorApp("LOTE_YA_ANULADO", "El lote ya fue anulado.", 409),
+  cuotaNoEsExtraordinaria: () =>
+    new ErrorApp("CUOTA_NO_ES_EXTRAORDINARIA", "Solo se puede anular una cuota extraordinaria.", 422),
+  extraordinariaPagada: () =>
+    new ErrorApp("CUOTA_PAGADA", "La cuota ya fue pagada: anula primero su pago si corresponde.", 409),
+  extraordinariaAnulada: () => new ErrorApp("CUOTA_YA_ANULADA", "La cuota ya fue anulada.", 409),
 };

@@ -80,13 +80,46 @@ model ConceptoCobro {
   anuladoPor       Usuario?       @relation("ConceptoCobroAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
   anuladoEn        DateTime?      @db.Timestamptz(3) @map("anulado_en")
   motivoAnulacion  String?        @map("motivo_anulacion")
+  /// Bloque M4: lote del que salió la cuota EXTRAORDINARIA (ck_concepto_cobro_lote: solo ellas lo tienen, y todas).
+  loteId           String?                  @db.Uuid @map("lote_id")
+  lote             LoteCuotaExtraordinaria? @relation(fields: [loteId], references: [id], onDelete: Restrict)
   createdAt        DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt        DateTime     @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   pagos            Pago[]
 
   @@unique([matriculaId, tipo, mes])
+  @@unique([loteId, matriculaId], map: "uq_concepto_cobro_lote_matricula")
   @@index([estado, fechaVencimiento])
   @@map("concepto_cobro")
+}
+
+/// Bloque M4: lote de cuotas extraordinarias que crea el Coordinador académico (una cuota por matrícula Matriculado
+/// del destino). Anular el lote anula sus cuotas pendientes; las pagadas se conservan.
+model LoteCuotaExtraordinaria {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId  String              @db.Uuid @map("anio_academico_id")
+  anioAcademico    AnioAcademico       @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  concepto         String              @db.VarChar(100)
+  monto            Decimal             @db.Decimal(10, 2)
+  fechaVencimiento DateTime            @db.Date @map("fecha_vencimiento")
+  destino          DestinoLote
+  /// Estudiante, sección o grado del destino; vacío si es todo el año (ck_lote_extraordinario_destino).
+  destinoId        String?             @db.Uuid @map("destino_id")
+  /// Texto del destino al crear el lote («3° B», «Valeria Quispe Rojas»), para listarlo sin consultar otros módulos.
+  destinoNombre    String              @map("destino_nombre")
+  estado           EstadoLote          @default(ACTIVO)
+  creadoPorId      String              @db.Uuid @map("creado_por_id")
+  creadoPor        Usuario             @relation("LoteCreadoPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  anuladoPorId     String?             @db.Uuid @map("anulado_por_id")
+  anuladoPor       Usuario?            @relation("LoteAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn        DateTime?           @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion  String?             @map("motivo_anulacion")
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  cuotas           ConceptoCobro[]
+
+  @@index([anioAcademicoId, createdAt])
+  @@map("lote_cuota_extraordinaria")
 }
 
 model OperacionPago {

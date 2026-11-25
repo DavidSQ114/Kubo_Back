@@ -221,7 +221,8 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
       );
 
       const alumnoNuevo = esAlumnoNuevo(
-        await matriculas.otrasDelEstudiante(datos.estudianteId, accion === "CONFIRMAR" ? vigente!.id : null, tx),
+        // la matrícula que se acaba de confirmar o crear no cuenta como anterior
+        await matriculas.otrasDelEstudiante(datos.estudianteId, id, tx),
       );
       const cronograma = cronogramaPara(anio.anio, fechaMatricula, montos, dia, alumnoNuevo);
       await cuotas.crear(id, cronograma, tx);

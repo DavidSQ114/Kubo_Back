@@ -281,3 +281,17 @@ enum OrigenCambioNota {
   RECTIFICACION
   ITEMS
 }
+
+/// Bloque M4: a quién se generan las cuotas de un lote extraordinario.
+enum DestinoLote {
+  ALUMNO
+  SECCION
+  GRADO
+  ANIO
+}
+
+/// Bloque M4: un lote anulado ya no tiene cuotas pendientes.
+enum EstadoLote {
+  ACTIVO
+  ANULADO
+}

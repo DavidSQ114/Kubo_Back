@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
 import { FECHA_DEMO_POR_DEFECTO } from "./domain/demoMorosidad";
+import { DESTINOS_LOTE, LARGO_MAXIMO_CONCEPTO_EXTRA } from "./domain/extraordinarias";
 import { LARGO_MAXIMO_MOTIVO_CUOTA } from "./domain/mora";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
@@ -67,8 +68,11 @@ export const RetiroSchema = z.object({
   detalle: z.string().trim().max(300, "Detalle demasiado largo").nullable().optional(),
 });
 
-/** Máximo de cuotas en una operación: la matrícula y las diez pensiones del año. */
-const MAXIMO_CUOTAS_POR_PAGO = 11;
+/**
+ * Máximo de cuotas en una operación: la matrícula, la cuota de ingreso, las diez pensiones con sus diez moras y las
+ * cuotas extraordinarias del año (bloque M4), con holgura.
+ */
+const MAXIMO_CUOTAS_POR_PAGO = 40;
 
 /** El número de operación puede faltar: el caso de uso responde «El número de operación es obligatorio». */
 export const PagoSchema = z.object({
@@ -172,12 +176,32 @@ export const DemoMorosidadSchema = z.object({
   desde: fecha("La fecha --desde debe tener el formato AAAA-MM-DD").default(FECHA_DEMO_POR_DEFECTO),
 });
 
-// ---------- Bloque M4 · Condonar una mora ----------
+// ---------- Bloque M4 · Condonar una mora y anular cuotas extraordinarias ----------
 
-export const CondonarMoraSchema = z.object({
+/** Motivo obligatorio para condonar una mora o anular una cuota o un lote extraordinario. */
+export const MotivoCuotaSchema = z.object({
   motivo: z
     .string({ message: "Escribe el motivo" })
     .trim()
     .min(1, "Escribe el motivo")
     .max(LARGO_MAXIMO_MOTIVO_CUOTA, "Motivo demasiado largo"),
+});
+
+export const CondonarMoraSchema = MotivoCuotaSchema;
+
+/** Lote de cuotas extraordinarias (bloque M4); el mismo cuerpo sirve para la vista previa. */
+export const LoteExtraordinarioSchema = z.object({
+  anioAcademicoId: id("Elige el año académico"),
+  concepto: z
+    .string({ message: "Escribe el concepto" })
+    .trim()
+    .min(1, "Escribe el concepto")
+    .max(LARGO_MAXIMO_CONCEPTO_EXTRA, `El concepto puede tener hasta ${LARGO_MAXIMO_CONCEPTO_EXTRA} caracteres`),
+  monto: z
+    .string({ message: "Ingresa el monto" })
+    .trim()
+    .regex(/^\d{1,7}(\.\d{1,2})?$/, "Ingresa un monto mayor a 0 con hasta dos decimales (por ejemplo, 50.00)."),
+  fechaVencimiento: fecha("Fecha de vencimiento no válida"),
+  destino: z.enum(DESTINOS_LOTE, { message: "Elige el destino" }),
+  destinoId: id("Destino no válido").nullable().optional(),
 });
