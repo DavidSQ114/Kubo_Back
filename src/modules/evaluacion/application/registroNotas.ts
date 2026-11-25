@@ -1,7 +1,8 @@
 // evaluacion/application: registro de notas cualitativas del docente (US37, DO-04) con las evidencias de cada
 // calificación (US38), cierre y consolidación del bimestre (US39, M-10) y bloqueo del registro cerrado (US40). El docente sale de la sesión, nunca de la URL: un curso
 // o una sección de otro docente responde 403. El registro de un curso y sección en un bimestre es cierre_calificacion.
-// Cada nota guardada queda en la bitácora de notas (US03) en la misma transacción.
+// Cada nota guardada queda en la bitácora de notas (US03) en la misma transacción. Bloque M2: una competencia con ítems
+// de evaluación muestra sus ítems y la calificación de cada alumno; su nota se calcula al guardar (recalculoItems).
 import { prisma } from "@/platform/db/prisma";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { errores } from "@/platform/http/errores";
@@ -44,9 +45,30 @@ import {
   type SituacionDelRegistro,
 } from "../domain/notas";
 import { evidenciasPorNota, type EvidenciaVista } from "../domain/evidencias";
+import {
+  cambiosDeCalificaciones,
+  notaDeItems,
+  pesosCompletos,
+  recalcularNotas,
+  sumaDePesos,
+  verificarCalificaciones,
+  verificarSinItems,
+  type CalificacionPedida,
+  type MotivoSinNota,
+} from "../domain/items";
 import { columnasDelRegistro } from "../domain/rectificacion";
-import { cierres, estadoDeRegistro, evidencias, notas, resultados, type NotaFila } from "../infrastructure/repositorio";
+import {
+  calificacionesItem,
+  cierres,
+  estadoDeRegistro,
+  evidencias,
+  itemsEvaluacion,
+  notas,
+  resultados,
+  type NotaFila,
+} from "../infrastructure/repositorio";
 import { registrarEnBitacora, type CambioDeNota } from "./bitacora";
+import { aplicarRecalculo, calcularNotaDeItems, type ResumenRecalculo } from "./recalculoItems";
 import { vistaDeEvidencia } from "./vistaEvidencias";
 
 // ---------- Vistas ----------
@@ -95,6 +117,10 @@ export interface AlumnoDeRegistro {
   notas: Record<string, NotaVista>;
   /** Todas sus competencias calificadas. */
   completo: boolean;
+  /** Calificación de cada ítem de evaluación, por id de ítem (bloque M2). */
+  calificaciones: Record<string, LogroNota>;
+  /** Competencias con ítems en las que el alumno no tiene nota, con el porqué (bloque M2), por id de competencia. */
+  sinNota: Record<string, { motivo: MotivoSinNota; mensaje: string }>;
   /**
    * Logro consolidado del curso: el guardado al cerrar o, en un registro abierto y completo, el que resultaría con
    * la regla que rige en el bimestre (vista previa). null si aún le faltan competencias.
@@ -113,10 +139,30 @@ export interface RegistroDeNotas extends SituacionDelRegistro {
   cerradoPor: string | null;
   /** Versión de la regla de consolidación: la usada al cerrar o la que rige en el bimestre (US12). */
   regla: Omit<ReglaDelBimestre, "id"> | null;
-  competencias: { competenciaPlanId: string; codigo: string; nombre: string; orden: number; peso: number | null }[];
+  competencias: {
+    competenciaPlanId: string;
+    codigo: string;
+    nombre: string;
+    orden: number;
+    peso: number | null;
+    /** Ítems de evaluación de la competencia en este registro (bloque M2); vacío: se califica directo. */
+    items: ItemVista[];
+    /** Suma de los pesos de sus ítems y si es 100 (con ítems, su nota solo se calcula si lo es). */
+    sumaPesos: number;
+    pesosCompletos: boolean;
+  }[];
   alumnos: AlumnoDeRegistro[];
   avance: AvanceDelRegistro;
   pendientes: Pendiente[];
+}
+
+export interface ItemVista {
+  id: string;
+  nombre: string;
+  peso: number;
+  orden: number;
+  /** Alumnos con este ítem calificado: al eliminarlo, se pide confirmación. */
+  calificaciones: number;
 }
 
 export const etiquetaDe = (s: { nombre: string; grado: { numero: number } }) => `${s.grado.numero}° ${s.nombre}`;
@@ -179,7 +225,10 @@ export async function alumnosDelRegistro(seccionId: string, cerrados: string[] |
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-type CompetenciaVista = RegistroDeNotas["competencias"][number];
+type CompetenciaVista = Pick<
+  RegistroDeNotas["competencias"][number],
+  "competenciaPlanId" | "codigo" | "nombre" | "orden" | "peso"
+>;
 
 /** Logro consolidado de un alumno con la regla del bimestre (US12) y el detalle que se guarda con él. */
 export function consolidarAlumno(
@@ -221,7 +270,7 @@ function vistaPrevia(regla: ReglaDelBimestre | null, competencias: CompetenciaVi
   }
 }
 
-async function armarRegistro(
+export async function armarRegistro(
   asignacion: AsignacionParaNotas,
   bimestre: BimestreVista,
   ahora: Date,
@@ -232,23 +281,38 @@ async function armarRegistro(
   ]);
   const estado = estadoDeRegistro(cierre);
   const cerrado = estado !== "ABIERTO";
-  const [guardadas, consolidados, delCierre] = cierre
+  const [guardadas, consolidados, delCierre, items, calificaciones] = cierre
     ? await Promise.all([
         notas.delCierre(cierre.id),
         cerrado ? resultados.delCierre(cierre.id) : [],
         evidencias.delCierre(cierre.id),
+        itemsEvaluacion.delCierre(cierre.id),
+        calificacionesItem.delCierre(cierre.id),
       ])
-    : [[], [], []];
+    : [[], [], [], [], []];
   const evidenciasDe = evidenciasPorNota(delCierre);
+  const itemsDe = (competenciaPlanId: string) => items.filter((i) => i.competenciaPlanId === competenciaPlanId);
   const competencias = [...lista]
     .sort((a, b) => a.orden - b.orden)
-    .map((c) => ({
-      competenciaPlanId: c.competenciaPlanId,
-      codigo: c.codigo,
-      nombre: c.nombre,
-      orden: c.orden,
-      peso: c.peso,
-    }));
+    .map((c) => {
+      const propios = itemsDe(c.competenciaPlanId);
+      return {
+        competenciaPlanId: c.competenciaPlanId,
+        codigo: c.codigo,
+        nombre: c.nombre,
+        orden: c.orden,
+        peso: c.peso,
+        items: propios.map((i) => ({
+          id: i.id,
+          nombre: i.nombre,
+          peso: i.peso,
+          orden: i.orden,
+          calificaciones: calificaciones.filter((x) => x.itemId === i.id).length,
+        })),
+        sumaPesos: sumaDePesos(propios.map((i) => i.peso)),
+        pesosCompletos: pesosCompletos(propios.map((i) => i.peso)),
+      };
+    });
   const alumnos = await alumnosDelRegistro(
     asignacion.seccion.id,
     cerrado ? consolidados.map((r) => r.matriculaId) : null,
@@ -281,10 +345,22 @@ async function armarRegistro(
       ]),
     );
     const completo = competencias.every((c) => porCompetencia[c.competenciaPlanId]);
+    const delAlumnoItems = new Map(
+      calificaciones.filter((x) => x.matriculaId === a.matriculaId).map((x) => [x.itemId, x.valor] as const),
+    );
+    const sinNota = Object.fromEntries(
+      competencias.flatMap((c) => {
+        if (!c.items.length || porCompetencia[c.competenciaPlanId]) return [];
+        const r = notaDeItems(c.items, delAlumnoItems, calcularNotaDeItems);
+        return r.estado === "SIN_NOTA" ? [[c.competenciaPlanId, { motivo: r.motivo, mensaje: r.mensaje }]] : [];
+      }),
+    );
     return {
       matriculaId: a.matriculaId,
       nombre: a.nombre,
       notas: porCompetencia,
+      calificaciones: Object.fromEntries(delAlumnoItems),
+      sinNota,
       completo,
       consolidado: cerrado
         ? (consolidados.find((r) => r.matriculaId === a.matriculaId)?.logroConsolidado ?? null)
@@ -388,20 +464,30 @@ export async function registroDeNotas(
 }
 
 export interface NotasGuardadas extends RegistroDeNotas {
-  guardado: { nuevas: number; modificadas: number; sinCambio: number };
+  guardado: {
+    nuevas: number;
+    modificadas: number;
+    sinCambio: number;
+    /** Calificaciones de ítems nuevas y cambiadas, y las notas que se recalcularon con ellas (bloque M2). */
+    calificaciones: { nuevas: number; modificadas: number };
+    recalculo: ResumenRecalculo;
+  };
 }
 
 /**
  * Guarda notas del registro: se puede guardar una parte y volver luego (US37). Solo en el bimestre activo y con el
- * registro abierto; cada cambio guarda el logro anterior, quién lo cambió y cuándo.
+ * registro abierto; cada cambio guarda el logro anterior, quién lo cambió y cuándo. Bloque M2: también guarda
+ * calificaciones de ítems y, en la misma transacción, recalcula las notas de las competencias afectadas; una
+ * competencia con ítems no recibe nota directa.
  */
 export async function guardarNotas(
   auth: Autenticado,
   asignacionId: string,
   periodoId: string,
-  datos: { notas: NotaPedida[] },
+  datos: { notas: NotaPedida[]; calificaciones?: CalificacionPedida[] },
   ahora: Date = new Date(),
 ): Promise<NotasGuardadas> {
+  const pedidasItems = datos.calificaciones ?? [];
   const { asignacion, bimestre, docente } = await cargarContexto(auth, asignacionId, periodoId, ahora);
   const actual = await cierres.de(asignacion.id, bimestre.id);
   // registro cerrado (US40) o bimestre no activo (US37): se rechaza aunque la petición no venga de la pantalla
@@ -439,6 +525,13 @@ export async function guardarNotas(
     });
     // otro guardado o un cierre pudo terminar mientras esta transacción esperaba el bloqueo
     verificarEditable(situacionDelRegistro(estadoDeRegistro(cierre), bimestre.activo));
+    const items = await itemsEvaluacion.delCierre(cierre.id, tx);
+    verificarSinItems(datos.notas, items, columnas);
+    verificarCalificaciones(
+      pedidasItems,
+      items,
+      alumnos.map((a) => a.matriculaId),
+    );
     const guardadas = await notas.delCierre(cierre.id, tx);
     const cambios = cambiosDeNotas(guardadas, datos.notas);
     const creadas = cambios.nuevas.length ? await notas.crear(tx, cierre.id, cambios.nuevas, auth.usuarioId) : [];
@@ -446,33 +539,61 @@ export async function guardarNotas(
       await notas.cambiar(tx, m.id, { logro: m.logro, logroAnterior: m.anterior, modificadoPorId: auth.usuarioId });
     }
     // US03: cada nota nueva o cambiada, con su valor anterior, en la misma transacción
-    await registrarEnBitacora(
-      tx,
-      {
-        usuarioId: auth.usuarioId,
-        usuarioNombre: docente.nombreCompleto,
-        docenteId: docente.id,
-        docenteNombre: docente.nombreCompleto,
-        anio: asignacion.anio.anio,
-        curso: { codigo: asignacion.curso.codigo, nombre: asignacion.curso.nombre },
-        seccion: etiquetaDe(asignacion.seccion),
-        bimestre: { numero: bimestre.numero, nombre: bimestre.nombre },
-        origen: "REGISTRO",
-        solicitudId: null,
-      },
-      [
-        ...creadas.map((n) => cambio(n, cierre.id, null, n.logro)),
-        ...cambios.modificadas.map((m) =>
-          cambio(
-            guardadas.find((g) => g.id === m.id)!,
-            cierre.id,
-            m.anterior,
-            m.logro,
-          ),
+    const contexto = {
+      usuarioId: auth.usuarioId,
+      usuarioNombre: docente.nombreCompleto,
+      docenteId: docente.id,
+      docenteNombre: docente.nombreCompleto,
+      anio: asignacion.anio.anio,
+      curso: { codigo: asignacion.curso.codigo, nombre: asignacion.curso.nombre },
+      seccion: etiquetaDe(asignacion.seccion),
+      bimestre: { numero: bimestre.numero, nombre: bimestre.nombre },
+    };
+    await registrarEnBitacora(tx, { ...contexto, origen: "REGISTRO", solicitudId: null }, [
+      ...creadas.map((n) => cambio(n, cierre.id, null, n.logro)),
+      ...cambios.modificadas.map((m) =>
+        cambio(
+          guardadas.find((g) => g.id === m.id)!,
+          cierre.id,
+          m.anterior,
+          m.logro,
         ),
-      ],
-    );
-    return { nuevas: cambios.nuevas.length, modificadas: cambios.modificadas.length, sinCambio: cambios.sinCambio };
+      ),
+    ]);
+
+    // Bloque M2: calificaciones de ítems y recálculo de las competencias que tocan
+    const deItems = cambiosDeCalificaciones(await calificacionesItem.delCierre(cierre.id, tx), pedidasItems);
+    if (deItems.nuevas.length) {
+      await calificacionesItem.crear(
+        tx,
+        deItems.nuevas.map((c) => ({ itemId: c.itemId, matriculaId: c.matriculaId, valor: c.logro })),
+        auth.usuarioId,
+      );
+    }
+    for (const m of deItems.modificadas) await calificacionesItem.cambiar(tx, m.id, m.logro, auth.usuarioId);
+    const tocadas = new Set(pedidasItems.map((c) => c.itemId));
+    const recalculo = await aplicarRecalculo(tx, {
+      cierreId: cierre.id,
+      cambios: recalcularNotas({
+        competenciaPlanIds: items.filter((i) => tocadas.has(i.id)).map((i) => i.competenciaPlanId),
+        items,
+        matriculaIds: alumnos.map((a) => a.matriculaId),
+        calificaciones: await calificacionesItem.delCierre(cierre.id, tx),
+        notas: await notas.delCierre(cierre.id, tx),
+        calcular: calcularNotaDeItems,
+      }),
+      usuarioId: auth.usuarioId,
+      contexto,
+      nombres,
+      columnas,
+    });
+    return {
+      nuevas: cambios.nuevas.length,
+      modificadas: cambios.modificadas.length,
+      sinCambio: cambios.sinCambio + deItems.sinCambio,
+      calificaciones: { nuevas: deItems.nuevas.length, modificadas: deItems.modificadas.length },
+      recalculo,
+    };
   });
   return { ...(await armarRegistro(asignacion, bimestre, ahora)), guardado: resumen };
 }

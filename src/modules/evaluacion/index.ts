@@ -2,7 +2,7 @@
 // del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado y del alumno con su PDF (US46, US51,
 // US66; con la restricción por deuda de US26), solicitud de rectificación de nota (US41), bitácora de notas (US03),
 // evidencias pedagógicas y su archivo (US38, US47) y el puerto que usa académico (cierres del año y notas por
-// competencia).
+// competencia), y los ítems de evaluación con pesos de cada competencia y su nota calculada (bloque M2).
 export { cierresProviderEvaluacion } from "./infrastructure/cierresProvider";
 export { LOGROS_NOTA, ESTADOS_REGISTRO, MENSAJE_CORRECCION, type LogroNota, type EstadoRegistro } from "./domain/notas";
 export {
@@ -73,5 +73,12 @@ export {
   type DatosEvidencia,
   type EvidenciaAgregada,
 } from "./application/evidencias";
+export {
+  PESO_TOTAL_ITEMS,
+  LARGO_MAXIMO_NOMBRE_ITEM,
+  MAXIMO_ITEMS_POR_COMPETENCIA,
+  type MotivoSinNota,
+} from "./domain/items";
+export { guardarItems, type ItemsGuardados } from "./application/items";
 export * as esquemasEvaluacion from "./schemas";
 export { ROLES_EVALUACION } from "./accesos";

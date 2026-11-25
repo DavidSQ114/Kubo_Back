@@ -1,9 +1,11 @@
 // evaluacion/schemas: validación de las entradas de la API del registro de notas (US37, US39, US40), de la
-// rectificación de nota (US41), de la bitácora de notas (US03) y de las evidencias pedagógicas (US38), RNF16.
+// rectificación de nota (US41), de la bitácora de notas (US03), de las evidencias pedagógicas (US38) y de los ítems de
+// evaluación con pesos (bloque M2), RNF16.
 // Mensajes en español; un logro fuera de la escala responde con el mensaje del backlog (US37, criterio 2).
 import { z } from "zod";
 import { erroresEvaluacion as E, MENSAJE_VALOR_NO_PERMITIDO } from "./domain/errores";
 import { largoEnCaracteres, LARGO_MAXIMO_COMENTARIO_EVIDENCIA } from "./domain/evidencias";
+import { MAXIMO_ITEMS_POR_COMPETENCIA, type CalificacionPedida } from "./domain/items";
 import { LOGROS_NOTA, type NotaPedida } from "./domain/notas";
 import { LARGO_MAXIMO_MOTIVO } from "./domain/rectificacion";
 
@@ -17,21 +19,43 @@ const MAXIMO_NOTAS_POR_GUARDADO = 500;
 
 const LogroSchema = z.enum(LOGROS_NOTA, { message: MENSAJE_VALOR_NO_PERMITIDO });
 
+/** 40 alumnos × 20 ítems × unas 3 competencias con ítems: 2000 calificaciones a la vez sobran (bloque M2). */
+const MAXIMO_CALIFICACIONES_POR_GUARDADO = 2000;
+
 const NotaSchema = z.object({ matriculaId: IdSchema, competenciaPlanId: IdSchema, logro: LogroSchema });
+const CalificacionItemSchema = z.object({ itemId: IdSchema, matriculaId: IdSchema, logro: LogroSchema });
 
 export const GuardarNotasZod = z
   .object({
     notas: z
       .array(NotaSchema, { message: "Envía la lista de notas" })
-      .min(1, "No hay notas que guardar")
-      .max(MAXIMO_NOTAS_POR_GUARDADO, "Guarda como máximo 500 notas a la vez"),
+      .max(MAXIMO_NOTAS_POR_GUARDADO, "Guarda como máximo 500 notas a la vez")
+      .default([]),
+    calificaciones: z
+      .array(CalificacionItemSchema, { message: "Envía la lista de calificaciones de ítems" })
+      .max(MAXIMO_CALIFICACIONES_POR_GUARDADO, "Guarda como máximo 2000 calificaciones de ítems a la vez")
+      .default([]),
   })
   .superRefine((datos, ctx) => {
+    if (datos.notas.length === 0 && datos.calificaciones.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["notas"], message: "No hay notas que guardar" });
+    }
     const vistas = new Set<string>();
     datos.notas.forEach((n, i) => {
       const clave = `${n.matriculaId}|${n.competenciaPlanId}`;
       if (vistas.has(clave)) {
         ctx.addIssue({ code: "custom", path: ["notas", i], message: "La misma nota aparece dos veces" });
+      }
+      vistas.add(clave);
+    });
+    datos.calificaciones.forEach((c, i) => {
+      const clave = `${c.matriculaId}|item:${c.itemId}`;
+      if (vistas.has(clave)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["calificaciones", i],
+          message: "La misma calificación aparece dos veces",
+        });
       }
       vistas.add(clave);
     });
@@ -43,24 +67,57 @@ export const GuardarNotasZod = z
  * Se usa con leerCuerpo: leerCuerpo(req, esquemasEvaluacion.GuardarNotasSchema).
  */
 export const GuardarNotasSchema = {
-  parse(valor: unknown): { notas: NotaPedida[] } {
+  parse(valor: unknown): { notas: NotaPedida[]; calificaciones: CalificacionPedida[] } {
     const r = GuardarNotasZod.safeParse(valor);
     if (r.success) return r.data;
     const soloLogros = r.error.issues.every((i) => i.path.length === 3 && i.path[2] === "logro");
     if (soloLogros) {
-      const notas = (valor as { notas: { matriculaId: string; competenciaPlanId: string; logro: unknown }[] }).notas;
-      const indices = [...new Set(r.error.issues.map((i) => Number(i.path[1])))];
-      throw E.valorNoPermitido(
-        indices.map((i) => ({
-          matriculaId: notas[i].matriculaId,
-          competenciaPlanId: notas[i].competenciaPlanId,
-          valor: String(notas[i].logro ?? ""),
-        })),
-      );
+      type Celda = { matriculaId: string; competenciaPlanId?: string; itemId?: string; logro: unknown };
+      const cuerpo = valor as { notas?: Celda[]; calificaciones?: Celda[] };
+      const vistas = new Set<string>();
+      const celdas = r.error.issues.flatMap((issue) => {
+        const lista = issue.path[0] === "calificaciones" ? cuerpo.calificaciones : cuerpo.notas;
+        const clave = `${String(issue.path[0])}|${String(issue.path[1])}`;
+        const celda = lista?.[Number(issue.path[1])];
+        if (!celda || vistas.has(clave)) return [];
+        vistas.add(clave);
+        return [
+          {
+            matriculaId: celda.matriculaId,
+            competenciaPlanId: celda.competenciaPlanId ?? "",
+            ...(celda.itemId ? { itemId: celda.itemId } : {}),
+            valor: String(celda.logro ?? ""),
+          },
+        ];
+      });
+      throw E.valorNoPermitido(celdas);
     }
     throw r.error;
   },
 };
+
+// ---------- Ítems de evaluación (bloque M2) ----------
+
+/** Ruta /registros/{asignacionId}/bimestres/{periodoId}/competencias/{competenciaPlanId}/items. */
+export const ItemsParamsSchema = RegistroParamsSchema.extend({ competenciaPlanId: IdSchema });
+
+/**
+ * Cuerpo de PUT …/items: la lista completa de ítems de la competencia, en orden (los que no van se eliminan). El largo
+ * del nombre, los pesos y los duplicados los valida domain/items con mensajes por ítem.
+ */
+export const GuardarItemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: IdSchema.optional(),
+        nombre: z.string({ message: "Escribe el nombre de cada ítem" }).max(200, "Nombre de ítem demasiado largo"),
+        peso: z.number({ message: "El peso de cada ítem debe ser un número" }),
+      }),
+      { message: "Envía la lista de ítems" },
+    )
+    .max(MAXIMO_ITEMS_POR_COMPETENCIA, `Una competencia admite como máximo ${MAXIMO_ITEMS_POR_COMPETENCIA} ítems`),
+  confirmar: z.boolean({ message: "confirmar debe ser verdadero o falso" }).default(false),
+});
 
 // ---------- Publicación (US39) y libreta (US46, US51, US66) ----------
 

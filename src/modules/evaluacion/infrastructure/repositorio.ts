@@ -2,7 +2,7 @@
 // bitacora_nota y evidencia_pedagogica (dueño: evaluacion) para el registro de notas (US37), el cierre y la publicación
 // del bimestre (US39), su bloqueo (US40), la libreta del apoderado y del alumno (US46, US51), que solo lee notas y
 // evidencias de registros PUBLICADOS, la rectificación de nota (US41), la bitácora de notas (US03) y las evidencias
-// pedagógicas (US38, US47).
+// pedagógicas (US38, US47), y de item_evaluacion y calificacion_item (ítems de evaluación con pesos, bloque M2).
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
@@ -156,9 +156,101 @@ export const notas = {
       select: { id: true, cierreId: true, matriculaId: true, competenciaPlanId: true, logro: true },
     }),
 
+  /** Quita notas de competencias con ítems a las que les falta algo (bloque M2); sus evidencias se van con ellas. */
+  eliminar: async (tx: Tx, ids: string[]) => {
+    if (ids.length) await tx.nota.deleteMany({ where: { id: { in: ids } } });
+  },
+
   /** Cambia el logro y guarda el anterior, quién lo cambió y cuándo (US37). */
   cambiar: (tx: Tx, id: string, datos: { logro: LogroNota; logroAnterior: LogroNota; modificadoPorId: string }) =>
     tx.nota.update({ where: { id }, data: { ...datos, modificadoEn: new Date() } }),
+};
+
+// ---------- Ítems de evaluación y sus calificaciones (bloque M2) ----------
+
+export interface ItemFila {
+  id: string;
+  cierreId: string;
+  competenciaPlanId: string;
+  nombre: string;
+  peso: number;
+  orden: number;
+}
+
+export interface CalificacionItemFila {
+  id: string;
+  itemId: string;
+  matriculaId: string;
+  valor: LogroNota;
+  registradoPorId: string;
+  updatedAt: Date;
+}
+
+const selectItem = {
+  id: true,
+  cierreId: true,
+  competenciaPlanId: true,
+  nombre: true,
+  peso: true,
+  orden: true,
+} as const;
+const selectCalificacion = {
+  id: true,
+  itemId: true,
+  matriculaId: true,
+  valor: true,
+  registradoPorId: true,
+  updatedAt: true,
+} as const;
+
+const filaItem = (i: Omit<ItemFila, "peso"> & { peso: { toNumber(): number } }): ItemFila => ({
+  ...i,
+  peso: i.peso.toNumber(),
+});
+
+export const itemsEvaluacion = {
+  /** Ítems de varios registros, en su orden (DO-04, libreta y reportes). */
+  async deCierres(cierreIds: string[], db: Db = prisma): Promise<ItemFila[]> {
+    if (!cierreIds.length) return [];
+    const filas = await db.itemEvaluacion.findMany({
+      where: { cierreId: { in: cierreIds } },
+      orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
+      select: selectItem,
+    });
+    return filas.map(filaItem);
+  },
+
+  delCierre: (cierreId: string, db: Db = prisma) => itemsEvaluacion.deCierres([cierreId], db),
+
+  async crear(
+    tx: Tx,
+    datos: { cierreId: string; competenciaPlanId: string; nombre: string; peso: number; orden: number },
+  ): Promise<ItemFila> {
+    return filaItem(await tx.itemEvaluacion.create({ data: datos, select: selectItem }));
+  },
+
+  actualizar: (tx: Tx, id: string, datos: { nombre: string; peso: number; orden: number }) =>
+    tx.itemEvaluacion.update({ where: { id }, data: datos, select: { id: true } }),
+
+  /** Sus calificaciones se borran con ellos (cascada). */
+  eliminar: async (tx: Tx, ids: string[]) => {
+    if (ids.length) await tx.itemEvaluacion.deleteMany({ where: { id: { in: ids } } });
+  },
+};
+
+export const calificacionesItem = {
+  deCierres: (cierreIds: string[], db: Db = prisma): Promise<CalificacionItemFila[]> =>
+    cierreIds.length
+      ? db.calificacionItem.findMany({ where: { item: { cierreId: { in: cierreIds } } }, select: selectCalificacion })
+      : Promise.resolve([]),
+
+  delCierre: (cierreId: string, db: Db = prisma) => calificacionesItem.deCierres([cierreId], db),
+
+  crear: (tx: Tx, filas: { itemId: string; matriculaId: string; valor: LogroNota }[], registradoPorId: string) =>
+    tx.calificacionItem.createMany({ data: filas.map((f) => ({ ...f, registradoPorId })) }),
+
+  cambiar: (tx: Tx, id: string, valor: LogroNota, registradoPorId: string) =>
+    tx.calificacionItem.update({ where: { id }, data: { valor, registradoPorId }, select: { id: true } }),
 };
 
 export interface ResultadoFila {
@@ -347,6 +439,10 @@ export const evidencias = {
   eliminar: async (tx: Tx, id: string) => {
     await tx.evidenciaPedagogica.delete({ where: { id } });
   },
+
+  /** Evidencias de varias notas (cuántas se borrarían al quitarlas, bloque M2). */
+  contarDeNotas: (notaIds: string[], db: Db = prisma) =>
+    notaIds.length ? db.evidenciaPedagogica.count({ where: { notaId: { in: notaIds } } }) : Promise.resolve(0),
 
   async conRegistro(id: string, db: Db = prisma): Promise<EvidenciaConRegistro | null> {
     const fila = await db.evidenciaPedagogica.findUnique({

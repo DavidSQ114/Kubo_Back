@@ -1,5 +1,6 @@
 // PUT /api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/notas · Guardar notas (también un avance
-// parcial) con la escala AD, A, B o C, solo en el bimestre activo y con el registro abierto (US37, US40, DO-04)
+// parcial) con la escala AD, A, B o C, y calificaciones de ítems con el recálculo de sus notas (bloque M2), solo en el
+// bimestre activo y con el registro abierto (US37, US40, DO-04)
 // · Solo Docente (solo sus cursos y secciones)
 import "@/server/wiring";
 import { leerCuerpo, ok, ruta } from "@/platform/http/ruta";

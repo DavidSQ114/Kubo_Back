@@ -1,7 +1,6 @@
 -- Bloque M2 · Ítems de evaluación con pesos (item_evaluacion) y sus calificaciones (calificacion_item). La nota de una
 -- competencia con ítems se calcula y queda en nota con el origen ITEMS en bitacora_nota; logro_nuevo admite null
 -- para registrar que una nota se quitó (al alumno le faltan ítems o los pesos dejaron de sumar 100).
-Loaded Prisma config from prisma.config.ts.
 
 -- AlterEnum
 ALTER TYPE "OrigenCambioNota" ADD VALUE 'ITEMS';
