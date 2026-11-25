@@ -239,6 +239,13 @@ export const clases = {
     return filas.map(({ horario, ...o }) => ({ ...o, estadoHorario: horario.estadoPublicacion as EstadoHorario }));
   },
 
+  /** Clases del horario PUBLICADO de la sección (bloque M3: las clases del día que ve el tutor). */
+  publicadasDeSeccion: (seccionId: string, db: Db = prisma): Promise<ClaseFila[]> =>
+    db.detalleHorario.findMany({
+      where: { seccionId, horario: { estadoPublicacion: "PUBLICADO" } },
+      select: selectClase,
+    }),
+
   /** Clases del docente en los horarios PUBLICADOS de un año (US31: «Mi horario» del docente). */
   publicadasDelDocente: (docenteId: string, anioAcademicoId: string, db: Db = prisma): Promise<ClaseFila[]> =>
     db.detalleHorario.findMany({

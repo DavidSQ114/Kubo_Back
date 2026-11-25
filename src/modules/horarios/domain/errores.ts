@@ -1,6 +1,6 @@
 // horarios/domain: errores del módulo (US27 cuadrícula, US28 asignación, US29 cruce de docente, US30 cruce de aula,
 // US31 publicación y, en erroresAsistencia, US35 toma de asistencia y US36 plazo de corrección). Los mensajes entre
-// comillas son los del Product Backlog v3.3.
+// comillas son los del Product Backlog v3.3. erroresTutoria: asistencia del tutor de la sección (bloque M3).
 import { ErrorApp } from "@/platform/http/errores";
 import { describirBloque, type Dia, type EstadoHorario } from "./tipos";
 
@@ -160,4 +160,39 @@ export const erroresAsistenciaDocente = {
   salidaAntesDelIngreso: () =>
     new ErrorApp("SALIDA_ANTES_DEL_INGRESO", "La hora de salida no puede ser anterior a la de ingreso.", 422),
   noEsFalta: () => new ErrorApp("NO_ES_INASISTENCIA", "Solo se justifica un registro con estado «Inasistencia».", 422),
+};
+
+/** Asistencia que registra, corrige y justifica el tutor de la sección (bloque M3). */
+export const erroresTutoria = {
+  sinBimestreEnCurso: () =>
+    new ErrorApp(
+      "SIN_BIMESTRE_EN_CURSO",
+      "Hoy no hay un bimestre en curso: la asistencia de la tutoría se maneja dentro del bimestre.",
+      422,
+    ),
+  fechaFutura: () => new ErrorApp("FECHA_FUTURA", "No se puede registrar la asistencia de una fecha futura.", 422),
+  fueraDelBimestre: () =>
+    new ErrorApp(
+      "FUERA_DEL_BIMESTRE_EN_CURSO",
+      "Solo puedes registrar o modificar la asistencia del bimestre en curso.",
+      422,
+    ),
+  finDeSemana: () => new ErrorApp("DIA_SIN_CLASES", "Ese día no hay clases: es fin de semana.", 422),
+  claseDeOtraSeccion: () => new ErrorApp("CLASE_DE_OTRA_SECCION", "Esta clase no es de la sección de tu tutoría.", 403),
+  claseFueraDeFecha: () =>
+    new ErrorApp(
+      "CLASE_FUERA_DE_HORARIO",
+      "Esta clase no está programada ese día en el horario publicado de la sección.",
+      422,
+    ),
+  registroDeOtraSeccion: () =>
+    new ErrorApp("REGISTRO_DE_OTRA_SECCION", "Este registro de asistencia no es de la sección de tu tutoría.", 403),
+  noJustificable: () => new ErrorApp("NO_JUSTIFICABLE", "Solo se justifica una falta o una tardanza.", 422),
+  motivoRequerido: () =>
+    new ErrorApp(
+      "MOTIVO_REQUERIDO",
+      "La lista cambia registros que ya estaban guardados: indica el motivo de la modificación.",
+      400,
+    ),
+  yaJustificado: () => new ErrorApp("YA_JUSTIFICADO", "Este registro ya está justificado.", 409),
 };

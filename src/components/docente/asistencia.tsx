@@ -1,6 +1,7 @@
 // DO-03 · Toma de asistencia (US35, US36): lista de la clase con el estado y la observación de cada alumno, sus
 // contadores, el aviso de alumnos sin marcar y el modo de solo lectura cuando vence el plazo de corrección. En el
-// celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla.
+// celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla. Con `tutoria` (bloque M3) la usa el
+// tutor de la sección: guarda por su ruta, pide motivo al modificar lo ya guardado y justifica faltas y tardanzas.
 "use client";
 
 import { useState } from "react";
@@ -15,6 +16,7 @@ export interface ResumenSesion {
   tardanzas: number;
   ausentes: number;
   justificados: number;
+  tardanzasJustificadas?: number;
   sinMarcar: number;
 }
 
@@ -87,9 +89,10 @@ const ESTILO_ESTADO: Record<EstadoAsistencia, string> = {
   TARDANZA: "border-ambar bg-ambar/15 text-ambar-oscuro",
   FALTA: "border-rojo bg-rojo/10 text-rojo-oscuro",
   FALTA_JUSTIFICADA: "border-celeste bg-celeste/10 text-kubo-azul",
+  TARDANZA_JUSTIFICADA: "border-celeste bg-celeste/10 text-kubo-azul",
 };
 
-/** Lista desplegable con «Presente», «Tardanza», «Ausente» y «Justificado», del color de su estado. */
+/** Lista desplegable con los estados de asistencia («Presente», «Tardanza», «Ausente»…), del color de su estado. */
 function SelectorEstado({
   alumno,
   valor,
@@ -144,6 +147,17 @@ interface Marca {
 
 const COLUMNAS = "lg:grid lg:grid-cols-[32px_minmax(0,1.2fr)_180px_56px_76px_minmax(0,1fr)] lg:items-center lg:gap-4";
 
+/** Modo tutor de la lista (bloque M3). */
+export interface ListaDeTutoria {
+  seccionId: string;
+  /** Abre la justificación de un registro guardado (falta o tardanza). */
+  onJustificar: (alumno: AlumnoDeSesion) => void;
+}
+
+const LARGO_MAXIMO_MOTIVO = 300;
+const LARGO_MINIMO_MOTIVO = 5;
+const JUSTIFICABLES: (EstadoAsistencia | null)[] = ["FALTA", "TARDANZA"];
+
 /**
  * Lista editable de una sesión. El estado de cada alumno vive aquí hasta guardar; el padre cambia la `key` cuando
  * llega una sesión nueva o recién guardada, y la lista vuelve a partir de lo registrado.
@@ -151,9 +165,11 @@ const COLUMNAS = "lg:grid lg:grid-cols-[32px_minmax(0,1.2fr)_180px_56px_76px_min
 export function ListaAsistencia({
   sesion,
   onGuardada,
+  tutoria,
 }: {
   sesion: SesionDetalle;
   onGuardada: (guardada: SesionGuardada) => void;
+  tutoria?: ListaDeTutoria;
 }) {
   const [marcas, setMarcas] = useState<Record<string, Marca>>(() =>
     Object.fromEntries(
@@ -163,7 +179,14 @@ export function ListaAsistencia({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sinMarcar, setSinMarcar] = useState<{ mensaje: string; ids: string[] } | null>(null);
+  const [motivo, setMotivo] = useState("");
   const editable = sesion.editable;
+  // registros ya guardados que la lista cambia: para el tutor son una modificación con motivo (bloque M3)
+  const modificados = sesion.alumnos.filter((a) => {
+    const m = marcas[a.matriculaId];
+    return a.registroId && m && (m.estado !== a.estado || (m.observacion.trim() || null) !== a.observacion);
+  }).length;
+  const pideMotivo = Boolean(tutoria) && modificados > 0;
 
   const estados = sesion.alumnos.map((a) => marcas[a.matriculaId]?.estado ?? null);
   const cuenta = (e: EstadoAsistencia | null) => estados.filter((x) => x === e).length;
@@ -188,12 +211,11 @@ export function ListaAsistencia({
         estado: marcas[a.matriculaId].estado,
         observacion: marcas[a.matriculaId].observacion.trim() || null,
       }));
-      onGuardada(
-        await api<SesionGuardada>(`/horarios/asistencia/sesiones/${sesion.id}/registros`, {
-          method: "PUT",
-          body: { alumnos },
-        }),
-      );
+      const ruta = tutoria
+        ? `/horarios/tutoria/${tutoria.seccionId}/sesiones/${sesion.id}/registros`
+        : `/horarios/asistencia/sesiones/${sesion.id}/registros`;
+      const cuerpo = tutoria ? { alumnos, motivo: pideMotivo ? motivo.trim() : null } : { alumnos };
+      onGuardada(await api<SesionGuardada>(ruta, { method: "PUT", body: cuerpo }));
     } catch (e) {
       if (e instanceof ApiError && e.codigo === "ASISTENCIA_INCOMPLETA") {
         const faltantes = (e.detalles.faltantes ?? []) as { matriculaId: string }[];
@@ -226,15 +248,20 @@ export function ListaAsistencia({
           <Contador cantidad={cuenta("TARDANZA")} texto="tardanzas" tono="text-ambar-oscuro" />
           <Contador cantidad={cuenta("FALTA")} texto="ausentes" tono="text-rojo-oscuro" />
           <Contador cantidad={cuenta("FALTA_JUSTIFICADA")} texto="justificados" tono="text-kubo-azul" />
+          {(tutoria || cuenta("TARDANZA_JUSTIFICADA") > 0) && (
+            <Contador cantidad={cuenta("TARDANZA_JUSTIFICADA")} texto="tardanzas justificadas" tono="text-kubo-azul" />
+          )}
           <Contador cantidad={cuenta(null)} texto="sin marcar" tono="text-texto" />
         </div>
       </div>
 
       {!editable && sesion.motivoSoloLectura && (
         <Alerta tipo="aviso" titulo={sesion.motivoSoloLectura}>
-          {sesion.registrada
-            ? "Si necesitas corregirla, solicítalo a la coordinación académica; el cambio quedará en la bitácora de auditoría."
-            : "Si la clase quedó sin registro, comunícalo a la coordinación académica."}
+          {tutoria
+            ? "Fuera del bimestre en curso, las correcciones las hace la coordinación académica."
+            : sesion.registrada
+              ? "Si necesitas corregirla, solicítalo a la coordinación académica; el cambio quedará en la bitácora de auditoría."
+              : "Si la clase quedó sin registro, comunícalo a la coordinación académica."}
         </Alerta>
       )}
       {sinMarcar && pendientes.length > 0 && (
@@ -280,8 +307,25 @@ export function ListaAsistencia({
                     {a.estadoAnterior && a.modificadoEn && (
                       <span className="text-[12px] leading-[1.4] text-texto-3">
                         Corregido el {diaYHora(a.modificadoEn)} · antes: {NOMBRE_ESTADO[a.estadoAnterior]}
+                        {tutoria && a.modificadoPor ? ` · por ${a.modificadoPor}` : ""}
                       </span>
                     )}
+                    {tutoria && a.motivoCambio && (
+                      <span className="text-[12px] leading-[1.4] text-texto-3">Motivo: {a.motivoCambio}</span>
+                    )}
+                    {tutoria &&
+                      editable &&
+                      a.registroId &&
+                      JUSTIFICABLES.includes(a.estado) &&
+                      marca.estado === a.estado && (
+                        <button
+                          type="button"
+                          onClick={() => tutoria.onJustificar(a)}
+                          className="self-start text-[13px] font-semibold text-kubo-azul underline-offset-2 hover:underline"
+                        >
+                          Justificar {a.estado === "FALTA" ? "falta" : "tardanza"}
+                        </button>
+                      )}
                   </div>
                   <SelectorEstado
                     alumno={a.nombre}
@@ -330,6 +374,28 @@ export function ListaAsistencia({
         este curso. Se resaltan {sesion.faltasParaResaltar} o más faltas.
       </p>
 
+      {editable && pideMotivo && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`motivo-${sesion.id}`} className="text-[14px] font-semibold text-texto">
+            Motivo de la modificación <span className="text-rojo">*</span>
+          </label>
+          <textarea
+            id={`motivo-${sesion.id}`}
+            value={motivo}
+            maxLength={LARGO_MAXIMO_MOTIVO}
+            rows={2}
+            disabled={guardando}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ej.: El alumno llegó a tiempo; se registró mal."
+            className="w-full rounded-md border border-borde bg-white px-3 py-2 text-[14px] text-texto outline-none placeholder:text-texto-3 focus:border-kubo-azul"
+          />
+          <span className="text-[12px] text-texto-3">
+            Cambias {modificados} {modificados === 1 ? "registro guardado" : "registros guardados"}: el cambio queda en
+            la bitácora de auditoría.
+          </span>
+        </div>
+      )}
+
       {editable && sesion.alumnos.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-borde pt-4">
           <span className="text-[13px] leading-[1.4] text-texto-3">
@@ -337,11 +403,18 @@ export function ListaAsistencia({
           </span>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-[13px] leading-[1.4] text-texto-3">
-              {sesion.editableHasta
-                ? `Puedes corregir este registro hasta el ${diaYHora(sesion.editableHasta)}`
-                : `Podrás corregirlo durante ${sesion.plazoHoras} horas después de guardarlo`}
+              {tutoria
+                ? "Como tutor puedes registrar y modificar la asistencia durante el bimestre en curso"
+                : sesion.editableHasta
+                  ? `Puedes corregir este registro hasta el ${diaYHora(sesion.editableHasta)}`
+                  : `Podrás corregirlo durante ${sesion.plazoHoras} horas después de guardarlo`}
             </span>
-            <Boton icono="check-blanco" onClick={guardar} cargando={guardando}>
+            <Boton
+              icono="check-blanco"
+              onClick={guardar}
+              cargando={guardando}
+              disabled={pideMotivo && motivo.trim().length < LARGO_MINIMO_MOTIVO}
+            >
               {sesion.registrada ? "Guardar cambios" : "Guardar asistencia"}
             </Boton>
           </div>

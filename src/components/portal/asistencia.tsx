@@ -9,9 +9,15 @@ import { api } from "@/lib/api";
 import { mensajeError } from "./index";
 
 /** Estado de un alumno en una clase, como lo guarda la API. */
-export type EstadoAsistencia = "PRESENTE" | "TARDANZA" | "FALTA" | "FALTA_JUSTIFICADA";
+export type EstadoAsistencia = "PRESENTE" | "TARDANZA" | "FALTA" | "FALTA_JUSTIFICADA" | "TARDANZA_JUSTIFICADA";
 
-export const ESTADOS_ASISTENCIA: EstadoAsistencia[] = ["PRESENTE", "TARDANZA", "FALTA", "FALTA_JUSTIFICADA"];
+export const ESTADOS_ASISTENCIA: EstadoAsistencia[] = [
+  "PRESENTE",
+  "TARDANZA",
+  "FALTA",
+  "FALTA_JUSTIFICADA",
+  "TARDANZA_JUSTIFICADA",
+];
 
 /** Nombres del Product Backlog (US35): la falta se muestra como «Ausente» y la justificada, como «Justificado». */
 export const NOMBRE_ESTADO: Record<EstadoAsistencia, string> = {
@@ -19,6 +25,8 @@ export const NOMBRE_ESTADO: Record<EstadoAsistencia, string> = {
   TARDANZA: "Tardanza",
   FALTA: "Ausente",
   FALTA_JUSTIFICADA: "Justificado",
+  // bloque M3: la justifica el tutor y cuenta como asistencia
+  TARDANZA_JUSTIFICADA: "Tardanza justificada",
 };
 
 /** Estado de un día completo (US45): «Ausente» solo si faltó a todas sus clases de ese día. */
@@ -45,6 +53,7 @@ const DIA_DE_ESTADO: Record<EstadoAsistencia, EstadoDia> = {
   TARDANZA: "TARDANZA",
   FALTA: "AUSENTE",
   FALTA_JUSTIFICADA: "JUSTIFICADO",
+  TARDANZA_JUSTIFICADA: "JUSTIFICADO",
 };
 
 const PUNTO: Record<Tono, string> = {
@@ -71,7 +80,7 @@ export function BadgeDia({ estado, texto }: { estado: EstadoDia; texto?: string 
 
 /** Insignia del estado de un alumno en una clase. */
 export function BadgeEstado({ estado }: { estado: EstadoAsistencia }) {
-  return <BadgeDia estado={DIA_DE_ESTADO[estado]} />;
+  return <BadgeDia estado={DIA_DE_ESTADO[estado]} texto={NOMBRE_ESTADO[estado]} />;
 }
 
 /** Algo que pasó en una clase o en un día completo: una inasistencia, una tardanza o una observación del docente. */

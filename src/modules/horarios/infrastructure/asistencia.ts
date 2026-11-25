@@ -154,6 +154,18 @@ export interface RegistroConClase {
   docenteId: string;
 }
 
+export interface RegistroDeSeccion {
+  id: string;
+  matriculaId: string;
+  estado: EstadoAsistencia;
+  motivoCambio: string | null;
+  sesionClaseId: string;
+  fecha: string;
+  docenteId: string;
+  asignacionDocenteId: string;
+  horaInicio: string;
+}
+
 export const asistencias = {
   deSesion: (sesionClaseId: string, db: Db = prisma): Promise<RegistroFila[]> =>
     db.asistenciaEstudiante.findMany({ where: { sesionClaseId }, select: selectRegistro }),
@@ -226,6 +238,55 @@ export const asistencias = {
       horaInicio: aHora(f.sesionClase.detalleHorario.bloque.horaInicio),
       asignacionDocenteId: f.sesionClase.detalleHorario.asignacionDocenteId,
       docenteId: f.sesionClase.docenteId,
+    }));
+  },
+
+  /** Estados de varias matrículas en un rango, en cualquier sección (bloque M3: avisos por umbral de la tutoría). */
+  async deMatriculas(
+    matriculaIds: string[],
+    rango: Rango,
+    db: Db = prisma,
+  ): Promise<{ matriculaId: string; fecha: string; estado: EstadoAsistencia }[]> {
+    if (!matriculaIds.length) return [];
+    const filas = await db.asistenciaEstudiante.findMany({
+      where: { matriculaId: { in: matriculaIds }, sesionClase: { fecha: entre(rango) } },
+      select: { matriculaId: true, estado: true, sesionClase: { select: { fecha: true } } },
+    });
+    return filas.map((f) => ({ matriculaId: f.matriculaId, fecha: aTexto(f.sesionClase.fecha), estado: f.estado }));
+  },
+
+  /**
+   * Registros de las clases de una sección en un rango, con la clase de cada uno (bloque M3: faltas de hoy y reporte
+   * del tutor). Incluye a quienes después se trasladaron o retiraron: sus clases en la sección cuentan.
+   */
+  async deSeccion(seccionId: string, rango: Rango, db: Db = prisma): Promise<RegistroDeSeccion[]> {
+    const filas = await db.asistenciaEstudiante.findMany({
+      where: { sesionClase: { fecha: entre(rango), detalleHorario: { seccionId } } },
+      select: {
+        id: true,
+        matriculaId: true,
+        estado: true,
+        motivoCambio: true,
+        sesionClase: {
+          select: {
+            id: true,
+            fecha: true,
+            docenteId: true,
+            detalleHorario: { select: { asignacionDocenteId: true, bloque: { select: { horaInicio: true } } } },
+          },
+        },
+      },
+    });
+    return filas.map((f) => ({
+      id: f.id,
+      matriculaId: f.matriculaId,
+      estado: f.estado,
+      motivoCambio: f.motivoCambio,
+      sesionClaseId: f.sesionClase.id,
+      fecha: aTexto(f.sesionClase.fecha),
+      docenteId: f.sesionClase.docenteId,
+      asignacionDocenteId: f.sesionClase.detalleHorario.asignacionDocenteId,
+      horaInicio: aHora(f.sesionClase.detalleHorario.bloque.horaInicio),
     }));
   },
 
