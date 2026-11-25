@@ -237,7 +237,7 @@ function RegistroDelBimestre({
         tipo: "exito",
         titulo: "Registro cerrado.",
         detalle:
-          `Se calculó el logro consolidado de ${nuevo.alumnos.length} estudiantes con la regla vigente. ` +
+          `Se calculó el logro consolidado de ${cantidad(nuevo.alumnos.length, "estudiante", "estudiantes")} con la regla vigente. ` +
           (enviados > 0
             ? `Se avisó por correo a ${enviados} de ${coordinadores} ${coordinadores === 1 ? "coordinador académico" : "coordinadores académicos"}.`
             : "No se pudo enviar el aviso por correo a la coordinación académica; el registro quedó cerrado igualmente."),

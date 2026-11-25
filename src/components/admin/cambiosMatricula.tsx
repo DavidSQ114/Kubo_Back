@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { Alerta, Boton, Campo, Modal, Spinner } from "@/components/ui";
 import { api, descargar } from "@/lib/api";
-import { diaMes, fechaDia, hoyEnLima } from "@/lib/formato";
+import { cantidad, diaMes, fechaDia, hoyEnLima } from "@/lib/formato";
 import { Avatar } from "./apoderados";
 import { Selector, separarErrores, type Seccion } from "./grados";
 import { NOMBRE_ESTADO, soles, TarjetaSeccion, type DetalleMatricula } from "./matricula";
@@ -304,7 +304,7 @@ export function ModalRetiro({
           <span className="text-texto-2">
             {efecto.seConservan.length === 1
               ? "Se conserva · 1 cuota pagada, vencida o anterior al retiro"
-              : `Se conservan · ${efecto.seConservan.length} cuotas pagadas, vencidas o anteriores al retiro`}
+              : `Se conservan · ${cantidad(efecto.seConservan.length, "cuota pagada", "cuotas pagadas")}, vencidas o anteriores al retiro`}
           </span>
           <span className="font-semibold text-texto">{efecto.totalConservado}</span>
         </div>

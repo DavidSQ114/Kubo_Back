@@ -87,12 +87,15 @@ function FilaDocumento({
     setEnviando(true);
     setError(null);
     try {
-      onRevisado(
-        await api<DetalleSolicitud>(
-          `/matricula/solicitudes/${solicitud.solicitudId}/documentos/${d!.documentoId}/revisar`,
-          { method: "POST", body: { decision, observacion: decision === "OBSERVAR" ? observacion.trim() : null } },
-        ),
+      const detalle = await api<DetalleSolicitud>(
+        `/matricula/solicitudes/${solicitud.solicitudId}/documentos/${d!.documentoId}/revisar`,
+        { method: "POST", body: { decision, observacion: decision === "OBSERVAR" ? observacion.trim() : null } },
       );
+      // el documento ya quedó revisado: se cierra el formulario de observación
+      setObservando(false);
+      setObservacion("");
+      setEnviando(false);
+      onRevisado(detalle);
     } catch (e) {
       setError(alertaError(e));
       setEnviando(false);
@@ -199,7 +202,7 @@ export function ModalSolicitud({
         body: { seccionId, modalidadPago: modalidad },
       });
       const seccion = solicitud.secciones.find((s) => s.seccionId === seccionId);
-      onMatriculado(`${nombre} quedó matriculado en ${seccion?.nombre ?? "la sección"}. Se generó su cronograma.`);
+      onMatriculado(`Matrícula confirmada: ${nombre} en ${seccion?.nombre ?? "la sección"}. Se generó su cronograma.`);
     } catch (e) {
       setError(alertaError(e));
       setAsignando(false);

@@ -31,7 +31,7 @@ import {
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { fechaDia } from "@/lib/formato";
+import { cantidad, fechaDia } from "@/lib/formato";
 
 const TAMANO_PAGINA = 10;
 
@@ -306,6 +306,7 @@ function PaginaMatricula() {
               placeholder="Buscar estudiante por DNI o nombre"
               idDe={(e) => e.estudianteId}
               elegidos={[]}
+              accion="Elegir"
               onElegir={(e) => elegirEstudiante(e.estudianteId)}
               vacio={
                 <>
@@ -365,9 +366,9 @@ function PaginaMatricula() {
                 <Alerta
                   tipo="exito"
                   icono="icon-check-verde"
-                  titulo={`${sit.estudiante.nombreCompleto} quedó matriculado en ${confirmada.seccion?.nombre}`}
+                  titulo={`Matrícula confirmada: ${sit.estudiante.nombreCompleto} en ${confirmada.seccion?.nombre}`}
                 >
-                  {`Se generó su cronograma de pagos: ${confirmada.cronograma.cuotas.length} cuotas por ${soles(confirmada.cronograma.total)}.`}
+                  {`Se generó su cronograma de pagos: ${cantidad(confirmada.cronograma.cuotas.length, "cuota", "cuotas")} por ${soles(confirmada.cronograma.total)}.`}
                 </Alerta>
               ) : yaMatriculado ? (
                 <Alerta tipo="aviso" icono="alerta-warn" titulo={MENSAJE_YA_MATRICULADO}>

@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal } from "@/components/ui";
 import { api, descargar } from "@/lib/api";
-import { fechaDia, fechaHora, hoyEnLima } from "@/lib/formato";
+import { cantidad, fechaDia, fechaHora, hoyEnLima } from "@/lib/formato";
 import {
   alternarEnOrden,
   AYUDA_ORDEN_CUOTAS,
@@ -506,7 +506,7 @@ export function ModalPagoAnual({
         El colegio no tiene definido ningún descuento por pago adelantado: el total es la suma de las cuotas pendientes.
       </Alerta>
       <div className="flex flex-col">
-        {fila(`${vigentes.length} cuotas del año`, soles(aMonto(suma(vigentes))))}
+        {fila(`${cantidad(vigentes.length, "cuota", "cuotas")} del año`, soles(aMonto(suma(vigentes))))}
         {fila(`Cuotas ya pagadas (${pagadas.length})`, `− ${soles(aMonto(suma(pagadas)))}`, "text-verde-oscuro")}
         {fila(`Total a pagar hoy (${pendientes.length} pendientes)`, soles(aMonto(total)))}
       </div>
@@ -875,7 +875,7 @@ export function TablaCronogramaPagos({
                 )}
                 {c.pago && c.pago.cuotasDeLaOperacion > 1 && (
                   <span className="block text-[12px] text-kubo-azul">
-                    {`Operación ${c.pago.numeroOperacion} · ${c.pago.cuotasDeLaOperacion} cuotas`}
+                    {`Operación ${c.pago.numeroOperacion} · ${cantidad(c.pago.cuotasDeLaOperacion, "cuota", "cuotas")}`}
                   </span>
                 )}
               </td>

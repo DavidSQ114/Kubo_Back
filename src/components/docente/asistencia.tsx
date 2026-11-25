@@ -9,7 +9,7 @@ import { mensajeError } from "@/components/portal";
 import { ESTADOS_ASISTENCIA, NOMBRE_ESTADO, type EstadoAsistencia } from "@/components/portal/asistencia";
 import { Alerta, Badge, Boton, Icono, Tarjeta } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { diaSemanaCorto, diaYHora } from "@/lib/formato";
+import { cantidad, diaSemanaCorto, diaYHora } from "@/lib/formato";
 
 export interface ResumenSesion {
   presentes: number;
@@ -399,7 +399,7 @@ export function ListaAsistencia({
       {editable && sesion.alumnos.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-borde pt-4">
           <span className="text-[13px] leading-[1.4] text-texto-3">
-            Lista completa de la sección · {sesion.alumnos.length} estudiantes
+            Lista completa de la sección · {cantidad(sesion.alumnos.length, "estudiante", "estudiantes")}
           </span>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-[13px] leading-[1.4] text-texto-3">

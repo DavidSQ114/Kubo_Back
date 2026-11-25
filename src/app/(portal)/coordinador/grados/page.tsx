@@ -21,6 +21,7 @@ import { Accion } from "@/components/admin/espacios";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
+import { cantidad } from "@/lib/formato";
 
 const POR_PAGINA = 8;
 interface Datos {
@@ -261,7 +262,7 @@ export default function GradosSeccionesPage() {
           setAlerta({
             titulo: conAlumnos ? "No se puede eliminar una sección con alumnos matriculados" : mensaje,
             texto: conAlumnos
-              ? `${nombreSeccion(s)} tiene ${s.vacantes.matriculados} estudiantes matriculados. Puedes inactivarla para que no reciba nuevas matrículas.`
+              ? `${nombreSeccion(s)} tiene ${cantidad(s.vacantes.matriculados, "estudiante matriculado", "estudiantes matriculados")}. Puedes inactivarla para que no reciba nuevas matrículas.`
               : undefined,
             inactivar: s.estado === "ACTIVA" ? s : undefined,
           });

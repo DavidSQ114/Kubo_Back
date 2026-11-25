@@ -284,6 +284,7 @@ export function ModalNuevoLote({
                   placeholder="Buscar alumno por DNI o nombre"
                   idDe={(e) => e.estudianteId}
                   elegidos={[]}
+                  accion="Elegir"
                   onElegir={setAlumno}
                   vacio="No hay alumnos con ese DNI o nombre."
                   fila={(e) => (

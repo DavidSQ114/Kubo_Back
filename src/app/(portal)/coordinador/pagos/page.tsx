@@ -27,7 +27,7 @@ import {
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fechaDia } from "@/lib/formato";
+import { cantidad, fechaDia } from "@/lib/formato";
 
 interface AvisoExito {
   titulo: string;
@@ -201,6 +201,7 @@ function PaginaPagos() {
           placeholder="Buscar estudiante por DNI o nombre"
           idDe={(e) => e.estudianteId}
           elegidos={estudianteId ? [estudianteId] : []}
+          accion="Ver estado de cuenta"
           onElegir={(e) => irA(e.estudianteId)}
           vacio="No hay estudiantes con ese DNI o nombre."
           fila={(e) => (
@@ -269,17 +270,23 @@ function PaginaPagos() {
                 <div>
                   <dt className="text-texto-3">Pagado</dt>
                   <dd className="text-[20px] font-semibold text-verde-oscuro">{soles(actual.totales.pagado)}</dd>
-                  <dd className="text-[12px] text-texto-3">{`${actual.totales.cuotasPagadas} cuotas`}</dd>
+                  <dd className="text-[12px] text-texto-3">
+                    {cantidad(actual.totales.cuotasPagadas, "cuota", "cuotas")}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-texto-3">Pendiente</dt>
                   <dd className="text-[20px] font-semibold text-kubo-azul">{soles(actual.totales.pendiente)}</dd>
-                  <dd className="text-[12px] text-texto-3">{`${actual.totales.cuotasPendientes} cuotas`}</dd>
+                  <dd className="text-[12px] text-texto-3">
+                    {cantidad(actual.totales.cuotasPendientes, "cuota", "cuotas")}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-texto-3">Vencido</dt>
                   <dd className="text-[20px] font-semibold text-rojo-oscuro">{soles(actual.totales.vencido)}</dd>
-                  <dd className="text-[12px] text-texto-3">{`${actual.totales.cuotasVencidas} cuotas`}</dd>
+                  <dd className="text-[12px] text-texto-3">
+                    {cantidad(actual.totales.cuotasVencidas, "cuota", "cuotas")}
+                  </dd>
                 </div>
               </dl>
             )}

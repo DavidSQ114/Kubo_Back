@@ -228,7 +228,8 @@ export default function LoginPage() {
               <div className="flex w-full items-start gap-2">
                 <Icono nombre="icon-info" size={18} />
                 <p className="flex-1 text-[13px] leading-[1.4] text-texto-3">
-                  Tu perfil (administrador, docente, apoderado o alumno) se detecta automáticamente al ingresar.
+                  Tu perfil (administrador, coordinador académico, docente, apoderado o alumno) se detecta
+                  automáticamente al ingresar.
                 </p>
               </div>
             </form>

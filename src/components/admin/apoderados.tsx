@@ -89,6 +89,7 @@ const LARGO_MINIMO_BUSQUEDA = 2;
 /**
  * Caja de búsqueda con resultados debajo (DNI o nombre). `ruta` es /comunidad/apoderados o /comunidad/estudiantes.
  * Cada resultado se dibuja con `fila`; los ya elegidos se marcan con `elegidos` (ids) y no se pueden volver a agregar.
+ * `accion` es el texto del botón de cada resultado («Vincular» al registrar; «Elegir» o «Agregar» en otras pantallas).
  */
 export function Buscador<T>({
   ruta,
@@ -100,6 +101,7 @@ export function Buscador<T>({
   onElegir,
   deshabilitado,
   vacio,
+  accion = "Vincular",
 }: {
   ruta: string;
   etiqueta: string;
@@ -110,6 +112,7 @@ export function Buscador<T>({
   onElegir: (item: T) => void;
   deshabilitado?: boolean;
   vacio: ReactNode;
+  accion?: string;
 }) {
   const [texto, setTexto] = useState("");
   const [estado, setEstado] = useState<{ q: string; items: T[] | null; error: string | null }>({
@@ -169,14 +172,14 @@ export function Buscador<T>({
                 <div className="min-w-0 flex-1">{fila(item)}</div>
                 <Boton
                   variante="secundario"
-                  icono={yaElegido ? undefined : "icon-plus-gris"}
+                  icono={yaElegido || accion !== "Vincular" ? undefined : "icon-plus-gris"}
                   disabled={yaElegido}
                   onClick={() => {
                     onElegir(item);
                     setTexto("");
                   }}
                 >
-                  {yaElegido ? "Agregado" : "Vincular"}
+                  {yaElegido ? "Agregado" : accion}
                 </Boton>
               </div>
             );
