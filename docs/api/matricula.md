@@ -1,4 +1,4 @@
-# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), recordatorios de pago (US59), portal del apoderado (US42, US43, US44) y pago en línea (US70, US71)
+# API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), recordatorios de pago (US59), portal del apoderado (US42, US43, US44), pago en línea (US70, US71) y bloque M4 (cuota de ingreso, mora, cuotas extraordinarias, proceso de matrícula y matrícula en línea con documentos)
 
 > **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
 
@@ -146,7 +146,7 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
 
 ### Registrar un pago manual (US22, M-01)
 
-- `conceptoIds`: de 1 a 11 cuotas `PENDIENTE` del **mismo estudiante**. `monto`: texto con hasta dos decimales (`"900"` o `"900.00"`). `medioPago`: `EFECTIVO` · `TRANSFERENCIA` · `DEPOSITO` · `TARJETA`. `numeroOperacion`: se guarda sin espacios sobrantes y en mayúsculas. `fechaPago`: `AAAA-MM-DD`, no futura.
+- `conceptoIds`: de 1 a 40 cuotas `PENDIENTE` del **mismo estudiante** (hasta el bloque M4, 11). `monto`: texto con hasta dos decimales (`"900"` o `"900.00"`). `medioPago`: `EFECTIVO` · `TRANSFERENCIA` · `DEPOSITO` · `TARJETA`. `numeroOperacion`: se guarda sin espacios sobrantes y en mayúsculas. `fechaPago`: `AAAA-MM-DD`, no futura.
 - Validaciones:
   - Sin número de operación: `422 NUMERO_OPERACION_REQUERIDO` «El número de operación es obligatorio».
   - Fecha futura: `422 FECHA_PAGO_FUTURA`.
@@ -155,6 +155,7 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   - **Orden de pago (D-14):** primero la matrícula y luego las pensiones por fecha de vencimiento. Solo cuentan las cuotas `PENDIENTE` de la misma matrícula (las anuladas y pagadas no):
     - Con la cuota de matrícula pendiente no se paga ninguna pensión salvo que la matrícula vaya en la misma operación: `409 MATRICULA_PENDIENTE` «Primero debe pagarse la matrícula 2026. Inclúyela en este pago o regístrala antes.» (el año es el de la matrícula; `details.anio`).
     - Si se elige una pensión, todas las pensiones pendientes con vencimiento anterior deben ir en la misma operación: `409 CUOTAS_ANTERIORES_PENDIENTES` «Primero deben pagarse las cuotas anteriores: Pensión de setiembre 2026, Pensión de octubre 2026.» (`details.conceptos`).
+    - **Bloque M4:** la matrícula y la cuota de ingreso pendientes van juntas (`409 INGRESO_CON_MATRICULA`); con la cuota de ingreso pendiente, `MATRICULA_PENDIENTE` dice «Primero deben pagarse la matrícula 2026 y la cuota de ingreso…». Cada mora va en la misma operación que su pensión pendiente, y la pensión con su mora (`409 MORA_CON_PENSION`); si la pensión ya no está pendiente, la mora se paga sola. Las cuotas extraordinarias no entran en el orden.
     - Se valida en el servidor aunque la pantalla ya lo impida. Los pagos ya registrados no se revisan, y confirmar un pago Observado (US23) no vuelve a aplicar el orden.
   - Monto distinto a la suma: `422 MONTO_NO_COINCIDE` «El monto ingresado no coincide con el total de las cuotas seleccionadas», con `details.total`. No hay pagos parciales. La suma se hace en céntimos enteros, nunca en float.
 - **Concurrencia:** en la transacción se toma un candado por número de operación (`pg_advisory_xact_lock`) y se bloquean las filas de las cuotas (`SELECT … FOR UPDATE`, en orden de id). De dos pagos simultáneos de la misma cuota, el segundo espera y recibe `CUOTA_YA_PAGADA`. De dos con el mismo número, el segundo queda Observado. Lo prueba `tests/matricula/pagos.integracion.test.ts`.
@@ -376,6 +377,105 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 
 `npm run conciliar-pagos` revisa los intentos Pendiente creados hace más de 10 minutos. Consulta su order (`GET /v1/orders/{id}`) y aplica el resultado: registra, observa, rechaza o expira. Un intento sin order y ya vencido pasa a Expirado. En la EC2 lo ejecuta `kubo-conciliar-pagos.timer` cada 15 minutos (ver [DESPLIEGUE-AWS.md](../DESPLIEGUE-AWS.md#pago-en-línea-mercado-pago-modo-de-prueba)). Sin `PASARELA` no hace nada.
 
+## Bloque M4 · Cuotas de ingreso, mora y extraordinarias
+
+Nuevos tipos de cuota (`concepto_cobro.tipo`): `INGRESO`, `MORA` y `EXTRAORDINARIA`. Las cuotas del estado de cuenta y
+del portal del apoderado traen `cuotaOrigenId` (la pensión de una mora) y, en el estado de cuenta, `motivoAnulacion`.
+
+### Cuota de ingreso
+
+Al confirmar la matrícula de un **alumno nuevo** (sin otra matrícula del colegio que no esté Anulada, de cualquier año)
+se agrega «Cuota de ingreso AAAA» con el monto `MONTO_INGRESO` del año (ver [academico.md](academico.md#montos-del-año-us21))
+y el mismo vencimiento que la matrícula. Con monto 0 no se genera. `GET /matricula/estudiantes/{id}` agrega
+`esAlumnoNuevo` y `montos.montoIngreso`, y el cronograma previsto ya la incluye. `GENERAR_CRONOGRAMA` registra
+`cuotaIngreso`.
+
+### Mora
+
+`npm run tareas-programadas` (el timer cada 15 minutos) crea una cuota `MORA` por cada pensión `PENDIENTE` vencida
+(vencimiento anterior a hoy, de una matrícula que no está Retirado ni Anulado) que todavía no tiene la suya: concepto
+«Mora de la pensión de setiembre 2026», `mes` de la pensión, monto `MONTO_MORA` del año y vencimiento hoy. Es
+idempotente: `concepto_cobro.cuota_origen_id` es único (`uq_concepto_cobro_cuota_origen`), así una pensión con mora
+(aunque esté condonada) no vuelve a generarla. Con monto 0 no hace nada. Auditoría `GENERAR_MORA` por matrícula
+(actor Sistema). El panel de morosidad la etiqueta «Mora Ago», la suma a la deuda y no la cuenta en el filtro de meses
+(`moras` en cada fila).
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `POST /matricula/cuotas/{id}/condonar` · `COORDINADOR` | `{ motivo }` (1 a 200) | `{ cuotaId, estado: "ANULADO", concepto, monto, motivo }` |
+
+Solo una mora pendiente (`422 CUOTA_NO_ES_MORA`, `409 MORA_PAGADA`, `409 MORA_YA_CONDONADA`). Auditoría `CONDONAR_MORA`
+(entidad `concepto_cobro`).
+
+### Cuotas extraordinarias · `COORDINADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `POST /matricula/extraordinarias/vista-previa` | `{ anioAcademicoId, concepto, monto, fechaVencimiento, destino, destinoId? }` | `{ concepto, monto, destinoNombre, cantidad, total, alumnos: [{ matriculaId, nombreCompleto, seccion }] }` |
+| `POST /matricula/extraordinarias` | lo mismo | `201` · detalle del lote |
+| `GET /matricula/extraordinarias?anioId=` | — | `{ items: [{ loteId, concepto, monto, fechaVencimiento, destino, destinoNombre, estado, creadoPor, anulacion, resumen: { cuotas, pendientes, pagadas, anuladas, total } }] }` |
+| `GET /matricula/extraordinarias/{id}` | — | El lote con `cuotas: [{ cuotaId, estado, monto, nombreCompleto, seccion }]` |
+| `POST /matricula/extraordinarias/{id}/anular` | `{ motivo }` | El lote `ANULADO`: sus cuotas pendientes pasan a Anulado; las pagadas se conservan |
+| `POST /matricula/cuotas/{id}/anular` | `{ motivo }` | Una cuota extraordinaria pendiente anulada |
+
+- `destino`: `ALUMNO` (`destinoId` = estudiante), `SECCION`, `GRADO` o `ANIO` (sin `destinoId`). Se genera una cuota por
+  cada matrícula **Matriculado** del destino; sin ninguna, `422 LOTE_SIN_MATRICULAS`.
+- `concepto` de 1 a 100 caracteres; `monto` mayor a 0; `fechaVencimiento` desde hoy (`422 VENCIMIENTO_PASADO`); el año
+  debe estar en matrícula o en curso (`422 ANIO_NO_ADMITE_CUOTAS`).
+- Auditoría `CREAR_LOTE_EXTRAORDINARIO`, `ANULAR_LOTE_EXTRAORDINARIO` y `ANULAR_CUOTA_EXTRAORDINARIA`. Aviso de la
+  campana (tipo `PAGO`) al apoderado responsable de cada matrícula al crear y al anular.
+- Aparecen en el estado de cuenta, en AP-02 (también para pagar en línea) y en el recibo. No entran en el orden de pago.
+
+## Bloque M4 · Proceso de matrícula y matrícula en línea
+
+### Proceso del año · `COORDINADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /matricula/procesos/{anioId}` | — | `{ anio, configurado, estado, nombreEstado, fechaInicio, fechaFin, actualizadoEn, documentos: [{ documentoId, nombre, obligatorio }], sugeridos }` |
+| `PUT /matricula/procesos/{anioId}` | `{ fechaInicio, fechaFin, documentos: [{ id?, nombre, obligatorio }] }` | Lo mismo |
+
+- `estado`: `SIN_CONFIGURAR`, `PROXIMO` (antes del inicio), `ABIERTO` (bordes incluidos) o `CERRADO`.
+- De 1 a 15 documentos con nombre (hasta 100) sin repetir. Un documento que se quita queda inactivo (los ya subidos lo
+  siguen nombrando); sin `id`, se crea uno nuevo. Año cerrado: `422 ANIO_CERRADO`. Auditoría
+  `CONFIGURAR_PROCESO_MATRICULA` con lo anterior.
+
+### Matrícula en línea · `APODERADO`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /matricula/apoderado/matricula` | — | `{ hoy, proceso, grados, hijos: [{ estudianteId, nombreCompleto, dni, gradoIngresoId, apoderados, estadoMatricula, puedeMatricular, motivo, solicitud }] }` |
+| `POST /matricula/apoderado/hijos/{id}/matricula` | multipart: `gradoId`, `vinculoResponsableId`, `confirmaDatos` (`true`) y un archivo por documento en `documento:<documentoRequeridoId>` | `201` · la solicitud |
+| `POST /matricula/apoderado/hijos/{id}/matricula/documentos/{documentoId}` | multipart: `archivo` | La solicitud (el documento vuelve a «En revisión») |
+
+- El año es el del proceso abierto (si no hay, el próximo o el último cerrado). Fuera de fechas:
+  `422 MATRICULA_AUN_NO_ABRE` «La matrícula en línea empieza el 01/12/2026.», `422 MATRICULA_CERRADA`,
+  `422 MATRICULA_NO_CONFIGURADA`. Con matrícula: `409 HIJO_YA_MATRICULADO` o `409 SOLICITUD_EXISTENTE`. Un hijo con el
+  borrador En proceso del registro (US17) sin solicitud sí puede: la solicitud completa ese borrador.
+- Cada archivo: PDF o JPG de hasta 5 MB (por su contenido real). Faltó un obligatorio: `400 DOCUMENTO_FALTANTE`.
+- Crea la matrícula `EN_PROCESO` (sin sección, con el responsable del pago) y la solicitud `EN_REVISION` «Documentos en
+  revisión». Auditoría `SOLICITAR_MATRICULA`; aviso de la campana a los coordinadores.
+- Reemplazar: solo un documento `OBSERVADO` o uno opcional que faltaba (`409 DOCUMENTO_NO_REEMPLAZABLE`). Auditoría
+  `REEMPLAZAR_DOCUMENTO_MATRICULA`; el archivo anterior se borra después de confirmar.
+
+### Revisión · `COORDINADOR`
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /matricula/solicitudes?anioId=&estado=` | — | `{ items: [{ solicitudId, estudiante, dni, grado, apoderado, enviadaEn, estado, documentos: { requeridos, aprobados, observados, enRevision } }], totales }` |
+| `GET /matricula/solicitudes/{id}` | — | La solicitud con `documentos`, `puedeAsignar`, `documentosPendientes` y `secciones` del grado con sus vacantes |
+| `POST /matricula/solicitudes/{id}/documentos/{documentoId}/revisar` | `{ decision: "APROBAR" \| "OBSERVAR", observacion? }` | El detalle |
+| `POST /matricula/solicitudes/{id}/asignar-seccion` | `{ seccionId, modalidadPago }` | El detalle de la matrícula (como `POST /matricula/matriculas`) |
+| `GET /matricula/solicitudes/{id}/documentos/{documentoId}/archivo` · `COORDINADOR` o `APODERADO` del alumno | — | El archivo (PDF o JPG, inline); otro apoderado: `403 ESTUDIANTE_NO_VINCULADO` |
+
+- Estados de la solicitud: `EN_REVISION`, `OBSERVADA` (algún documento observado), `APROBADA` (todos los obligatorios
+  aprobados), `MATRICULADA` y `ANULADA` (si se anula la matrícula).
+- Observar exige la observación (`400 OBSERVACION_REQUERIDA`); un documento ya revisado no se vuelve a revisar hasta que
+  el apoderado lo reemplace. Auditoría `REVISAR_DOCUMENTO_MATRICULA`; aviso al apoderado en cada cambio.
+- Asignar la sección usa la misma confirmación de `POST /matricula/matriculas` (también desde AD-10): exige los
+  obligatorios aprobados (`422 DOCUMENTOS_PENDIENTES`) y una sección del grado pedido (`422 SECCION_OTRO_GRADO`), genera
+  el cronograma (con la cuota de ingreso si es alumno nuevo), marca la solicitud `MATRICULADA` y avisa al apoderado.
+
 ## Códigos de error
 
 | Código | HTTP | Cuándo |
@@ -413,6 +513,19 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 | `DEVOLUCION_NO_PERMITIDA` · `USAR_DEVOLUCION` | 409 | Devolución de algo que no es un pago en línea Observado; descarte de un pago en línea |
 | `CUOTAS_DE_VARIAS_MATRICULAS` | 422 | «Elige cuotas de un mismo año académico.» |
 | `PASARELA_NO_RESPONDE` | 502 | La pasarela no creó la order |
+| `INGRESO_CON_MATRICULA` · `MORA_CON_PENSION` | 409 | Bloque M4: orden de pago con cuota de ingreso y mora |
+| `CUOTA_NO_ES_MORA` · `CUOTA_NO_ES_EXTRAORDINARIA` | 422 | Condonar algo que no es una mora o anular algo que no es una extraordinaria |
+| `MORA_PAGADA` · `MORA_YA_CONDONADA` · `CUOTA_PAGADA` · `CUOTA_YA_ANULADA` · `LOTE_YA_ANULADO` | 409 | Estado que no permite condonar o anular |
+| `MOTIVO_REQUERIDO` · `CONCEPTO_REQUERIDO` · `DESTINO_REQUERIDO` | 400 | Datos de la condonación o del lote |
+| `VENCIMIENTO_PASADO` · `ANIO_NO_ADMITE_CUOTAS` · `LOTE_SIN_MATRICULAS` | 422 | Reglas del lote extraordinario |
+| `DESTINO_NO_ENCONTRADO` · `LOTE_NO_ENCONTRADO` · `SOLICITUD_NO_ENCONTRADA` | 404 | No existe |
+| `FECHAS_PROCESO_INVALIDAS` · `SIN_DOCUMENTOS_REQUERIDOS` · `DEMASIADOS_DOCUMENTOS` · `DOCUMENTO_SIN_NOMBRE` | 400 | Configuración del proceso de matrícula |
+| `DOCUMENTO_REPETIDO` | 409 | Dos documentos con el mismo nombre |
+| `MATRICULA_NO_CONFIGURADA` · `MATRICULA_AUN_NO_ABRE` · `MATRICULA_CERRADA` | 422 | Matrícula en línea fuera de las fechas (con la fecha en el mensaje) |
+| `HIJO_YA_MATRICULADO` · `SOLICITUD_EXISTENTE` · `SOLICITUD_CERRADA` · `DOCUMENTO_NO_REEMPLAZABLE` · `DOCUMENTO_YA_REVISADO` | 409 | Estado que no permite matricular, reemplazar o revisar |
+| `DATOS_NO_CONFIRMADOS` · `GRADO_NO_VALIDO` · `DOCUMENTO_FALTANTE` · `DOCUMENTO_NO_REQUERIDO` · `OBSERVACION_REQUERIDA` | 400 | Datos de la solicitud o de la revisión |
+| `DOCUMENTOS_PENDIENTES` · `SECCION_OTRO_GRADO` | 422 | Asignar la sección sin los obligatorios aprobados o en otro grado |
+| `ARCHIVO_NO_PERMITIDO` · `ARCHIVO_DEMASIADO_GRANDE` | 400 · 413 | «Cada documento debe ser un PDF o una imagen JPG de hasta 5 MB.» |
 
 ## Auditoría (RF03)
 
@@ -436,3 +549,17 @@ La restricción `ck_matricula_confirmada_completa` exigía sección y responsabl
 ## Migración `20261111120000_pasarela_pagos`
 
 US70 y US71. Agrega el valor `PASARELA` a `MedioPago` y `DEVUELTO` a `MotivoAnulacion`, y los enum `OrigenPago` y `EstadoIntentoPago`. En `operacion_pago` agrega `origen` (por defecto `TESORERIA`), `referencia_externa` (única, `uq_operacion_pago_referencia_externa`) y `motivo_observacion`, y permite `registrado_por_id` nulo solo con origen `PASARELA` (`ck_operacion_pago_registrador`). Una operación de la pasarela exige `referencia_externa` (`ck_operacion_pago_referencia_pasarela`). Crea la tabla `intento_pago`, con `ck_intento_pago_monto` y `ck_intento_pago_cuotas`. Es compatible con la versión anterior: las operaciones existentes quedan con origen `TESORERIA` y conservan su registrador.
+
+## Migraciones del bloque M4
+
+- `20261129120000_tipos_cuota_m4`: `INGRESO`, `MORA` y `EXTRAORDINARIA` en `TipoConcepto`.
+- `20261129130000_mora_cuota_origen`: `concepto_cobro.cuota_origen_id` (única), `anulado_por_id`, `anulado_en` y
+  `motivo_anulacion`; `ck_concepto_cobro_mora_origen`.
+- `20261129140000_cuota_extraordinaria`: tabla `lote_cuota_extraordinaria` y `concepto_cobro.lote_id`
+  (`ck_concepto_cobro_lote`, `uq_concepto_cobro_lote_matricula`).
+- `20261129150000_ck_concepto_mes_m4`: `ck_concepto_mes` admite los tipos nuevos (la mora puede llevar el mes de su
+  pensión; ingreso y extraordinaria, sin mes).
+- `20261129160000_proceso_matricula`: `proceso_matricula` y `documento_requerido`.
+- `20261129170000_solicitud_matricula`: `solicitud_matricula` y `documento_matricula`.
+
+Todas son compatibles con la versión anterior: solo agregan valores, columnas opcionales y tablas.
