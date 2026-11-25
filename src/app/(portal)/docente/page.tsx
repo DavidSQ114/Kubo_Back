@@ -61,7 +61,7 @@ function MisCursos() {
       )}
       {carga.fase === "listo" && carga.cursos.length === 0 && (
         <p className="text-[14px] leading-[1.5] text-texto-3">
-          Aún no tienes cursos asignados. Cuando la administración te asigne cursos, aparecerán aquí.
+          Aún no tienes cursos asignados. Cuando la coordinación académica te asigne cursos, aparecerán aquí.
         </p>
       )}
       {carga.fase === "listo" && carga.cursos.length > 0 && (

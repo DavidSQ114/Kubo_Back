@@ -107,7 +107,7 @@ export interface NotasGuardadas extends RegistroDeNotas {
 }
 
 export interface RegistroCerrado extends RegistroDeNotas {
-  aviso: { administradores: number; enviados: number };
+  aviso: { coordinadores: number; enviados: number };
 }
 
 /** Celda de la grilla: alumno y competencia. */
@@ -600,7 +600,7 @@ export function ModalCerrarRegistro({
           {[
             `Se calcula el logro consolidado con la regla vigente (${regla}).`,
             "El estado cambia a «Cerrado» y ya no podrás editar las notas.",
-            "Se notifica a la administración para que publique las notas a los apoderados.",
+            "Se notifica a la coordinación académica para que publique las notas a los apoderados.",
           ].map((t) => (
             <li key={t} className="flex items-start gap-2">
               <Icono nombre="icon-check-verde" size={16} className="mt-px" />

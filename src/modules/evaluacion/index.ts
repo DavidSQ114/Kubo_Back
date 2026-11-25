@@ -74,3 +74,4 @@ export {
   type EvidenciaAgregada,
 } from "./application/evidencias";
 export * as esquemasEvaluacion from "./schemas";
+export { ROLES_EVALUACION } from "./accesos";

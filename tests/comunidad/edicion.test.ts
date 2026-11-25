@@ -8,6 +8,7 @@ import {
   planDeBaja,
   resumenDeEvento,
   valoresDeAuditoria,
+  verificarAlcanceEdicion,
   verificarEdicion,
   type DatosEditables,
   type RegistrosDePersona,
@@ -232,5 +233,33 @@ describe("esquema de PATCH /comunidad/personas/{id} (US69, RNF16)", () => {
     expect(BajaPersonaSchema.parse({})).toEqual({});
     expect(BajaPersonaSchema.parse({ perfil: "DOCENTE" })).toEqual({ perfil: "DOCENTE" });
     expect(BajaPersonaSchema.safeParse({ perfil: "ROOT" }).success).toBe(false);
+  });
+});
+
+describe("alcance de la edición según el rol (bloque M1)", () => {
+  it("el administrador modifica a cualquier persona", () => {
+    for (const perfiles of [["DOCENTE"], ["COORDINADOR"], ["ADMINISTRADOR"], ["APODERADO", "DOCENTE"]] as const) {
+      expect(() => verificarAlcanceEdicion("ADMINISTRADOR", perfiles)).not.toThrow();
+    }
+  });
+
+  it("el coordinador modifica a alumnos y apoderados", () => {
+    for (const perfiles of [["ALUMNO"], ["APODERADO"], ["APODERADO", "ALUMNO"]] as const) {
+      expect(() => verificarAlcanceEdicion("COORDINADOR", perfiles)).not.toThrow();
+    }
+  });
+
+  it("el coordinador no modifica a docentes, administradores, coordinadores ni a un apoderado que es docente", () => {
+    for (const perfiles of [["DOCENTE"], ["ADMINISTRADOR"], ["COORDINADOR"], ["APODERADO", "DOCENTE"], []] as const) {
+      expect(() => verificarAlcanceEdicion("COORDINADOR", perfiles)).toThrow(
+        expect.objectContaining({ codigo: "PERSONA_FUERA_DE_ALCANCE", estadoHttp: 403 }),
+      );
+    }
+  });
+
+  it("otro rol no modifica datos de personas", () => {
+    expect(() => verificarAlcanceEdicion("DOCENTE", ["ALUMNO"])).toThrow(
+      expect.objectContaining({ codigo: "PERSONA_FUERA_DE_ALCANCE" }),
+    );
   });
 });

@@ -122,3 +122,4 @@ export {
   type VersionRegla,
 } from "./application/reglasConsolidacion";
 export * as esquemasAcademico from "./schemas";
+export { ROLES_ACADEMICO } from "./accesos";

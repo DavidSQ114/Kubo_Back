@@ -42,3 +42,4 @@ export function requerirSesion(
 ): Promise<Autenticado> {
   return autenticar(leerTokenAcceso(req), opciones);
 }
+export { ROLES_IDENTIDAD } from "./accesos";

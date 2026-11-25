@@ -102,7 +102,7 @@ export interface AlumnoDeSesion {
   matriculaId: string;
   /** «Álvarez Torres, Camila». */
   nombre: string;
-  /** Solo en la vista del administrador (M-20). */
+  /** Solo en la vista del coordinador académico (M-20). */
   dni: string | null;
   estado: EstadoAsistencia | null;
   observacion: string | null;
@@ -398,7 +398,7 @@ export async function abrirSesion(
 
 /**
  * Sesiones de clase. El docente ve solo las suyas: las de la fecha indicada o, sin fecha, las de los últimos días
- * (para corregir dentro del plazo o consultar). El administrador ve todas las de la fecha (por defecto, hoy).
+ * (para corregir dentro del plazo o consultar). El coordinador académico ve todas las de la fecha (por defecto, hoy).
  */
 export async function listarSesiones(
   auth: Autenticado,
@@ -406,7 +406,7 @@ export async function listarSesiones(
   ahora: Date = new Date(),
 ): Promise<{ fecha: string | null; sesiones: SesionVista[] }> {
   const hoy = fechaEnLima(ahora);
-  if (auth.rol === "ADMINISTRADOR") {
+  if (auth.rol === "COORDINADOR") {
     const fecha = filtro.fecha ?? hoy;
     return { fecha, sesiones: await vistasDeSesiones(await sesiones.deFecha(fecha), ahora) };
   }
@@ -421,14 +421,14 @@ export async function listarSesiones(
   };
 }
 
-/** Una sesión con su lista de alumnos. El docente solo abre las suyas (403 CLASE_AJENA); el administrador, todas. */
+/** Una sesión con su lista de alumnos. El docente solo abre las suyas (403 CLASE_AJENA); el coordinador académico, todas. */
 export async function detalleDeSesion(
   auth: Autenticado,
   sesionId: string,
   ahora: Date = new Date(),
 ): Promise<SesionDetalle> {
   const sesion = await cargarSesion(sesionId);
-  if (auth.rol === "ADMINISTRADOR") return armarDetalle(sesion, true, ahora);
+  if (auth.rol === "COORDINADOR") return armarDetalle(sesion, true, ahora);
   const docente = await docenteEnSesion(auth);
   if (sesion.docenteId !== docente.id) throw E.claseAjena();
   return armarDetalle(sesion, false, ahora);
@@ -510,7 +510,7 @@ export async function guardarAsistencia(
 }
 
 /**
- * Corrección del administrador (US36, criterio 3; M-20): cambia el estado o la observación de un registro aunque el
+ * Corrección del coordinador académico (US36, criterio 3; M-20): cambia el estado o la observación de un registro aunque el
  * plazo del docente haya vencido. El motivo es obligatorio y el cambio queda en la bitácora de auditoría con el valor
  * anterior y el nuevo.
  */

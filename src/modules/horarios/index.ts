@@ -80,3 +80,4 @@ export {
   type ResultadoFaltasDocentes,
 } from "./application/asistenciaDocente";
 export * as esquemasHorarios from "./schemas";
+export { ROLES_HORARIOS } from "./accesos";

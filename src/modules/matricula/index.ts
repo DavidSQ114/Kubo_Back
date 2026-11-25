@@ -85,3 +85,4 @@ export {
 } from "./application/pasarela";
 export { prepararDemoMorosidad, type ResultadoDemoMorosidad } from "./application/demoMorosidad";
 export * as esquemasMatricula from "./schemas";
+export { ROLES_MATRICULA } from "./accesos";

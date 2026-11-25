@@ -13,6 +13,19 @@ export const NOMBRE_PERFIL: Record<Perfil, string> = {
   ALUMNO: "Estudiante",
 };
 
+/** Perfiles cuyos datos también modifica el coordinador académico: alumnos y apoderados (bloque M1). */
+export const PERFILES_DEL_COORDINADOR: readonly Perfil[] = ["APODERADO", "ALUMNO"];
+
+/**
+ * El administrador modifica a cualquier persona; el coordinador académico, solo a quien tiene únicamente perfiles de
+ * alumno o apoderado (una madre que además es docente la modifica el administrador). Lanza PERSONA_FUERA_DE_ALCANCE.
+ */
+export function verificarAlcanceEdicion(rolActor: string, perfiles: readonly Perfil[]) {
+  if (rolActor === "ADMINISTRADOR") return;
+  const soloFamilia = perfiles.length > 0 && perfiles.every((p) => PERFILES_DEL_COORDINADOR.includes(p));
+  if (rolActor !== "COORDINADOR" || !soloFamilia) throw E.personaFueraDeAlcance();
+}
+
 /** Datos que se pueden editar. Las fechas van como «AAAA-MM-DD» y lo que no está registrado, como null. */
 export interface DatosEditables {
   dni: string;

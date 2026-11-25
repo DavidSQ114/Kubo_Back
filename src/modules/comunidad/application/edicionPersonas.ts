@@ -24,6 +24,7 @@ import {
   planDeBaja,
   resumenDeEvento,
   valoresDeAuditoria,
+  verificarAlcanceEdicion,
   verificarEdicion,
   type CambioCampo,
   type DatosEditables,
@@ -148,13 +149,14 @@ async function guardarCambios(tx: Tx, personaId: string, cambios: CambioCampo[])
  * - DNI, nombres y apellidos: exigen motivo (422 MOTIVO_REQUERIDO) y el DNI nuevo no puede existir (409).
  * - Auditoría EDITAR_PERSONA con el valor anterior y el nuevo de cada campo (el DNI, enmascarado) y el motivo.
  */
-export async function editarPersona(admin: Autenticado, personaId: string, datos: DatosEdicion, meta: MetaSolicitud) {
+export async function editarPersona(actor: Autenticado, personaId: string, datos: DatosEdicion, meta: MetaSolicitud) {
   const { motivo, ...enviados } = datos;
   let resultado;
   try {
     resultado = await prisma.$transaction(async (tx) => {
       await edicionPersonas.bloquearFila(tx, personaId);
       const { persona, cuenta } = await personaConCuenta(personaId, tx);
+      verificarAlcanceEdicion(actor.rol, perfilesRegistrados(persona));
       const cambios = cambiosDePersona(datosEditables(persona, cuenta), enviados);
       verificarEdicion(cambios, { perfiles: perfilesRegistrados(persona), tieneCuenta: Boolean(cuenta), motivo });
       if (!cambios.length) return { persona, cambios, correoDeCuenta: null };
@@ -163,7 +165,7 @@ export async function editarPersona(admin: Autenticado, personaId: string, datos
       await registrarAuditoria(
         tx,
         {
-          usuarioId: admin.usuarioId,
+          usuarioId: actor.usuarioId,
           entidad: "persona",
           entidadId: personaId,
           accion: "EDITAR_PERSONA",

@@ -223,7 +223,7 @@ export function ModalSolicitarRectificacion({
       </div>
       {yaPendiente && (
         <Alerta tipo="aviso" titulo="Esta nota ya tiene una solicitud pendiente de aprobación">
-          Espera a que la administración la apruebe o la rechace antes de enviar otra.
+          Espera a que la coordinación académica la apruebe o la rechace antes de enviar otra.
         </Alerta>
       )}
 
@@ -242,8 +242,8 @@ export function ModalSolicitarRectificacion({
       </label>
 
       <Alerta tipo="info">
-        La solicitud quedará «Pendiente de aprobación» y se notificará a la administración. Te avisaremos si se aprueba
-        o rechaza.
+        La solicitud quedará «Pendiente de aprobación» y se notificará a la coordinación académica. Te avisaremos si se
+        aprueba o rechaza.
       </Alerta>
       {error && <Alerta tipo="error" titulo={error} />}
     </Modal>

@@ -489,7 +489,7 @@ describe.skipIf(!ACTIVA)("bitácora de notas y rectificación de nota (US03, US4
     expect(igual.codigo).toBe("VALOR_IGUAL_AL_ACTUAL");
   });
 
-  it("la docente pide la rectificación: queda «Pendiente de aprobación» y se avisa a los administradores", async () => {
+  it("la docente pide la rectificación: queda «Pendiente de aprobación» y se avisa a los coordinadores académicos", async () => {
     const r = await pedir(solicitarRuta, "/evaluacion/registros/…/rectificaciones", {
       token: token.rios,
       params: { asignacionId: asignacionB, periodoId: bimestre },
@@ -509,9 +509,9 @@ describe.skipIf(!ACTIVA)("bitácora de notas y rectificación de nota (US03, US4
     });
     solicitud.carla = r.datos.solicitud.id;
     expect(r.datos.aviso.destinatarios).toBeGreaterThan(0);
-    expect(correo.mock.calls.some(([c]) => c.para === "admin@kubo.edu.pe" && /rectificación/.test(c.asunto))).toBe(
-      true,
-    );
+    expect(
+      correo.mock.calls.some(([c]) => c.para === "coordinacion@kubo.edu.pe" && /rectificación/.test(c.asunto)),
+    ).toBe(true);
 
     // una sola pendiente por nota
     const otra = await codigoDe(

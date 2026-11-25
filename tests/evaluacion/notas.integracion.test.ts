@@ -471,7 +471,7 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
     expect(vista).toMatchObject({ estado: "CERRADO", editable: false, regla: { version: 1 } });
     expect(vista.alumnos.map((x) => x.consolidado)).toEqual(["AD", "B"]);
     expect(vista.aviso.enviados).toBeGreaterThanOrEqual(1);
-    expect(correo.mock.calls.map(([c]) => c.para)).toContain("admin@kubo.edu.pe");
+    expect(correo.mock.calls.map(([c]) => c.para)).toContain("coordinacion@kubo.edu.pe");
 
     const auditoria = await prisma.registroAuditoria.findMany({
       where: { requestId: meta.requestId, accion: "CERRAR_REGISTRO_NOTAS" },

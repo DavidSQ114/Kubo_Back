@@ -5,9 +5,9 @@ import type { MetaSolicitud } from "@/platform/http/ruta";
 import { logger } from "@/platform/logger";
 import type { AvisoInterno, CorreoSaliente, TipoNotificacion } from "@/platform/notificaciones";
 import {
-  contactosDeAdministradores,
+  contactosDeCoordinadores,
   contactosDeDocentes,
-  personasDeAdministradores,
+  personasDeCoordinadores,
   personasDeDocentes,
 } from "@/modules/comunidad";
 import { usuariosDePersonas } from "@/modules/identidad";
@@ -28,14 +28,15 @@ async function seguro(consulta: () => Promise<Destinatarios>, que: string, meta:
   }
 }
 
-/** Administradores activos: cuentas para la notificación y correos. */
-export const administradoresDestinatarios = (meta: MetaSolicitud) =>
+/** Coordinadores académicos activos: cuentas para la notificación y correos (bloque M1: los avisos académicos ya no
+ * van a los administradores). */
+export const coordinadoresDestinatarios = (meta: MetaSolicitud) =>
   seguro(
     async () => {
-      const [personas, contactos] = await Promise.all([personasDeAdministradores(), contactosDeAdministradores()]);
+      const [personas, contactos] = await Promise.all([personasDeCoordinadores(), contactosDeCoordinadores()]);
       return { usuarioIds: Object.values(await usuariosDePersonas(personas)), contactos };
     },
-    "los administradores",
+    "los coordinadores académicos",
     meta,
   );
 

@@ -46,7 +46,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
   let matriculaId: string;
   let apoderado: Autenticado;
   const personas: string[] = [];
-  const token = { admin: "", apoderado: "" };
+  const token = { coordinador: "", apoderado: "" };
   let cuotaMatricula: { id: string; monto: string; concepto: string };
   let pensiones: { id: string; monto: string; concepto: string }[] = [];
 
@@ -104,7 +104,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
         nombres: "Prueba",
         apellidos: "Tesorera Orden",
         email: "90001601@prueba.kubo.test",
-        administrador: { create: {} },
+        coordinador: { create: {} },
       },
     });
     const pApoderado = await prisma.persona.create({
@@ -154,7 +154,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
       .filter((c) => c.tipo === "PENSION")
       .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento))
       .map(cuota);
-    token.admin = await ingresar(pAdmin.email!);
+    token.coordinador = await ingresar(pAdmin.email!);
     token.apoderado = await ingresar(pApoderado.email!);
     const usuarioApoderado = await prisma.usuario.findFirstOrThrow({ where: { personaId: pApoderado.id } });
     apoderado = {
@@ -182,7 +182,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
     await prisma.vinculoApoderado.deleteMany({ where: { estudiante: { personaId: { in: personas } } } });
     await prisma.estudiante.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.apoderado.deleteMany({ where: { personaId: { in: personas } } });
-    await prisma.administrador.deleteMany({ where: { personaId: { in: personas } } });
+    await prisma.coordinador.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.persona.deleteMany({ where: { id: { in: personas } } });
     await prisma.seccion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.parametroInstitucion.deleteMany({ where: { anioAcademicoId: anioId } });
@@ -197,7 +197,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
     const r = await pedir(
       pagoManualRuta,
       "/matricula/pagos",
-      token.admin,
+      token.coordinador,
       pagoManual(pensiones.slice(0, 3), "ORDEN-1"),
     );
     expect(r.estado).toBe(409);
@@ -222,7 +222,7 @@ describe.skipIf(!ACTIVA)("orden de pago de las cuotas por la API (D-14, US22, US
     const r = await pedir(
       pagoManualRuta,
       "/matricula/pagos",
-      token.admin,
+      token.coordinador,
       pagoManual([cuotaMatricula, pensiones[1]], "ORDEN-2"),
     );
     expect(r.estado).toBe(409);

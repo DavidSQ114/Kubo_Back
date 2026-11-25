@@ -91,3 +91,4 @@ export {
   type RegistrosMatriculaProvider,
   type MatriculaReciente,
 } from "./puertos";
+export { ROLES_COMUNIDAD } from "./accesos";

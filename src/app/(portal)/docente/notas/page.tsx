@@ -192,15 +192,15 @@ function RegistroDelBimestre({
       });
       actualizar(nuevo);
       setModal(null);
-      const { administradores, enviados } = nuevo.aviso;
+      const { coordinadores, enviados } = nuevo.aviso;
       setMensaje({
         tipo: "exito",
         titulo: "Registro cerrado.",
         detalle:
           `Se calculó el logro consolidado de ${nuevo.alumnos.length} estudiantes con la regla vigente. ` +
           (enviados > 0
-            ? `Se avisó por correo a ${enviados} de ${administradores} ${administradores === 1 ? "administrador" : "administradores"}.`
-            : "No se pudo enviar el aviso por correo a la administración; el registro quedó cerrado igualmente."),
+            ? `Se avisó por correo a ${enviados} de ${coordinadores} ${coordinadores === 1 ? "coordinador académico" : "coordinadores académicos"}.`
+            : "No se pudo enviar el aviso por correo a la coordinación académica; el registro quedó cerrado igualmente."),
       });
     } catch (e) {
       if (e instanceof ApiError && e.codigo === "NOTAS_INCOMPLETAS") {
@@ -227,7 +227,7 @@ function RegistroDelBimestre({
       detalle:
         `La nota de ${solicitud.estudiante} en ${solicitud.competencia.columna} quedó «${solicitud.nombreEstado}». ` +
         (aviso.enviados > 0
-          ? `Se avisó por correo a ${aviso.enviados} de ${aviso.destinatarios} ${aviso.destinatarios === 1 ? "administrador" : "administradores"}.`
+          ? `Se avisó por correo a ${aviso.enviados} de ${aviso.destinatarios} ${aviso.destinatarios === 1 ? "coordinador académico" : "coordinadores académicos"}.`
           : "No se pudo enviar el aviso por correo; la solicitud quedó registrada igualmente."),
     });
   }
@@ -386,7 +386,7 @@ export default function RegistroDeNotasPage() {
       {mis.carga.fase === "error" && <ErrorAsistencia mensaje={mis.carga.mensaje} onReintentar={mis.reintentar} />}
       {datos && (!datos.anio || datos.cursos.length === 0) && (
         <AsistenciaVacia titulo="Aún no tienes cursos asignados." icono="nav-award-azul">
-          Cuando la administración te asigne cursos y secciones podrás registrar sus notas aquí.
+          Cuando la coordinación académica te asigne cursos y secciones podrás registrar sus notas aquí.
         </AsistenciaVacia>
       )}
 
