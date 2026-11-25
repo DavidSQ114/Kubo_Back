@@ -29,6 +29,9 @@ import {
   listarSesiones,
   obtenerCuadricula,
   publicarHorario,
+  reporteDeAsistencia,
+  reporteDeAsistenciaCsv,
+  reporteDeAsistenciaPdf,
 } from "@/modules/horarios";
 import { iniciarSesion, type Autenticado } from "@/modules/identidad";
 import { confirmarMatricula } from "@/modules/matricula";
@@ -504,5 +507,44 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
     await expect(
       abrirClaseDeTutoria(tutor, seccionA, { claseId: claseB.id, fecha: LUNES }, MIERCOLES_SIGUIENTE),
     ).rejects.toMatchObject({ codigo: "CLASE_DE_OTRA_SECCION" });
+  });
+
+  // ---------- Fase 4 · Reporte de faltas y tardanzas ----------
+
+  it("el reporte por bimestre cuenta cada estado, ordena y suma los totales; CSV y PDF", async () => {
+    const r = await reporteDeAsistencia(tutor, seccionA, {}, MIERCOLES_SIGUIENTE);
+    expect(r.bimestre.nombre).toBe("Bimestre I");
+    expect(r.orden).toBe("faltas");
+    const porAlumno = Object.fromEntries(r.filas.map((f) => [f.matriculaId, f]));
+    expect(porAlumno[alumnos.diego]).toMatchObject({
+      clases: 1,
+      faltas: 0,
+      faltasJustificadas: 1,
+      porcentajeAsistencia: 0,
+    });
+    expect(porAlumno[alumnos.lucia]).toMatchObject({ clases: 1, tardanzasJustificadas: 1, porcentajeAsistencia: 100 });
+    expect(r.total).toMatchObject({
+      clases: 2,
+      faltasJustificadas: 1,
+      tardanzasJustificadas: 1,
+      porcentajeAsistencia: 50,
+    });
+    // ordenado por % de asistencia ascendente: primero quien menos asiste
+    const asc = await reporteDeAsistencia(
+      tutor,
+      seccionA,
+      { orden: "porcentajeAsistencia", ascendente: true },
+      MIERCOLES_SIGUIENTE,
+    );
+    expect(asc.filas.map((f) => f.matriculaId)).toEqual([alumnos.diego, alumnos.lucia]);
+
+    const csv = await reporteDeAsistenciaCsv(tutor, seccionA, { periodoId: r.bimestre.id });
+    expect(csv.nombreArchivo).toBe("Asistencia_2TA_BimestreI_2076.csv");
+    expect(csv.texto.startsWith("\uFEFFAño,Bimestre,Sección,Estudiante,Clases")).toBe(true);
+    expect(csv.texto).toContain("Total de la sección");
+    const pdf = await reporteDeAsistenciaPdf(tutor, seccionA, { periodoId: r.bimestre.id });
+    expect(Buffer.from(pdf.bytes).subarray(0, 4).toString()).toBe("%PDF");
+    // otro docente no descarga el reporte
+    await expect(reporteDeAsistencia(tutor, seccionB, {})).rejects.toMatchObject({ codigo: "NO_ES_TUTOR" });
   });
 });

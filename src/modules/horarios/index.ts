@@ -73,6 +73,14 @@ export {
   type AlumnoDeTutoria,
 } from "./application/asistenciaTutoria";
 export {
+  reporteDeAsistencia,
+  reporteDeAsistenciaCsv,
+  reporteDeAsistenciaPdf,
+  type ReporteDeAsistencia,
+  type FilaDelReporte,
+} from "./application/reporteTutoria";
+export { ORDENES_REPORTE, type OrdenReporte } from "./domain/tutoria";
+export {
   asistenciaDelHijo,
   asistenciaDelAlumno,
   type AsistenciaDelMes,

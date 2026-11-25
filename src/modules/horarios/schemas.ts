@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { ESTADOS_ASISTENCIA } from "./domain/asistencia";
 import { DIAS } from "./domain/tipos";
+import { ORDENES_REPORTE } from "./domain/tutoria";
 
 export const IdSchema = z.string().uuid("Identificador no válido");
 
@@ -146,3 +147,13 @@ export const ListaAsistenciaTutoriaSchema = ListaAsistenciaSchema.extend({
 
 /** Justificación de una falta o una tardanza por el tutor: el motivo es obligatorio. */
 export const JustificacionAsistenciaSchema = z.object({ motivo: MotivoSchema("justificación") });
+
+/** ?periodoId=&orden=faltas&ascendente=false: reporte de faltas y tardanzas por bimestre del tutor. */
+export const ConsultaReporteTutoriaSchema = z.object({
+  periodoId: IdSchema.optional(),
+  orden: z.enum(ORDENES_REPORTE, { message: "Orden no válido" }).optional(),
+  ascendente: z
+    .enum(["true", "false"], { message: "Usa true o false" })
+    .transform((v) => v === "true")
+    .optional(),
+});
