@@ -36,6 +36,7 @@ model Usuario {
   cierresCalificacionPublicadoPor    CierreCalificacion[]     @relation("CierreCalificacionPublicadoPor")
   notasRegistradoPor                 Nota[]                   @relation("NotaRegistradoPor")
   notasModificadoPor                 Nota[]                   @relation("NotaModificadoPor")
+  calificacionesItemRegistradas      CalificacionItem[]       @relation("CalificacionItemRegistradoPor")
   evidenciasPedagogicas              EvidenciaPedagogica[]
   solicitudesRectificacion           SolicitudRectificacion[] @relation("SolicitudRectificacionResueltoPor")
   solicitudesRectificacionPedidas    SolicitudRectificacion[] @relation("SolicitudRectificacionSolicitadoPor")

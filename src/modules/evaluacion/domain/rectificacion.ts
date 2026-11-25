@@ -73,13 +73,14 @@ export function pesosDelCierre<T extends { codigo: string; peso: number | null }
 
 // ---------- Bitácora de notas (US03) ----------
 
-export const ORIGENES_CAMBIO = ["REGISTRO", "RECTIFICACION"] as const;
+export const ORIGENES_CAMBIO = ["REGISTRO", "RECTIFICACION", "ITEMS"] as const;
 export type OrigenCambio = (typeof ORIGENES_CAMBIO)[number];
 
 /** Etiqueta del origen en AD-16. */
 export const NOMBRE_ORIGEN: Record<OrigenCambio, string> = {
   REGISTRO: "Registro docente",
   RECTIFICACION: "Rectificación aprobada",
+  ITEMS: "Calculada por ítems",
 };
 
 /** Columna de la competencia en el registro de notas (C1, C2…), como en DO-04 y AD-16. */

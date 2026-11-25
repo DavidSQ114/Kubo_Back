@@ -1,5 +1,5 @@
-// Módulo evaluación: cierres, notas por competencia, resultados consolidados, evidencias, rectificaciones (US41) y
-// bitácora de notas (US03).
+// Módulo evaluación: cierres, notas por competencia, ítems de evaluación con pesos y sus calificaciones (bloque M2),
+// resultados consolidados, evidencias, rectificaciones (US41) y bitácora de notas (US03).
 // Generado a partir del diagrama de clases v4.2. Tablas y columnas en snake_case.
 
 model CierreCalificacion {
@@ -21,6 +21,7 @@ model CierreCalificacion {
   updatedAt              DateTime               @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   notas                  Nota[]
   resultadosConsolidados ResultadoConsolidado[]
+  itemsEvaluacion        ItemEvaluacion[]
 
   @@unique([asignacionDocenteId, periodoEvaluacionId])
   @@map("cierre_calificacion")
@@ -50,6 +51,49 @@ model Nota {
   @@unique([cierreId, matriculaId, competenciaPlanId])
   @@index([matriculaId])
   @@map("nota")
+}
+
+// Ítem de evaluación de una competencia en un registro (bloque M2): nombre (hasta 100 caracteres) y peso mayor que 0.
+// Los pesos de los ítems de una competencia deben sumar 100 para que su nota se calcule (promedio ponderado de las
+// calificaciones con la función de la regla PONDERADO de académico). Una competencia sin ítems se califica directo.
+// Solo cambia con el registro ABIERTO (tg_item_evaluacion_registro_cerrado).
+model ItemEvaluacion {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cierreId          String             @db.Uuid @map("cierre_id")
+  cierre            CierreCalificacion @relation(fields: [cierreId], references: [id], onDelete: Cascade)
+  competenciaPlanId String             @db.Uuid @map("competencia_plan_id")
+  competenciaPlan   CompetenciaPlan    @relation(fields: [competenciaPlanId], references: [id], onDelete: Restrict)
+  // De 1 a 100 caracteres (ck_item_evaluacion_nombre)
+  nombre            String
+  // Mayor que 0 y hasta 100 (ck_item_evaluacion_peso)
+  peso              Decimal            @db.Decimal(5, 2)
+  orden             Int
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime           @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  calificaciones    CalificacionItem[]
+
+  @@index([cierreId, competenciaPlanId])
+  @@index([competenciaPlanId])
+  @@map("item_evaluacion")
+}
+
+// Calificación de un ítem para un alumno (bloque M2): AD, A, B o C, una por ítem y matrícula. registradoPor es quien
+// la registró o la cambió por última vez. Solo cambia con el registro ABIERTO (tg_calificacion_item_registro_cerrado).
+model CalificacionItem {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId          String         @db.Uuid @map("item_id")
+  item            ItemEvaluacion @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  matriculaId     String         @db.Uuid @map("matricula_id")
+  matricula       Matricula      @relation(fields: [matriculaId], references: [id], onDelete: Restrict)
+  valor           Logro
+  registradoPorId String         @db.Uuid @map("registrado_por_id")
+  registradoPor   Usuario        @relation("CalificacionItemRegistradoPor", fields: [registradoPorId], references: [id], onDelete: Restrict)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime       @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([itemId, matriculaId])
+  @@index([matriculaId])
+  @@map("calificacion_item")
 }
 
 model ResultadoConsolidado {
@@ -119,8 +163,9 @@ model SolicitudRectificacion {
   @@map("solicitud_rectificacion")
 }
 
-// Bitácora de notas (US03): una fila por cada nota registrada o cambiada, por el docente (REGISTRO) o por una
-// rectificación aprobada (RECTIFICACION). Inmutable (tg_bitacora_nota_inmutable) y sin claves foráneas: guarda los
+// Bitácora de notas (US03): una fila por cada nota registrada o cambiada, por el docente (REGISTRO), por una
+// rectificación aprobada (RECTIFICACION) o calculada por los ítems de evaluación (ITEMS, bloque M2; con logroNuevo
+// null cuando la nota se quita porque al alumno le faltan ítems o los pesos dejaron de sumar 100). Inmutable (tg_bitacora_nota_inmutable) y sin claves foráneas: guarda los
 // ids y una copia de los nombres al momento del cambio, para que la traza sobreviva a cualquier cambio posterior de
 // los datos (AD-16 en docs/arquitectura).
 model BitacoraNota {
@@ -134,7 +179,8 @@ model BitacoraNota {
   solicitudId        String?          @db.Uuid @map("solicitud_id")
   // null si es el primer registro de la nota
   logroAnterior      Logro?           @map("logro_anterior")
-  logroNuevo         Logro            @map("logro_nuevo")
+  // null: la nota se quitó (origen ITEMS)
+  logroNuevo         Logro?           @map("logro_nuevo")
   // Quién hizo el cambio: el docente (REGISTRO) o el administrador que aprobó (RECTIFICACION)
   usuarioId          String           @db.Uuid @map("usuario_id")
   usuarioNombre      String           @map("usuario_nombre")

@@ -165,6 +165,7 @@ model CompetenciaPlan {
   updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   notas               Nota[]
   trabajosCompetencia TrabajoCompetencia[]
+  itemsEvaluacion     ItemEvaluacion[]
 
   @@unique([planEstudioId, competenciaId])
   @@map("competencia_plan")

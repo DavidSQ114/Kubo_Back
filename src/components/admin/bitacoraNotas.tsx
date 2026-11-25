@@ -27,7 +27,7 @@ interface CambioRegistrado {
   estudiante: string;
   competencia: { columna: string; codigo: string; nombre: string };
   valorAnterior: Logro | null;
-  valorNuevo: Logro;
+  valorNuevo: Logro | null;
 }
 
 interface Pagina {
@@ -208,7 +208,7 @@ export function BitacoraNotas() {
                         <span aria-hidden className="text-texto-3">
                           ›
                         </span>
-                        <BadgeLogro logro={c.valorNuevo} />
+                        {c.valorNuevo ? <BadgeLogro logro={c.valorNuevo} /> : <SinValor />}
                       </span>
                     </td>
                     <td className="px-4 py-3">

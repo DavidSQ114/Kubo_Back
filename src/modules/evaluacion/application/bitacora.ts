@@ -104,7 +104,8 @@ export interface CambioRegistrado {
   estudiante: string;
   competencia: { columna: string; codigo: string; nombre: string };
   valorAnterior: LogroNota | null;
-  valorNuevo: LogroNota;
+  /** null: la nota se quitó porque al alumno le faltan ítems o los pesos dejaron de sumar 100 (origen ITEMS). */
+  valorNuevo: LogroNota | null;
 }
 
 const vistaCambio = (f: FilaBitacora): CambioRegistrado => ({

@@ -496,7 +496,8 @@ export interface EntradaBitacora {
   origen: OrigenCambio;
   solicitudId: string | null;
   logroAnterior: LogroNota | null;
-  logroNuevo: LogroNota;
+  // null: la nota se quitó (origen ITEMS, bloque M2)
+  logroNuevo: LogroNota | null;
   usuarioId: string;
   usuarioNombre: string;
   docenteId: string;
