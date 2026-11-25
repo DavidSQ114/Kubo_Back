@@ -4,7 +4,8 @@
 // (US48), su matrícula para la asistencia (US45) y la libreta (US46), la restricción de la libreta por deuda (US26),
 // pago en línea y conciliación (US70, US71), recordatorios de pago a apoderados morosos (US59), sección en una fecha,
 // datos de las matrículas de una lista de asistencia (US35), los datos de demostración de morosidad
-// (scripts/demoMorosidad.ts) y los puertos
+// (scripts/demoMorosidad.ts), la mora de las pensiones vencidas y las cuotas extraordinarias, el proceso de matrícula del año, la matrícula en
+// línea del apoderado con documentos (bloque M4) y los puertos
 // que usan académico (vacantes, US08) y comunidad (matrícula «En proceso» del registro de estudiantes, US17).
 export { matriculasProviderMatricula } from "./infrastructure/matriculasProvider";
 export { matriculaBorradorProviderMatricula } from "./infrastructure/matriculaBorradorProvider";
@@ -83,6 +84,32 @@ export {
   type ResultadoAviso,
   type ResumenConciliacion,
 } from "./application/pasarela";
+export { generarMoras, condonarMora, type ResumenMoras } from "./application/mora";
+export {
+  vistaPreviaLote,
+  crearLote,
+  listarLotes,
+  detalleLote,
+  anularLote,
+  anularCuotaExtraordinaria,
+  type DatosLote,
+} from "./application/extraordinarias";
+export { procesoDelAnio, guardarProceso } from "./application/proceso";
+export {
+  matriculaEnLinea,
+  enviarSolicitud,
+  reemplazarDocumento,
+  archivoDeDocumentoMatricula,
+  type DatosSolicitud,
+} from "./application/solicitudes";
+export {
+  bandejaSolicitudes,
+  detalleSolicitud,
+  revisarDocumentoSolicitud,
+  asignarSeccionSolicitud,
+} from "./application/revision";
+export { MENSAJE_ARCHIVO_MATRICULA } from "./domain/solicitudes";
+export { MAXIMO_DOCUMENTOS_REQUERIDOS } from "./domain/proceso";
 export { prepararDemoMorosidad, type ResultadoDemoMorosidad } from "./application/demoMorosidad";
 export * as esquemasMatricula from "./schemas";
 export { ROLES_MATRICULA } from "./accesos";

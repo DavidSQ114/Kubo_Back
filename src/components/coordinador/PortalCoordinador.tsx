@@ -1,7 +1,7 @@
 // Portal del Coordinador académico (bloque M1): mismo diseño que el del Administrador (AD-06; el Figma no tiene frames
 // propios del coordinador) con su menú: configuración académica, matrícula y tesorería, horarios, asistencia de
-// alumnos, notas y los reportes de notas por alumno y de logro de competencias (bloque M2). Es la guardia de las
-// páginas /coordinador: exige sesión con perfil COORDINADOR (RF04).
+// alumnos, notas y los reportes de notas por alumno y de logro de competencias (bloque M2), y las cuotas
+// extraordinarias (bloque M4). Es la guardia de las páginas /coordinador: exige sesión con perfil COORDINADOR (RF04).
 "use client";
 
 import type { ReactNode } from "react";
@@ -23,8 +23,11 @@ const NAVEGACION: NavegacionGestion = [
     grupo: "MATRÍCULA Y PAGOS",
     items: [
       { texto: "Matrícula", icono: "nav-clipboard", href: "/coordinador/matricula" },
+      { texto: "Proceso de matrícula", icono: "nav-calendar", href: "/coordinador/proceso-matricula" },
+      { texto: "Solicitudes de matrícula", icono: "nav-usercheck", href: "/coordinador/solicitudes-matricula" },
       { texto: "Alumnos y apoderados", icono: "nav-users", href: "/coordinador/alumnos-apoderados" },
       { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/coordinador/pagos" },
+      { texto: "Cuotas extraordinarias", icono: "nav-wallet", href: "/coordinador/cuotas-extraordinarias" },
       { texto: "Morosidad", icono: "nav-alert", href: "/coordinador/morosidad" },
     ],
   },

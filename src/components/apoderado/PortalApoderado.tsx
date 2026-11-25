@@ -1,5 +1,5 @@
 // Portal del Apoderado (US42): barra lateral clara con «Inicio», «Pagos», «Horario» (US48), «Notas» (US46) y
-// «Asistencia» (US45), barra superior con el estudiante consultado, «Cambiar de hijo» (AP-01, AP-02) y la campana de
+// «Asistencia» (US45) y «Matrícula» (bloque M4: se abre aunque ningún hijo esté matriculado), barra superior con el estudiante consultado, «Cambiar de hijo» (AP-01, AP-02) y la campana de
 // notificaciones (US55, M-13), y la selección de hijo (AC-05). En pantallas angostas la barra lateral se oculta y se abre con el botón de menú.
 // También es la guardia de las páginas /apoderado: exige sesión con perfil APODERADO (RF04). Lo que ve cada hijo lo
 // autoriza el servidor en cada consulta; aquí solo se recuerda cuál se eligió.
@@ -73,6 +73,7 @@ type Estado =
 
 export function PortalApoderado({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const ruta = usePathname();
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" });
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -128,8 +129,37 @@ export function PortalApoderado({ children }: { children: ReactNode }) {
   }
 
   const { sesion, hijos, seleccionadoId, eligiendo } = estado;
-  if (hijos.length === 0) return <SinHijos sesion={sesion} />;
   const hijo = hijos.find((h) => h.estudianteId === seleccionadoId);
+  // la matrícula en línea no depende del hijo elegido: muestra a todos los hijos vinculados
+  if (ruta.startsWith(RUTA_MATRICULA) && (!hijo || eligiendo)) {
+    return (
+      <div className="flex min-h-screen bg-fondo">
+        {menuAbierto && (
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMenuAbierto(false)}
+            className="fixed inset-0 z-40 bg-[rgba(31,35,40,0.45)] lg:hidden"
+          />
+        )}
+        <BarraLateral sesion={sesion} abierta={menuAbierto} onCerrar={() => setMenuAbierto(false)} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-borde bg-white px-4 py-3 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setMenuAbierto(true)}
+              aria-label="Abrir menú"
+              className="shrink-0 rounded-md border border-borde p-2 hover:bg-fondo"
+            >
+              <Icono nombre="nav-menu" size={20} />
+            </button>
+          </header>
+          <main className="flex flex-col gap-6 px-4 pt-6 pb-14 lg:px-10 lg:pt-8">{children}</main>
+        </div>
+      </div>
+    );
+  }
+  if (hijos.length === 0) return <SinHijos sesion={sesion} />;
   if (!hijo || eligiendo) {
     return (
       <SeleccionHijo
@@ -188,7 +218,11 @@ const NAVEGACION: ItemNav[] = [
   { texto: "Horario", icono: "nav-grid", href: "/apoderado/horario" },
   { texto: "Notas", icono: "nav-award", href: "/apoderado/notas" },
   { texto: "Asistencia", icono: "nav-usercheck", href: "/apoderado/asistencia" },
+  { texto: "Matrícula", icono: "nav-clipboard", href: "/apoderado/matricula" },
 ];
+
+/** Bloque M4: «Matrícula» se abre aunque ningún hijo tenga todavía una matrícula confirmada. */
+const RUTA_MATRICULA = "/apoderado/matricula";
 
 function BarraLateral({ sesion, abierta, onCerrar }: { sesion: Sesion; abierta: boolean; onCerrar: () => void }) {
   const router = useRouter();
@@ -501,6 +535,9 @@ function SinHijos({ sesion }: { sesion: Sesion }) {
           Cuando la matrícula de tu hijo o hija esté confirmada, podrás consultar aquí sus pagos. Si ya está
           matriculado, comunícate con la secretaría del colegio para que lo vinculen a tu cuenta.
         </Alerta>
+        <Boton ancho onClick={() => router.push(RUTA_MATRICULA)}>
+          Matricular a mi hijo
+        </Boton>
         {otrosPerfiles.map((p) => (
           <Boton key={p} variante="secundario" ancho onClick={() => cambiarPerfil(p)}>
             Ingresar como {NOMBRE_ROL[p]}

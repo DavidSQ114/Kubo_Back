@@ -66,3 +66,11 @@ export function verificarAnulable(estado: EstadoMatricula, pagos: number) {
 /** «SOLICITUD_APODERADO: El apoderado cambió de colegio.»: lo que se guarda en matricula.motivo_anulacion. */
 export const textoMotivoAnulacion = (motivo: MotivoAnulacionMatricula, detalle: string) =>
   `${motivo}: ${detalle.trim()}`;
+
+/**
+ * Bloque M4: el estudiante es nuevo en el colegio si no tiene otra matrícula (de cualquier año) que no esté Anulada.
+ * Una matrícula anulada se trata como si no hubiera existido. Solo al alumno nuevo se le cobra la cuota de ingreso.
+ *   esAlumnoNuevo([]) // true · esAlumnoNuevo([{ estado: "FINALIZADO" }]) // false
+ */
+export const esAlumnoNuevo = (otrasMatriculas: { estado: EstadoMatricula }[]) =>
+  otrasMatriculas.every((m) => m.estado === "ANULADO");

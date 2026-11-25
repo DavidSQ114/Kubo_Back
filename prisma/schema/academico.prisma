@@ -15,6 +15,8 @@ model AnioAcademico {
   reglasConsolidacion   ReglaConsolidacion[]
   parametrosInstitucion ParametroInstitucion[]
   matriculas            Matricula[]
+  lotesExtraordinarios  LoteCuotaExtraordinaria[]
+  procesoMatricula      ProcesoMatricula?
   bloquesHorario        BloqueHorario[]
 
   @@map("anio_academico")
@@ -49,6 +51,7 @@ model Grado {
   estudiantes   Estudiante[]
   secciones     Seccion[]
   planesEstudio PlanEstudio[]
+  solicitudesMatricula SolicitudMatricula[]
 
   @@map("grado")
 }

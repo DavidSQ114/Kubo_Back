@@ -401,13 +401,14 @@ Requisito del cronograma de pagos: la cuota de matrícula y la pensión mensual 
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
-| `GET /academico/anios/{id}/montos` | — | `{ anioAcademicoId, anio, montoMatricula, montoPension, configurados, sugeridos: { montoMatricula, montoPension } }` |
-| `PUT /academico/anios/{id}/montos` | `{ montoMatricula, montoPension }` | Lo mismo, con los montos guardados |
+| `GET /academico/anios/{id}/montos` | — | `{ anioAcademicoId, anio, montoMatricula, montoPension, montoIngreso, montoMora, configurados, sugeridos: { montoMatricula, montoPension } }` |
+| `PUT /academico/anios/{id}/montos` | `{ montoMatricula, montoPension, montoIngreso?, montoMora? }` | Lo mismo, con los montos guardados |
 
 ## Reglas
 
 - Cada monto: mayor a 0, hasta dos decimales y hasta S/ 99 999.99 (texto «350», «450.5» o número). Se guardan normalizados («450.50»). Si no: `400 MONTO_INVALIDO` «Ingresa un monto mayor a 0 con hasta dos decimales (por ejemplo, 350.00).».
 - Año cerrado: `422 ANIO_CERRADO`. Año inexistente: `404 NO_ENCONTRADO`.
+- Bloque M4: `montoIngreso` (cuota de ingreso del alumno nuevo, claves `MONTO_INGRESO`) y `montoMora` (monto fijo por pensión vencida, `MONTO_MORA`) aceptan 0 (no se cobran). Si no vienen, se conservan los del año (o «0.00»). Ver [matricula.md](matricula.md#bloque-m4--cuotas-de-ingreso-mora-y-extraordinarias).
 - Los cambios solo afectan a las matrículas que se confirmen después: los cronogramas ya generados no cambian.
 - Auditoría `GUARDAR_MONTOS_ANIO` (entidad `anio_academico`) con los montos anteriores y nuevos.
 

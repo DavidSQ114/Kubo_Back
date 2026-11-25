@@ -37,6 +37,7 @@ model Matricula {
   calificacionesItem     CalificacionItem[]
   entregasTrabajo        EntregaTrabajo[]
   intentosPago           IntentoPago[]
+  solicitud              SolicitudMatricula?
 
   @@index([seccionId, estado])
   @@map("matricula")
@@ -70,13 +71,56 @@ model ConceptoCobro {
   moneda           String       @default("PEN")
   fechaVencimiento DateTime     @db.Date @map("fecha_vencimiento")
   estado           EstadoCobro  @default(PENDIENTE)
+  /// Bloque M4: la pensión que originó la mora. Única: una sola mora por pensión, así la tarea programada que las
+  /// genera es idempotente (ck_concepto_cobro_mora_origen: solo las MORA la tienen, y todas).
+  cuotaOrigenId    String?        @unique(map: "uq_concepto_cobro_cuota_origen") @db.Uuid @map("cuota_origen_id")
+  cuotaOrigen      ConceptoCobro? @relation("MoraDePension", fields: [cuotaOrigenId], references: [id], onDelete: Cascade)
+  mora             ConceptoCobro? @relation("MoraDePension")
+  /// Bloque M4: quién anuló la cuota (condonar una mora, anular una extraordinaria), cuándo y por qué.
+  anuladoPorId     String?        @db.Uuid @map("anulado_por_id")
+  anuladoPor       Usuario?       @relation("ConceptoCobroAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn        DateTime?      @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion  String?        @map("motivo_anulacion")
+  /// Bloque M4: lote del que salió la cuota EXTRAORDINARIA (ck_concepto_cobro_lote: solo ellas lo tienen, y todas).
+  loteId           String?                  @db.Uuid @map("lote_id")
+  lote             LoteCuotaExtraordinaria? @relation(fields: [loteId], references: [id], onDelete: Restrict)
   createdAt        DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt        DateTime     @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   pagos            Pago[]
 
   @@unique([matriculaId, tipo, mes])
+  @@unique([loteId, matriculaId], map: "uq_concepto_cobro_lote_matricula")
   @@index([estado, fechaVencimiento])
   @@map("concepto_cobro")
+}
+
+/// Bloque M4: lote de cuotas extraordinarias que crea el Coordinador académico (una cuota por matrícula Matriculado
+/// del destino). Anular el lote anula sus cuotas pendientes; las pagadas se conservan.
+model LoteCuotaExtraordinaria {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId  String              @db.Uuid @map("anio_academico_id")
+  anioAcademico    AnioAcademico       @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  concepto         String              @db.VarChar(100)
+  monto            Decimal             @db.Decimal(10, 2)
+  fechaVencimiento DateTime            @db.Date @map("fecha_vencimiento")
+  destino          DestinoLote
+  /// Estudiante, sección o grado del destino; vacío si es todo el año (ck_lote_extraordinario_destino).
+  destinoId        String?             @db.Uuid @map("destino_id")
+  /// Texto del destino al crear el lote («3° B», «Valeria Quispe Rojas»), para listarlo sin consultar otros módulos.
+  destinoNombre    String              @map("destino_nombre")
+  estado           EstadoLote          @default(ACTIVO)
+  creadoPorId      String              @db.Uuid @map("creado_por_id")
+  creadoPor        Usuario             @relation("LoteCreadoPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  anuladoPorId     String?             @db.Uuid @map("anulado_por_id")
+  anuladoPor       Usuario?            @relation("LoteAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn        DateTime?           @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion  String?             @map("motivo_anulacion")
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  cuotas           ConceptoCobro[]
+
+  @@index([anioAcademicoId, createdAt])
+  @@map("lote_cuota_extraordinaria")
 }
 
 model OperacionPago {
@@ -175,4 +219,87 @@ model Comprobante {
   updatedAt         DateTime      @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
 
   @@map("comprobante")
+}
+
+/// Bloque M4: proceso de matrícula de un año (fechas en que el apoderado puede matricular a su hijo desde su portal).
+model ProcesoMatricula {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anioAcademicoId   String               @unique @db.Uuid @map("anio_academico_id")
+  anioAcademico     AnioAcademico        @relation(fields: [anioAcademicoId], references: [id], onDelete: Restrict)
+  fechaInicio       DateTime             @db.Date @map("fecha_inicio")
+  fechaFin          DateTime             @db.Date @map("fecha_fin")
+  actualizadoPorId  String               @db.Uuid @map("actualizado_por_id")
+  actualizadoPor    Usuario              @relation("ProcesoActualizadoPor", fields: [actualizadoPorId], references: [id], onDelete: Restrict)
+  createdAt         DateTime             @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  documentos        DocumentoRequerido[]
+  solicitudes       SolicitudMatricula[]
+
+  @@map("proceso_matricula")
+}
+
+/// Bloque M4: documento que el apoderado sube al matricular (partida de nacimiento, DNI del alumno…). Uno que se quita
+/// de la lista queda inactivo: los documentos ya subidos lo siguen nombrando.
+model DocumentoRequerido {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  procesoId   String           @db.Uuid @map("proceso_id")
+  proceso     ProcesoMatricula @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  nombre      String           @db.VarChar(100)
+  obligatorio Boolean          @default(true)
+  orden       Int
+  activo      Boolean          @default(true)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt   DateTime         @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  entregas    DocumentoMatricula[]
+
+  @@index([procesoId, activo, orden])
+  @@map("documento_requerido")
+}
+
+/// Bloque M4: solicitud de matrícula que envía el apoderado desde su portal. Acompaña a la matrícula En proceso hasta
+/// que el coordinador revisa los documentos y asigna la sección (Matriculado).
+model SolicitudMatricula {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matriculaId     String                   @unique @db.Uuid @map("matricula_id")
+  matricula       Matricula                @relation(fields: [matriculaId], references: [id], onDelete: Cascade)
+  procesoId       String                   @db.Uuid @map("proceso_id")
+  proceso         ProcesoMatricula         @relation(fields: [procesoId], references: [id], onDelete: Restrict)
+  /// Grado al que se matricula (la sección la asigna el coordinador).
+  gradoId         String                   @db.Uuid @map("grado_id")
+  grado           Grado                    @relation(fields: [gradoId], references: [id], onDelete: Restrict)
+  estado          EstadoSolicitudMatricula @default(EN_REVISION)
+  creadoPorId     String                   @db.Uuid @map("creado_por_id")
+  creadoPor       Usuario                  @relation("SolicitudCreadaPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  enviadaEn       DateTime                 @default(now()) @db.Timestamptz(3) @map("enviada_en")
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt       DateTime                 @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  documentos      DocumentoMatricula[]
+
+  @@index([estado, enviadaEn])
+  @@map("solicitud_matricula")
+}
+
+/// Bloque M4: documento que subió el apoderado (archivo en platform/archivos, área «matricula») y su revisión.
+model DocumentoMatricula {
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  solicitudId          String                   @db.Uuid @map("solicitud_id")
+  solicitud            SolicitudMatricula       @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  documentoRequeridoId String                   @db.Uuid @map("documento_requerido_id")
+  documentoRequerido   DocumentoRequerido       @relation(fields: [documentoRequeridoId], references: [id], onDelete: Restrict)
+  archivoClave         String                   @map("archivo_clave")
+  nombreArchivo        String                   @map("nombre_archivo")
+  mimeType             String                   @map("mime_type")
+  tamanoBytes          Int                      @map("tamano_bytes")
+  estado               EstadoDocumentoMatricula @default(EN_REVISION)
+  /// Por qué se observó: lo ve el apoderado para reemplazarlo.
+  observacion          String?
+  revisadoPorId        String?                  @db.Uuid @map("revisado_por_id")
+  revisadoPor          Usuario?                 @relation("DocumentoRevisadoPor", fields: [revisadoPorId], references: [id], onDelete: SetNull)
+  revisadoEn           DateTime?                @db.Timestamptz(3) @map("revisado_en")
+  subidoEn             DateTime                 @default(now()) @db.Timestamptz(3) @map("subido_en")
+  createdAt            DateTime                 @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt            DateTime                 @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  @@unique([solicitudId, documentoRequeridoId])
+  @@map("documento_matricula")
 }

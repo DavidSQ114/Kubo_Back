@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import { fechaEnLima } from "@/modules/academico";
+import type { TipoConcepto } from "../domain/cronograma";
 import type { EstadoPago, MedioPago, MotivoAnulacionPago } from "../domain/pagos";
 import type { OrigenPago } from "../domain/pasarela";
 
@@ -25,6 +26,7 @@ const selectCuota = {
   monto: true,
   fechaVencimiento: true,
   estado: true,
+  cuotaOrigenId: true,
   matricula: { select: { estudianteId: true } },
   pagos: {
     where: { operacionPago: { estado: "CONFIRMADO" } },
@@ -38,7 +40,7 @@ export interface CuotaDePago {
   id: string;
   matriculaId: string;
   estudianteId: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   mes: number | null;
   concepto: string;
   monto: string;
@@ -46,6 +48,8 @@ export interface CuotaDePago {
   estado: "PENDIENTE" | "PAGADO" | "ANULADO";
   /** Fecha de pago de la operación confirmada que la canceló. */
   pagadaEl: string | null;
+  /** Bloque M4: en una MORA, la pensión que la originó. */
+  cuotaOrigenId: string | null;
 }
 
 const cuota = (c: CuotaPrisma): CuotaDePago => ({
@@ -59,6 +63,7 @@ const cuota = (c: CuotaPrisma): CuotaDePago => ({
   fechaVencimiento: aTexto(c.fechaVencimiento),
   estado: c.estado,
   pagadaEl: c.pagos[0] ? aTexto(c.pagos[0].operacionPago.fechaPago) : null,
+  cuotaOrigenId: c.cuotaOrigenId,
 });
 
 export const cuotasDePago = {

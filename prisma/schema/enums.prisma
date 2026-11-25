@@ -106,6 +106,12 @@ enum ModalidadPago {
 enum TipoConcepto {
   MATRICULA
   PENSION
+  /// Cuota de ingreso del alumno nuevo en el colegio (bloque M4).
+  INGRESO
+  /// Mora de una pensión vencida (bloque M4); la pensión de origen va en concepto_cobro.cuota_origen_id.
+  MORA
+  /// Cuota extraordinaria de un lote del coordinador (bloque M4).
+  EXTRAORDINARIA
 }
 
 enum EstadoCobro {
@@ -274,4 +280,34 @@ enum OrigenCambioNota {
   REGISTRO
   RECTIFICACION
   ITEMS
+}
+
+/// Bloque M4: a quién se generan las cuotas de un lote extraordinario.
+enum DestinoLote {
+  ALUMNO
+  SECCION
+  GRADO
+  ANIO
+}
+
+/// Bloque M4: un lote anulado ya no tiene cuotas pendientes.
+enum EstadoLote {
+  ACTIVO
+  ANULADO
+}
+
+/// Bloque M4: «Documentos en revisión», «Con observaciones», «Documentos aprobados», «Matriculado» o «Anulada».
+enum EstadoSolicitudMatricula {
+  EN_REVISION
+  OBSERVADA
+  APROBADA
+  MATRICULADA
+  ANULADA
+}
+
+/// Bloque M4: revisión de cada documento subido por el apoderado.
+enum EstadoDocumentoMatricula {
+  EN_REVISION
+  APROBADO
+  OBSERVADO
 }

@@ -1,6 +1,6 @@
 // matricula/domain: reglas puras de los datos de demostración de morosidad (US24, US26, US59) que prepara
 // scripts/demoMorosidad.ts. Solo para datos ficticios (RNF14). Fechas «AAAA-MM-DD» y montos en céntimos enteros.
-import { diaVencimientoValido, generarCronograma, type CuotaCronograma } from "./cronograma";
+import { diaVencimientoValido, generarCronograma, type CuotaCronograma, type TipoConcepto } from "./cronograma";
 import { erroresMatricula as E } from "./errores";
 import { estaVencida } from "./morosidad";
 
@@ -8,7 +8,7 @@ import { estaVencida } from "./morosidad";
 export const FECHA_DEMO_POR_DEFECTO = "2026-09-01";
 
 export interface CuotaExistente {
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   mes: number | null;
   montoCentimos: number;
   fechaVencimiento: string;

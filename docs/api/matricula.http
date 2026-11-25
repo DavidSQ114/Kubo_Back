@@ -364,3 +364,128 @@ POST {{base}}/matricula/apoderado/pagos/intentos
 Content-Type: application/json
 
 { "estudianteId": "{{hijo}}", "conceptoIds": ["{{pensionOctubre}}"] }
+
+# ---------- Bloque M4 · Cuotas de ingreso, mora y extraordinarias ----------
+# Con sesión de coordinador. Los montos de ingreso y mora se guardan con los del año (academico.http).
+@mora = 00000000-0000-0000-0000-000000000000
+@extra = 00000000-0000-0000-0000-000000000000
+@lote = 00000000-0000-0000-0000-000000000000
+@seccionM4 = 00000000-0000-0000-0000-000000000000
+
+### 70. Condonar una mora pendiente → 200 ANULADO (otra vez: 409 MORA_YA_CONDONADA)
+POST {{base}}/matricula/cuotas/{{mora}}/condonar
+Content-Type: application/json
+
+{ "motivo": "Acuerdo con la familia" }
+
+### 71. Vista previa de un lote para una sección → cantidad y total
+POST {{base}}/matricula/extraordinarias/vista-previa
+Content-Type: application/json
+
+{ "anioAcademicoId": "{{anio}}", "concepto": "Paseo de fin de año", "monto": "45.00", "fechaVencimiento": "2026-12-15", "destino": "SECCION", "destinoId": "{{seccionM4}}" }
+
+### 72. Crear el lote → 201 (una cuota por matrícula Matriculado de la sección)
+POST {{base}}/matricula/extraordinarias
+Content-Type: application/json
+
+{ "anioAcademicoId": "{{anio}}", "concepto": "Paseo de fin de año", "monto": "45.00", "fechaVencimiento": "2026-12-15", "destino": "SECCION", "destinoId": "{{seccionM4}}" }
+
+### 73. Lotes del año
+GET {{base}}/matricula/extraordinarias?anioId={{anio}}
+
+### 74. Detalle del lote
+GET {{base}}/matricula/extraordinarias/{{lote}}
+
+### 75. Anular una cuota extraordinaria sin pagar
+POST {{base}}/matricula/cuotas/{{extra}}/anular
+Content-Type: application/json
+
+{ "motivo": "El alumno no asistirá" }
+
+### 76. Anular el lote (las pagadas se conservan)
+POST {{base}}/matricula/extraordinarias/{{lote}}/anular
+Content-Type: application/json
+
+{ "motivo": "Actividad cancelada" }
+
+### 77. Pensión de setiembre sin su mora → 409 MORA_CON_PENSION
+POST {{base}}/matricula/pagos
+Content-Type: application/json
+
+{ "conceptoIds": ["{{pensionSetiembre}}"], "monto": "450", "medioPago": "TRANSFERENCIA", "numeroOperacion": "M4-77", "fechaPago": "2026-11-25" }
+
+# ---------- Bloque M4 · Proceso de matrícula y matrícula en línea ----------
+@solicitud = 00000000-0000-0000-0000-000000000000
+@documento = 00000000-0000-0000-0000-000000000000
+@documentoRequerido = 00000000-0000-0000-0000-000000000000
+
+### 80. Proceso de matrícula del año
+GET {{base}}/matricula/procesos/{{anio}}
+
+### 81. Guardar fechas y documentos requeridos
+PUT {{base}}/matricula/procesos/{{anio}}
+Content-Type: application/json
+
+{
+  "fechaInicio": "2026-11-20",
+  "fechaFin": "2027-02-28",
+  "documentos": [
+    { "nombre": "Partida de nacimiento", "obligatorio": true },
+    { "nombre": "DNI del alumno", "obligatorio": true },
+    { "nombre": "Libreta del año anterior", "obligatorio": true },
+    { "nombre": "Constancia de no adeudo", "obligatorio": false }
+  ]
+}
+
+### 82. Con sesión de apoderado: proceso, grados y situación de cada hijo
+GET {{base}}/matricula/apoderado/matricula
+
+### 83. Con sesión de apoderado: matricular al hijo (un archivo por documento requerido)
+POST {{base}}/matricula/apoderado/hijos/{{hijo}}/matricula
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="gradoId"
+
+00000000-0000-0000-0000-000000000000
+--kubo
+Content-Disposition: form-data; name="vinculoResponsableId"
+
+00000000-0000-0000-0000-000000000000
+--kubo
+Content-Disposition: form-data; name="confirmaDatos"
+
+true
+--kubo
+Content-Disposition: form-data; name="documento:{{documentoRequerido}}"; filename="partida.pdf"
+Content-Type: application/pdf
+
+< ./partida-de-prueba.pdf
+--kubo--
+
+### 84. Con sesión de coordinador: bandeja de solicitudes en revisión
+GET {{base}}/matricula/solicitudes?anioId={{anio}}&estado=EN_REVISION
+
+### 85. Detalle de la solicitud
+GET {{base}}/matricula/solicitudes/{{solicitud}}
+
+### 86. Observar un documento (el apoderado lo reemplaza)
+POST {{base}}/matricula/solicitudes/{{solicitud}}/documentos/{{documento}}/revisar
+Content-Type: application/json
+
+{ "decision": "OBSERVAR", "observacion": "La imagen no se lee; sube una foto más nítida." }
+
+### 87. Aprobar un documento
+POST {{base}}/matricula/solicitudes/{{solicitud}}/documentos/{{documento}}/revisar
+Content-Type: application/json
+
+{ "decision": "APROBAR" }
+
+### 88. Abrir el archivo (coordinador o apoderado del alumno; otro apoderado: 403)
+GET {{base}}/matricula/solicitudes/{{solicitud}}/documentos/{{documento}}/archivo
+
+### 89. Asignar la sección con todos los obligatorios aprobados → Matriculado con cronograma
+POST {{base}}/matricula/solicitudes/{{solicitud}}/asignar-seccion
+Content-Type: application/json
+
+{ "seccionId": "{{seccionM4}}", "modalidadPago": "MENSUAL" }

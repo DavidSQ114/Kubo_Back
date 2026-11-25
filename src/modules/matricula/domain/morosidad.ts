@@ -11,10 +11,26 @@ export type OrdenMorosidad = (typeof ORDENES_MOROSIDAD)[number];
 export const estaVencida = (c: { estado: string; fechaVencimiento: string }, hoy: string) =>
   c.estado === "PENDIENTE" && c.fechaVencimiento < hoy;
 
-/** «Matr.», «Ago», «Set»: lo que se adeuda, en el orden de vencimiento. */
+/** Etiqueta de las cuotas que no son pensión (bloque M4: ingreso, mora y extraordinaria). */
+const ETIQUETA_POR_TIPO: Record<string, (mes: number | null) => string> = {
+  MATRICULA: () => "Matr.",
+  INGRESO: () => "Ingr.",
+  MORA: (mes) => (mes ? `Mora ${MESES_CORTOS[mes - 1]}` : "Mora"),
+  EXTRAORDINARIA: () => "Extr.",
+};
+
+/** «Matr.», «Ago», «Set», «Mora Ago»: lo que se adeuda, en el orden de vencimiento. */
 export function etiquetasAdeudadas(cuotas: { tipo: string; mes: number | null }[]): string[] {
-  return cuotas.map((c) => (c.tipo === "MATRICULA" || c.mes == null ? "Matr." : MESES_CORTOS[c.mes - 1]));
+  return cuotas.map((c) =>
+    ETIQUETA_POR_TIPO[c.tipo] ? ETIQUETA_POR_TIPO[c.tipo](c.mes) : c.mes == null ? "Matr." : MESES_CORTOS[c.mes - 1],
+  );
 }
+
+/**
+ * Cuotas vencidas que cuentan para el filtro «Meses adeudados» y el orden por meses: todas menos las moras, que
+ * acompañan a su pensión (bloque M4).
+ */
+export const cuotasVencidasSinMora = (tipos: string[]) => tipos.filter((t) => t !== "MORA").length;
 
 /** Meses adeudados: las pensiones vencidas (la cuota de matrícula se cuenta aparte, como cuota vencida). */
 export const mesesAdeudados = (cuotas: { tipo: string }[]) => cuotas.filter((c) => c.tipo === "PENSION").length;

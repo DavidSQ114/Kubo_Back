@@ -4,9 +4,11 @@ import { prisma } from "@/platform/db/prisma";
 import { esDuplicado } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { obtenerParametro } from "@/platform/config/parametros";
+import { registrarAvisos } from "@/platform/notificaciones";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import {
   aCentimos,
+  aCentimosOCero,
   deCentimos,
   fechaEnLima,
   listarGrados,
@@ -29,6 +31,7 @@ import {
 } from "../domain/cronograma";
 import { erroresMatricula as E } from "../domain/errores";
 import {
+  esAlumnoNuevo,
   textoMotivoAnulacion,
   verificarAnioMatriculable,
   verificarAnulable,
@@ -40,7 +43,10 @@ import {
   type ModalidadPago,
   type MotivoAnulacionMatricula,
 } from "../domain/matriculas";
+import { verificarListaParaAsignar, verificarSolicitudAbierta } from "../domain/solicitudes";
+import { procesos } from "../infrastructure/proceso";
 import { contarPagosVigentes, cuotas, historial, matriculas, type MatriculaFila } from "../infrastructure/repositorio";
+import { solicitudes } from "../infrastructure/solicitudes";
 
 const etiquetaSeccion = (s: Pick<SeccionVista, "nombre" | "grado">) => `${s.grado.numero}° ${s.nombre}`;
 
@@ -54,24 +60,39 @@ function vistaCronograma(lista: CuotaCronograma[]) {
   };
 }
 
+interface MontosCentimos {
+  matricula: number;
+  pension: number;
+  /** Cuota de ingreso del alumno nuevo (0: el año no la cobra). */
+  ingreso: number;
+}
+
 /** Montos del año en céntimos; sin montos el año no admite matrículas (422 SIN_MONTOS). */
 async function montosParaMatricular(anioAcademicoId: string) {
   const m = await montosDelAnio(anioAcademicoId);
   if (!m.montoMatricula || !m.montoPension) throw E.sinMontos(m.anio);
-  return { anio: m.anio, matricula: aCentimos(m.montoMatricula), pension: aCentimos(m.montoPension) };
+  return {
+    anio: m.anio,
+    matricula: aCentimos(m.montoMatricula),
+    pension: aCentimos(m.montoPension),
+    ingreso: aCentimosOCero(m.montoIngreso ?? "0"),
+  };
 }
 
 function cronogramaPara(
   anio: number,
   fechaMatricula: string,
-  montos: { matricula: number; pension: number },
+  montos: MontosCentimos,
   dia: unknown,
+  alumnoNuevo: boolean,
 ) {
   return generarCronograma({
     anio,
     fechaMatricula,
     montoMatriculaCentimos: montos.matricula,
     montoPensionCentimos: montos.pension,
+    montoIngresoCentimos: montos.ingreso,
+    esAlumnoNuevo: alumnoNuevo,
     diaVencimiento: dia == null ? undefined : Number(dia),
   });
 }
@@ -91,6 +112,7 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
   ]);
   if (!estudiante?.activo) throw E.estudianteNoEncontrado();
   const vigente = await matriculas.vigente(estudianteId, anioAcademicoId);
+  const alumnoNuevo = esAlumnoNuevo(await matriculas.otrasDelEstudiante(estudianteId, vigente?.id ?? null));
   const hoy = fechaEnLima(new Date());
   const previsto =
     montos.montoMatricula && montos.montoPension
@@ -98,8 +120,13 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
           cronogramaPara(
             anio.anio,
             hoy,
-            { matricula: aCentimos(montos.montoMatricula), pension: aCentimos(montos.montoPension) },
+            {
+              matricula: aCentimos(montos.montoMatricula),
+              pension: aCentimos(montos.montoPension),
+              ingreso: aCentimosOCero(montos.montoIngreso ?? "0"),
+            },
             dia,
+            alumnoNuevo,
           ),
         )
       : null;
@@ -114,7 +141,12 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
       modalidadPago: vigente.modalidadPago,
       fechaMatricula: vigente.fechaMatricula,
     },
-    montos: { montoMatricula: montos.montoMatricula, montoPension: montos.montoPension },
+    montos: {
+      montoMatricula: montos.montoMatricula,
+      montoPension: montos.montoPension,
+      montoIngreso: montos.montoIngreso,
+    },
+    esAlumnoNuevo: alumnoNuevo,
     cronogramaPrevisto: previsto,
   };
 }
@@ -162,6 +194,16 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
 
       const vigente = await matriculas.vigenteBloqueada(tx, datos.estudianteId, anio.id);
       const accion = verificarConfirmable(vigente);
+      // bloque M4: si el apoderado la pidió en línea, sus documentos obligatorios deben estar aprobados
+      const solicitud = accion === "CONFIRMAR" ? await solicitudes.deMatricula(vigente!.id, tx) : null;
+      if (solicitud) {
+        verificarSolicitudAbierta(solicitud.estado);
+        verificarListaParaAsignar(await procesos.documentosActivos(solicitud.procesoId, tx), solicitud.documentos);
+        if (seccion.grado.id !== solicitud.gradoId) {
+          const grado = (await listarGrados()).find((g) => g.id === solicitud.gradoId);
+          throw E.seccionOtroGrado(grado?.nombre ?? "el grado pedido");
+        }
+      }
       // la vacante se valida recién aquí: las matrículas En proceso no la reservan
       verificarCupo(await matriculas.contarMatriculados(seccion.id, tx), seccion.aforoMaximo);
 
@@ -192,7 +234,11 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
         tx,
       );
 
-      const cronograma = cronogramaPara(anio.anio, fechaMatricula, montos, dia);
+      const alumnoNuevo = esAlumnoNuevo(
+        // la matrícula que se acaba de confirmar o crear no cuenta como anterior
+        await matriculas.otrasDelEstudiante(datos.estudianteId, id, tx),
+      );
+      const cronograma = cronogramaPara(anio.anio, fechaMatricula, montos, dia, alumnoNuevo);
       await cuotas.crear(id, cronograma, tx);
 
       await registrarAuditoria(
@@ -216,6 +262,22 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
         },
         meta,
       );
+      if (solicitud) {
+        await solicitudes.cambiarEstado(tx, solicitud.id, "MATRICULADA");
+        await registrarAvisos(tx, {
+          notificaciones: [
+            {
+              usuarioId: solicitud.creadoPorId,
+              tipo: "SISTEMA",
+              titulo: "Matrícula confirmada",
+              mensaje: `${estudiante.nombreCompleto} · ${anio.anio} · sección ${seccion.grado.numero}° ${seccion.nombre}. Ya puedes ver su cronograma en «Pagos».`,
+              enlace: "/apoderado/matricula",
+            },
+          ],
+          correos: [],
+          origen: { entidad: "solicitud_matricula", id: solicitud.id },
+        });
+      }
       const resumen = vistaCronograma(cronograma);
       await registrarAuditoria(
         tx,
@@ -231,6 +293,7 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
             pensiones: resumen.pensiones,
             montoMatricula: deCentimos(montos.matricula),
             montoPension: deCentimos(montos.pension),
+            cuotaIngreso: cronograma.some((c) => c.tipo === "INGRESO") ? deCentimos(montos.ingreso) : null,
           },
         },
         meta,
@@ -265,6 +328,9 @@ export async function anularMatricula(
     const ahora = new Date();
     const motivo = textoMotivoAnulacion(datos.motivo, datos.detalle);
     const cuotasAnuladas = await cuotas.anularPendientes(matriculaId, tx);
+    // bloque M4: la solicitud del apoderado, si la había, queda anulada con la matrícula
+    const solicitud = await solicitudes.deMatricula(matriculaId, tx);
+    if (solicitud) await solicitudes.cambiarEstado(tx, solicitud.id, "ANULADA");
     await matriculas.anular(
       matriculaId,
       { anuladoPorId: admin.usuarioId, anuladoEn: ahora, motivoAnulacion: motivo },

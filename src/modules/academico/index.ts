@@ -13,7 +13,7 @@ export {
   type RolTutoria,
 } from "./domain/secciones";
 export { tutoriaDelDocente, misTutorias, type TutoriaDelDocente } from "./application/tutoria";
-export { aCentimos, deCentimos, type MontosAnio } from "./domain/montos";
+export { aCentimos, aCentimosOCero, deCentimos, type MontosAnio } from "./domain/montos";
 export { anioPorDefecto, fechaEnLima } from "./domain/reglas";
 export { montosDelAnio, guardarMontos, seccionBloqueadaParaMatricula } from "./application/montos";
 export { ESTADOS_CURSO, verificarCompetenciasConfiguradas, type EstadoCurso } from "./domain/cursos";

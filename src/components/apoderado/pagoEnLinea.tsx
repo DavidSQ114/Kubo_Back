@@ -15,7 +15,6 @@ import {
   AYUDA_ORDEN_CUOTAS,
   cuotaEnRevision,
   cuotasElegibles,
-  esFija,
   ordenarParaPago,
   puedeMarcarse,
   seleccionEnOrden,
@@ -130,7 +129,7 @@ function ModalPagarEnLinea({ datos, onCerrar }: { datos: PagosDelHijo; onCerrar:
             <Casilla
               etiqueta={`${c.concepto} · vence el ${fechaDia(c.fechaVencimiento)}`}
               checked={elegidas.has(c.cuotaId)}
-              deshabilitada={esFija(c) || (!elegidas.has(c.cuotaId) && !puedeMarcarse(orden, elegidas, c.cuotaId))}
+              deshabilitada={!elegidas.has(c.cuotaId) && !puedeMarcarse(orden, elegidas, c.cuotaId)}
               onChange={(v) => alternar(c.cuotaId, v)}
             />
             <span className="flex items-center gap-2 text-[14px] whitespace-nowrap text-texto">

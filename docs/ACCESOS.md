@@ -238,12 +238,22 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | PUT | `/api/v1/matricula/apoderado/hijo-elegido` | Apoderado |
 | GET | `/api/v1/matricula/apoderado/hijos` | Apoderado |
 | GET | `/api/v1/matricula/apoderado/hijos/{id}/cuotas/{cuotaId}/comprobante` | Apoderado |
+| POST | `/api/v1/matricula/apoderado/hijos/{id}/matricula` | Apoderado |
+| POST | `/api/v1/matricula/apoderado/hijos/{id}/matricula/documentos/{documentoId}` | Apoderado |
 | GET | `/api/v1/matricula/apoderado/hijos/{id}/pagos` | Apoderado |
+| GET | `/api/v1/matricula/apoderado/matricula` | Apoderado |
 | POST | `/api/v1/matricula/apoderado/pagos/intentos` | Apoderado |
 | GET | `/api/v1/matricula/apoderado/pagos/intentos/{id}` | Apoderado |
 | POST | `/api/v1/matricula/apoderado/pagos/intentos/{id}/simular` | Apoderado |
+| POST | `/api/v1/matricula/cuotas/{id}/anular` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| POST | `/api/v1/matricula/cuotas/{id}/condonar` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | GET | `/api/v1/matricula/estudiantes/{id}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | GET | `/api/v1/matricula/estudiantes/{id}/estado-cuenta` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/extraordinarias` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| POST | `/api/v1/matricula/extraordinarias` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| POST | `/api/v1/matricula/extraordinarias/vista-previa` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/extraordinarias/{id}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| POST | `/api/v1/matricula/extraordinarias/{id}/anular` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | GET | `/api/v1/matricula/matriculas` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | POST | `/api/v1/matricula/matriculas` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | GET | `/api/v1/matricula/matriculas/{id}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
@@ -262,6 +272,13 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | POST | `/api/v1/matricula/pagos/{id}/confirmar` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | POST | `/api/v1/matricula/pagos/{id}/descartar` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 | POST | `/api/v1/matricula/pagos/{id}/devolver` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/procesos/{anioId}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| PUT | `/api/v1/matricula/procesos/{anioId}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/solicitudes` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/solicitudes/{id}` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| POST | `/api/v1/matricula/solicitudes/{id}/asignar-seccion` | Coordinador (`ROLES_MATRICULA.GESTION`) |
+| GET | `/api/v1/matricula/solicitudes/{id}/documentos/{documentoId}/archivo` | Coordinador o Apoderado vinculado al alumno (403 `ESTUDIANTE_NO_VINCULADO`) |
+| POST | `/api/v1/matricula/solicitudes/{id}/documentos/{documentoId}/revisar` | Coordinador (`ROLES_MATRICULA.GESTION`) |
 
 ## notificaciones
 

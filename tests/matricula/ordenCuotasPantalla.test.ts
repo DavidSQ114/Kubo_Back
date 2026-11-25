@@ -1,4 +1,5 @@
-// Pruebas de la selección de cuotas en orden en AD-11 (M-01) y en el modal «Pagar en línea» de AP-02 (D-14).
+// Pruebas de la selección de cuotas en orden en AD-11 (M-01) y en el modal «Pagar en línea» de AP-02 (D-14),
+// con la cuota de ingreso, la mora y las cuotas extraordinarias del bloque M4.
 // Ejecutar: npm test
 import { describe, expect, it } from "vitest";
 import {
@@ -6,19 +7,19 @@ import {
   avisoEnRevision,
   cuotaEnRevision,
   cuotasElegibles,
-  esFija,
   ordenarParaPago,
   puedeMarcarse,
   seleccionEnOrden,
   type CuotaOrdenable,
 } from "@/lib/ordenCuotas";
 
-const cuota = (id: string, tipo: CuotaOrdenable["tipo"], fechaVencimiento: string, pagable = true) => ({
-  id,
-  tipo,
-  fechaVencimiento,
-  pagable,
-});
+const cuota = (
+  id: string,
+  tipo: CuotaOrdenable["tipo"],
+  fechaVencimiento: string,
+  pagable = true,
+  cuotaOrigenId: string | null = null,
+) => ({ id, tipo, fechaVencimiento, pagable, cuotaOrigenId });
 
 // llegan desordenadas a propósito
 const orden = ordenarParaPago([
@@ -34,11 +35,10 @@ describe("selección de cuotas en orden en la pantalla (D-14, AD-11, AP-02)", ()
     expect(orden.map((c) => c.id)).toEqual(["matricula", "setiembre", "octubre", "noviembre"]);
   });
 
-  it("marca la matrícula pendiente y fija aunque no se pida", () => {
+  it("marca la matrícula pendiente aunque no se pida; al desmarcarla se desmarcan las pensiones", () => {
     const elegidas = seleccionEnOrden(orden, []);
     expect(ids(elegidas)).toEqual(["matricula"]);
-    expect(esFija(orden[0])).toBe(true);
-    expect(alternarEnOrden(orden, elegidas, "matricula", false)).toBe(elegidas);
+    expect(ids(alternarEnOrden(orden, seleccionEnOrden(orden, ["octubre"]), "matricula", false))).toEqual([]);
   });
 
   it("al pedir una pensión marca también las anteriores", () => {
@@ -92,5 +92,66 @@ describe("selección de cuotas en orden en la pantalla (D-14, AD-11, AP-02)", ()
   it("sin cuotas en revisión no hay aviso y todas son elegibles", () => {
     expect(cuotaEnRevision(orden)).toBeNull();
     expect(cuotasElegibles(orden)).toHaveLength(orden.length);
+  });
+});
+
+describe("selección con cuota de ingreso, mora y extraordinarias (bloque M4)", () => {
+  const conM4 = ordenarParaPago([
+    cuota("extra", "EXTRAORDINARIA", "2026-10-15"),
+    cuota("moraSet", "MORA", "2026-09-10", true, "setiembre"),
+    cuota("octubre", "PENSION", "2026-10-05"),
+    cuota("setiembre", "PENSION", "2026-09-05"),
+    cuota("ingreso", "INGRESO", "2026-03-01"),
+    cuota("matricula", "MATRICULA", "2026-03-01"),
+    cuota("moraHuerfana", "MORA", "2026-08-10", true, "agosto"),
+  ]);
+
+  it("ordena matrícula, ingreso, cada pensión con su mora y al final las libres", () => {
+    expect(conM4.map((c) => c.id)).toEqual([
+      "matricula",
+      "ingreso",
+      "setiembre",
+      "moraSet",
+      "octubre",
+      "moraHuerfana",
+      "extra",
+    ]);
+  });
+
+  it("la matrícula y la cuota de ingreso se marcan y desmarcan juntas", () => {
+    expect(ids(seleccionEnOrden(conM4, []))).toEqual(["ingreso", "matricula"]);
+    expect(ids(alternarEnOrden(conM4, new Set(), "ingreso", true))).toEqual(["ingreso", "matricula"]);
+    expect(ids(alternarEnOrden(conM4, new Set(["ingreso", "matricula"]), "matricula", false))).toEqual([]);
+  });
+
+  it("marcar una pensión marca su mora, y desmarcar la mora desmarca la pensión y las posteriores", () => {
+    const inicio = seleccionEnOrden(conM4, []);
+    const conSetiembre = alternarEnOrden(conM4, inicio, "setiembre", true);
+    expect(ids(conSetiembre)).toEqual(["ingreso", "matricula", "moraSet", "setiembre"]);
+    const conOctubre = alternarEnOrden(conM4, conSetiembre, "octubre", true);
+    expect(ids(alternarEnOrden(conM4, conOctubre, "moraSet", false))).toEqual(["ingreso", "matricula"]);
+  });
+
+  it("una extraordinaria o una mora sin pensión pendiente se marcan solas, sin la matrícula", () => {
+    expect(puedeMarcarse(conM4, new Set(), "extra")).toBe(true);
+    expect(ids(alternarEnOrden(conM4, new Set(), "extra", true))).toEqual(["extra"]);
+    expect(ids(alternarEnOrden(conM4, new Set(), "moraHuerfana", true))).toEqual(["moraHuerfana"]);
+    expect(puedeMarcarse(conM4, new Set(), "setiembre")).toBe(false);
+  });
+
+  it("al pedir una extraordinaria se marca junto con el inicio, y desmarcar el inicio no la quita", () => {
+    const elegidas = seleccionEnOrden(conM4, ["extra"]);
+    expect(ids(elegidas)).toEqual(["extra", "ingreso", "matricula"]);
+    expect(ids(alternarEnOrden(conM4, elegidas, "matricula", false))).toEqual(["extra"]);
+  });
+
+  it("una extraordinaria en revisión no bloquea la cadena", () => {
+    const conRevision = ordenarParaPago([
+      cuota("matricula", "MATRICULA", "2026-03-01"),
+      cuota("setiembre", "PENSION", "2026-09-05"),
+      cuota("extra", "EXTRAORDINARIA", "2026-08-01", false),
+    ]);
+    expect(cuotaEnRevision(conRevision)).toBeNull();
+    expect(cuotasElegibles(conRevision).map((c) => c.id)).toEqual(["matricula", "setiembre"]);
   });
 });

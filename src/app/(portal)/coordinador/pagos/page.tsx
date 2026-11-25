@@ -12,12 +12,14 @@ import { soles } from "@/components/admin/matricula";
 import {
   BotonRecibo,
   LogPagos,
+  ModalAnularCuota,
   ModalAnularPago,
   ModalDevolucion,
   ModalPagoAnual,
   ModalRegistrarPago,
   TablaCronogramaPagos,
   TablaOperaciones,
+  type CuotaCuenta,
   type EstadoCuenta,
   type OperacionPago,
   type ResultadoPago,
@@ -54,6 +56,7 @@ function PaginaPagos() {
   const [registrando, setRegistrando] = useState<string[] | null>(null);
   const [anulando, setAnulando] = useState<OperacionPago | null>(null);
   const [devolviendo, setDevolviendo] = useState<OperacionPago | null>(null);
+  const [anulandoCuota, setAnulandoCuota] = useState<CuotaCuenta | null>(null);
   const [pagoAnual, setPagoAnual] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [exito, setExito] = useState<AvisoExito | null>(null);
@@ -303,7 +306,7 @@ function PaginaPagos() {
               <div>
                 <h2 className="text-[18px] font-semibold text-texto">{`Cronograma de pensiones ${actual.matricula.anio.anio}`}</h2>
                 <p className="text-[13px] text-texto-3">
-                  Matrícula (pago único) y pensiones que vencen según el cronograma del año
+                  Matrícula y cuota de ingreso (pago único), pensiones con su mora si vencieron y cuotas extraordinarias
                 </p>
               </div>
               {actual.totales && actual.totales.cuotasVencidas > 0 && (
@@ -317,6 +320,7 @@ function PaginaPagos() {
               <TablaCronogramaPagos
                 cuenta={actual}
                 onRegistrar={(id) => setRegistrando([id])}
+                onAnularCuota={setAnulandoCuota}
                 onError={setErrorAccion}
               />
             ) : (
@@ -400,6 +404,23 @@ function PaginaPagos() {
             });
             setAviso(null);
             setAnulando(null);
+            setRecarga((n) => n + 1);
+          }}
+        />
+      )}
+      {anulandoCuota && actual && (
+        <ModalAnularCuota
+          cuota={anulandoCuota}
+          estudiante={`${actual.estudiante.nombreCompleto}${actual.matricula?.seccion ? ` · ${actual.matricula.seccion}` : ""}`}
+          onCerrar={() => setAnulandoCuota(null)}
+          onAnulada={() => {
+            setExito({
+              titulo: anulandoCuota.tipo === "MORA" ? "Mora condonada" : "Cuota anulada",
+              detalle: `«${anulandoCuota.concepto}» quedó «Anulado» y ya no forma parte de la deuda.`,
+              recibo: null,
+            });
+            setAviso(null);
+            setAnulandoCuota(null);
             setRecarga((n) => n + 1);
           }}
         />

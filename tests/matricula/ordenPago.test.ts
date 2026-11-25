@@ -96,3 +96,73 @@ describe("orden de pago: pensiones por vencimiento (D-14)", () => {
     expect(() => verificarOrdenDePago(["otra-matricula"], cronograma(), ANIO)).not.toThrow();
   });
 });
+
+describe("orden de pago con cuota de ingreso, mora y extraordinarias (bloque M4)", () => {
+  const ingreso = cuota("ingreso", "INGRESO", "2026-03-01");
+  const mora = (id: string, pension: string, estado: CuotaParaOrden["estado"] = "PENDIENTE"): CuotaParaOrden => ({
+    ...cuota(id, "MORA", "2026-10-06", estado),
+    concepto: `Mora de la pensión ${pension}`,
+    cuotaOrigenId: pension,
+  });
+  const extra = cuota("extra", "EXTRAORDINARIA", "2026-10-20");
+
+  it("la matrícula y la cuota de ingreso van juntas: sin la otra responde 409 INGRESO_CON_MATRICULA", () => {
+    const cuotas = [...cronograma(), ingreso];
+    const e = error(() => verificarOrdenDePago(["matricula"], cuotas, ANIO));
+    expect(e.codigo).toBe("INGRESO_CON_MATRICULA");
+    expect(e.estadoHttp).toBe(409);
+    expect(error(() => verificarOrdenDePago(["ingreso"], cuotas, ANIO)).codigo).toBe("INGRESO_CON_MATRICULA");
+    expect(() => verificarOrdenDePago(["matricula", "ingreso"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("con la cuota de ingreso pendiente no se paga una pensión (MATRICULA_PENDIENTE)", () => {
+    const cuotas = [...cronograma("PAGADO"), ingreso];
+    const e = error(() => verificarOrdenDePago(["setiembre"], cuotas, ANIO));
+    expect(e.codigo).toBe("MATRICULA_PENDIENTE");
+    expect(e.message).toContain("cuota de ingreso");
+    expect(() => verificarOrdenDePago(["ingreso", "setiembre"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("la mora va en la misma operación que su pensión, y la pensión con su mora (MORA_CON_PENSION)", () => {
+    const cuotas = [...cronograma("PAGADO"), mora("moraSet", "setiembre")];
+    expect(error(() => verificarOrdenDePago(["setiembre"], cuotas, ANIO)).codigo).toBe("MORA_CON_PENSION");
+    expect(error(() => verificarOrdenDePago(["moraSet"], cuotas, ANIO)).codigo).toBe("MORA_CON_PENSION");
+    expect(() => verificarOrdenDePago(["setiembre", "moraSet"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("una mora condonada no se exige con su pensión", () => {
+    const cuotas = [...cronograma("PAGADO"), mora("moraSet", "setiembre", "ANULADO")];
+    expect(() => verificarOrdenDePago(["setiembre"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("si la pensión ya no está pendiente, la mora se paga sola", () => {
+    const cuotas = [
+      ...cronograma("PAGADO").map((c) => (c.id === "setiembre" ? { ...c, estado: "ANULADO" as const } : c)),
+      mora("moraSet", "setiembre"),
+    ];
+    expect(() => verificarOrdenDePago(["moraSet"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("las pensiones siguen en orden aunque cada una lleve su mora", () => {
+    const cuotas = [...cronograma("PAGADO"), mora("moraSet", "setiembre"), mora("moraOct", "octubre")];
+    const e = error(() => verificarOrdenDePago(["octubre", "moraOct"], cuotas, ANIO));
+    expect(e.codigo).toBe("CUOTAS_ANTERIORES_PENDIENTES");
+    expect(() => verificarOrdenDePago(["setiembre", "moraSet", "octubre", "moraOct"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("una extraordinaria se paga cuando se quiera, aunque la matrícula esté pendiente", () => {
+    const cuotas = [...cronograma(), ingreso, extra];
+    expect(() => verificarOrdenDePago(["extra"], cuotas, ANIO)).not.toThrow();
+  });
+
+  it("el pago anual con todas las pendientes (moras y extraordinarias incluidas) cumple el orden (US58)", () => {
+    const cuotas = [...cronograma(), ingreso, mora("moraSet", "setiembre"), extra];
+    expect(() =>
+      verificarOrdenDePago(
+        cuotas.map((c) => c.id),
+        cuotas,
+        ANIO,
+      ),
+    ).not.toThrow();
+  });
+});

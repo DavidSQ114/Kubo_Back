@@ -6,14 +6,17 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Icono, Spinner } from "@/components/ui";
 import { api, descargar } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
+import type { TipoCuota } from "@/lib/ordenCuotas";
 import { mensajeError } from "./PortalApoderado";
 
 export type EstadoCuota = "PAGADO" | "PENDIENTE" | "VENCIDO" | "ANULADO";
 
 export interface CuotaPortal {
   cuotaId: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoCuota;
   mes: number | null;
+  /** Bloque M4: en una MORA, la pensión que la originó. */
+  cuotaOrigenId: string | null;
   concepto: string;
   monto: string;
   fechaVencimiento: string;
@@ -111,8 +114,16 @@ const MESES = [
   "diciembre",
 ];
 
-/** «Matrícula», «setiembre». */
-const nombreCorto = (c: CuotaPortal) => (c.tipo === "MATRICULA" || c.mes == null ? "Matrícula" : MESES[c.mes - 1]);
+/** Bloque M4: nombre corto de las cuotas que no son pensión. */
+const NOMBRE_CORTO: Partial<Record<TipoCuota, (c: CuotaPortal) => string>> = {
+  MATRICULA: () => "Matrícula",
+  INGRESO: () => "cuota de ingreso",
+  MORA: (c) => (c.mes ? `mora de ${MESES[c.mes - 1]}` : "mora"),
+  EXTRAORDINARIA: (c) => c.concepto,
+};
+
+/** «Matrícula», «setiembre», «mora de setiembre». */
+const nombreCorto = (c: CuotaPortal) => NOMBRE_CORTO[c.tipo]?.(c) ?? (c.mes == null ? "Matrícula" : MESES[c.mes - 1]);
 const mayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
 /** «Setiembre», «Matrícula y octubre», «Octubre a diciembre» si son seguidas (en orden de vencimiento). */
@@ -304,6 +315,8 @@ export function TablaCronograma({ datos }: { datos: PagosDelHijo }) {
   const [verAnuladas, setVerAnuladas] = useState(false);
   const filas = filtro === "TODOS" ? datos.cuotas : datos.cuotas.filter((c) => c.estado === filtro);
   const pensiones = datos.cuotas.filter((c) => c.tipo === "PENSION").length;
+  // bloque M4: cuota de ingreso, moras y cuotas extraordinarias
+  const otras = datos.cuotas.filter((c) => c.tipo !== "PENSION" && c.tipo !== "MATRICULA").length;
   const ejemplo = `Recibo_Marzo${datos.matricula.anio}_${nombreParaArchivo(datos.estudiante)}.pdf`;
 
   return (
@@ -315,6 +328,7 @@ export function TablaCronograma({ datos }: { datos: PagosDelHijo }) {
             Año académico {datos.matricula.anio}
             {datos.matricula.seccion ? ` · ${datos.matricula.seccion}` : ""} · matrícula y{" "}
             {pensiones === 1 ? "1 pensión" : `${pensiones} pensiones`}
+            {otras ? ` · ${otras === 1 ? "1 cuota adicional" : `${otras} cuotas adicionales`}` : ""}
           </p>
         </div>
         <label className="flex flex-col gap-1 text-[13px] text-texto-2">
