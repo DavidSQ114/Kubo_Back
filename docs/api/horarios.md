@@ -1,7 +1,9 @@
 # API · Horarios: cuadrícula por sección, asignación de clases, cruces, publicación (US27–US31), horario en los portales (US34, US48, US50), asistencia de alumnos (US35, US36, US45, US52) y asistencia docente (US32)
 
+> **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
+
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/admin/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http). El horario en los portales del docente, del apoderado y del alumno (DO-02, AP-05, AL-02) está en [frontend-portales-horario.md](../frontend-portales-horario.md), con sus casos en [pruebas/casos-sprint3-portales-horario.md](../pruebas/casos-sprint3-portales-horario.md).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-13 (`/coordinador/horarios`) y modal M-06; ver [frontend-horarios.md](../frontend-horarios.md). Casos de prueba en [pruebas/casos-sprint3-horarios.md](../pruebas/casos-sprint3-horarios.md) y ejemplos en [horarios.http](horarios.http). El horario en los portales del docente, del apoderado y del alumno (DO-02, AP-05, AL-02) está en [frontend-portales-horario.md](../frontend-portales-horario.md), con sus casos en [pruebas/casos-sprint3-portales-horario.md](../pruebas/casos-sprint3-portales-horario.md).
 
 La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
@@ -15,14 +17,14 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
 
 | Método y ruta | Rol | Cuerpo | Respuesta `data` |
 |---|---|---|---|
-| `GET /horarios/secciones/{id}?version=` | Administrador | — | `Cuadricula` de la versión vigente (el borrador en edición o, si no hay, la publicada) o de la versión pedida |
-| `GET /horarios/secciones/{id}/ocupacion?dia=&bloqueId=` | Administrador | — | `Ocupacion`: docentes y aulas que **otras** secciones ocupan en ese día y bloque |
-| `PUT /horarios/secciones/{id}/clases/{dia}/{bloqueId}` | Administrador | `{ cursoId, docenteId, aulaId }` | `Cuadricula` con la clase asignada o cambiada |
-| `DELETE /horarios/secciones/{id}/clases/{dia}/{bloqueId}` | Administrador | — | `Cuadricula` con el bloque vacío |
-| `POST /horarios/secciones/{id}/borrador` | Administrador | — | `201 Cuadricula` del borrador (nuevo o el que ya existía) |
-| `POST /horarios/secciones/{id}/publicar` | Administrador | — | `Cuadricula` publicada + `aviso: { docentes, enviados }` |
-| `GET /horarios/secciones/{id}/publicado` | Administrador | — | `HorarioDeSeccion`: solo la versión publicada |
-| `GET /horarios/docentes/{id}/publicado?anioId=` | Administrador | — | `HorarioDeDocente` |
+| `GET /horarios/secciones/{id}?version=` | Coordinador | — | `Cuadricula` de la versión vigente (el borrador en edición o, si no hay, la publicada) o de la versión pedida |
+| `GET /horarios/secciones/{id}/ocupacion?dia=&bloqueId=` | Coordinador | — | `Ocupacion`: docentes y aulas que **otras** secciones ocupan en ese día y bloque |
+| `PUT /horarios/secciones/{id}/clases/{dia}/{bloqueId}` | Coordinador | `{ cursoId, docenteId, aulaId }` | `Cuadricula` con la clase asignada o cambiada |
+| `DELETE /horarios/secciones/{id}/clases/{dia}/{bloqueId}` | Coordinador | — | `Cuadricula` con el bloque vacío |
+| `POST /horarios/secciones/{id}/borrador` | Coordinador | — | `201 Cuadricula` del borrador (nuevo o el que ya existía) |
+| `POST /horarios/secciones/{id}/publicar` | Coordinador | — | `Cuadricula` publicada + `aviso: { docentes, enviados }` |
+| `GET /horarios/secciones/{id}/publicado` | Coordinador | — | `HorarioDeSeccion`: solo la versión publicada |
+| `GET /horarios/docentes/{id}/publicado?anioId=` | Coordinador | — | `HorarioDeDocente` |
 | `GET /horarios/mi-horario?anioId=` | Docente | — | `HorarioDeDocente` del docente en sesión (US34) |
 | `GET /horarios/apoderado/hijos/{id}/horario` | Apoderado | — | `HorarioDeEstudiante` del hijo, si está vinculado (US48) |
 | `GET /horarios/alumno/horario` | Alumno | — | `HorarioDeEstudiante` del alumno en sesión (US50) |
@@ -85,7 +87,7 @@ La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identid
   - `GET /horarios/apoderado/hijos/{id}/horario` (US48): horario de la sección del hijo, con `curso`, `aula` y `docente` en cada clase. El hijo debe estar entre los estudiantes vinculados a la persona en sesión, con la misma regla del portal de pagos (`403 ESTUDIANTE_NO_VINCULADO` si no; ver [matricula.md](matricula.md#portal-del-apoderado-us42-us43-us44)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado por la institución». Un hijo retirado se sigue viendo en el portal, pero sin sección: `seccion: null`.
   - `GET /horarios/apoderado/hijos/{id}/horario/pdf` (US66, «Descargar PDF» de AP-05): la versión publicada vigente en una tabla con una fila por bloque y, por día, «Curso · Aula · Docente»; el recreo ocupa su fila. Mismo vínculo que el horario (`403 ESTUDIANTE_NO_VINCULADO`). Sin horario publicado no se genera: `422 HORARIO_NO_PUBLICADO` «El horario aún no ha sido publicado por la institución.». Usa el generador de PDF de los recibos (US25).
   - `GET /horarios/alumno/horario` (US50): horario de la sección de la **matrícula vigente** del alumno en sesión. Sin matrícula vigente: `403 SIN_MATRICULA_VIGENTE` (ver [matricula.md](matricula.md#portal-del-alumno-us49)). Sin publicar: `horario: null`; la pantalla muestra «El horario aún no ha sido publicado».
-- `GET /horarios/secciones/{id}/publicado` quedó **solo para el Administrador**. En el bloque 3 también lo podía llamar cualquier docente con el id de cualquier sección; ahora cada perfil ve únicamente su horario por su propio endpoint.
+- `GET /horarios/secciones/{id}/publicado` quedó **solo para el Coordinador académico** (antes, el Administrador). En el bloque 3 también lo podía llamar cualquier docente con el id de cualquier sección; ahora cada perfil ve únicamente su horario por su propio endpoint.
 - Con otro perfil, cada endpoint responde `403 ACCESO_DENEGADO` «No tiene permisos para acceder a este recurso.»; sin sesión, `401 NO_AUTENTICADO`.
 
 ## Códigos de error
@@ -137,7 +139,7 @@ La bitácora guarda identificadores y el código del curso, no nombres de person
 
 # Asistencia de alumnos (US35, US36, US45, US52)
 
-Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistencia de alumnos» del administrador con el modal M-20 (`/admin/asistencia`), AP-03 «Asistencia» del apoderado (`/apoderado/asistencia`) y AL-04 «Mi asistencia» del alumno (`/alumno/asistencia`); ver [frontend-asistencia.md](../frontend-asistencia.md). Casos de prueba en [pruebas/casos-sprint3-asistencia.md](../pruebas/casos-sprint3-asistencia.md) y ejemplos en [horarios.http](horarios.http).
+Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistencia de alumnos» del administrador con el modal M-20 (`/coordinador/asistencia`), AP-03 «Asistencia» del apoderado (`/apoderado/asistencia`) y AL-04 «Mi asistencia» del alumno (`/alumno/asistencia`); ver [frontend-asistencia.md](../frontend-asistencia.md). Casos de prueba en [pruebas/casos-sprint3-asistencia.md](../pruebas/casos-sprint3-asistencia.md) y ejemplos en [horarios.http](horarios.http).
 
 ## Modelo de la asistencia
 
@@ -152,17 +154,17 @@ Pantallas: DO-03 «Asistencia» del docente (`/docente/asistencia`), «Asistenci
 |---|---|---|---|
 | `GET /horarios/asistencia/clases-de-hoy` | Docente | — | `ClasesDeHoy` del docente en sesión |
 | `POST /horarios/asistencia/sesiones` | Docente | `{ claseId, fecha? }` | `201 SesionDetalle`: abre (o retoma) la sesión de hoy de esa clase |
-| `GET /horarios/asistencia/sesiones?fecha=` | Docente, Administrador | — | `{ fecha, sesiones: SesionVista[] }`. Docente: las suyas de esa fecha o, sin fecha, las de los últimos 7 días. Administrador: todas las de la fecha (por defecto, hoy) |
-| `GET /horarios/asistencia/sesiones/{id}` | Docente (solo las suyas), Administrador | — | `SesionDetalle` |
+| `GET /horarios/asistencia/sesiones?fecha=` | Docente, Coordinador | — | `{ fecha, sesiones: SesionVista[] }`. Docente: las suyas de esa fecha o, sin fecha, las de los últimos 7 días. Coordinador: todas las de la fecha (por defecto, hoy) |
+| `GET /horarios/asistencia/sesiones/{id}` | Docente (solo las suyas), Coordinador | — | `SesionDetalle` |
 | `PUT /horarios/asistencia/sesiones/{id}/registros` | Docente (solo las suyas) | `{ alumnos: [{ matriculaId, estado, observacion }] }` | `SesionDetalle` + `avisos: { avisos, correos }` |
-| `POST /horarios/asistencia/registros/{id}/corregir` | Administrador | `{ estado, motivo, observacion? }` | `SesionDetalle` (vista del administrador) + `avisos` |
+| `POST /horarios/asistencia/registros/{id}/corregir` | Coordinador | `{ estado, motivo, observacion? }` | `SesionDetalle` (vista del administrador) + `avisos` |
 | `GET /horarios/apoderado/hijos/{id}/asistencia?mes=AAAA-MM` | Apoderado | — | `AsistenciaDelMes` del hijo, si está vinculado (US45) |
 | `GET /horarios/alumno/asistencia` | Alumno | — | `AsistenciaDelAlumno` del alumno en sesión (US52) |
 
 - `ClasesDeHoy`: `{ fecha, dia, sinClases, clases }`. `fecha` es hoy en Lima («AAAA-MM-DD»). `sinClases` es `null` o `{ motivo, mensaje }`, con `motivo` `FIN_DE_SEMANA` («Hoy no hay clases: es fin de semana.»), `SIN_ANIO_EN_CURSO`, `FUERA_DE_BIMESTRE` o `SIN_CLASES` («No tienes clases programadas para hoy en el horario publicado.»). Cada clase: `{ claseId, curso, seccion, aula, bloque: { id, horaInicio, horaFin, etiqueta }, sesion }`, en orden de bloque; `sesion` es `null` o `{ id, …EstadoDeRegistro }`.
 - `EstadoDeRegistro`: `{ registrada, registradaEn, editableHasta, editable, motivoSoloLectura, resumen }`. `editable` es `true` si el docente puede guardar ahora: registrar por primera vez el mismo día de la clase o corregir hasta `editableHasta` (registro + plazo). Si no, `motivoSoloLectura` trae el mensaje («El plazo para modificar esta asistencia ha expirado (24 horas)»). `resumen`: `{ presentes, tardanzas, ausentes, justificados, sinMarcar }`.
 - `SesionVista`: `{ id, fecha, dia, curso, seccion, aula, docente: { id, nombreCompleto, nombreCorto }, bloque, …EstadoDeRegistro }`.
-- `SesionDetalle`: `SesionVista` + `{ plazoHoras, bimestre, faltasParaResaltar, alumnos }`. `alumnos` son quienes tenían matrícula «Matriculado» en la sección ese día según el historial de secciones (sin retirados ni anulados) y, en una sesión ya registrada, también quien tiene un registro aunque después se haya retirado o trasladado; ordenados por apellido. Cada uno: `{ registroId, matriculaId, nombre («Álvarez Torres, Camila»), dni (solo para el Administrador), estado, observacion, estadoAnterior, registradoPor, registradoEn, modificadoPor, modificadoEn, motivoCambio, faltas, tardanzas }`. `faltas` y `tardanzas` son las acumuladas en ese curso durante el bimestre de la sesión (`bimestre`, por ejemplo «Bimestre III»); la pantalla resalta a quien llega a `faltasParaResaltar` (`UMBRAL_FALTAS_MES`).
+- `SesionDetalle`: `SesionVista` + `{ plazoHoras, bimestre, faltasParaResaltar, alumnos }`. `alumnos` son quienes tenían matrícula «Matriculado» en la sección ese día según el historial de secciones (sin retirados ni anulados) y, en una sesión ya registrada, también quien tiene un registro aunque después se haya retirado o trasladado; ordenados por apellido. Cada uno: `{ registroId, matriculaId, nombre («Álvarez Torres, Camila»), dni (solo para el Coordinador académico), estado, observacion, estadoAnterior, registradoPor, registradoEn, modificadoPor, modificadoEn, motivoCambio, faltas, tardanzas }`. `faltas` y `tardanzas` son las acumuladas en ese curso durante el bimestre de la sesión (`bimestre`, por ejemplo «Bimestre III»); la pantalla resalta a quien llega a `faltasParaResaltar` (`UMBRAL_FALTAS_MES`).
 - `AsistenciaDelMes`: `{ estudiante, anio, mes, primerMes, ultimoMes, calendario, resumen, incidencias, alerta, anual, umbralFaltasMes }`.
   - `calendario`: los días de lunes a viernes del mes, `{ fecha, dia, estado }`, con `estado` `PRESENTE`, `TARDANZA`, `AUSENTE`, `JUSTIFICADO`, `VACACIONES` (entre bimestres), `FUERA_DEL_ANIO` o `SIN_REGISTRO`.
   - `resumen`: `{ presentes, tardanzas, ausentes, justificados, diasConClases, porcentajeAsistencia }`, en días; el porcentaje es `null` sin registros.

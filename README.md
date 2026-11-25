@@ -92,12 +92,13 @@ kubo/
 │  ├─ sql/
 │  │  ├─ restricciones.sql       Índices parciales, CHECK y triggers (copia de referencia)
 │  │  └─ pruebas.sql             21 pruebas de las reglas de la base
-│  └─ seed.sql                   Datos iniciales (grados, áreas, competencias, cursos, parámetros, admin)
+│  └─ seed.sql                   Datos iniciales (grados, áreas, competencias, cursos, parámetros, admin y coordinadora)
 │
 ├─ src/
 │  ├─ app/
 │  │  ├─ 🟦 (portal)/            Pantallas por rol (los paréntesis no aparecen en la URL)  (se crea al desarrollar)
-│  │  │  ├─ admin/               /admin/...     Administrador (AD-xx)
+│  │  │  ├─ admin/               /admin/...     Administrador: usuarios, espacios, parámetros, asistencia docente, auditoría
+│  │  │  ├─ coordinador/         /coordinador/... Coordinador académico: año, currículo, matrícula, pagos, horarios, notas
 │  │  │  ├─ docente/             /docente/...   Docente (DO-xx)
 │  │  │  ├─ apoderado/           /apoderado/... Apoderado (AP-xx)
 │  │  │  └─ alumno/              /alumno/...    Alumno (AL-xx)
@@ -239,8 +240,8 @@ POST /api/v1/matricula/matriculas/{id}/confirmar
 | Módulo | Qué resuelve | Tablas principales |
 |---|---|---|
 | `platform` | Servicios compartidos: conexión, auditoría, logs, notificaciones, cola de eventos | Notificacion, OutboxEvento, RegistroAuditoria, LogError |
-| `identidad` | Login, sesiones, bloqueo por intentos, recuperación y cambio de contraseña | Usuario, Sesion, TokenRecuperacion |
-| `comunidad` | Personas (un registro por DNI) y sus roles; vínculo apoderado–estudiante | Persona, Estudiante, Apoderado, Administrador, Docente, VinculoApoderado |
+| `identidad` | Login, sesiones, bloqueo por intentos (y desbloqueo por el administrador), recuperación y cambio de contraseña, auditoría y errores de solo lectura | Usuario, Sesion, TokenRecuperacion |
+| `comunidad` | Personas (un registro por DNI) y sus roles; vínculo apoderado–estudiante; «Mi perfil» | Persona, Estudiante, Apoderado, Administrador, Coordinador, Docente, VinculoApoderado |
 | `academico` | Año, bimestres, grados, secciones, aulas, currículo, plan de estudios, asignación docente, reglas y parámetros | AnioAcademico, Seccion, Curso, Competencia, PlanEstudio, AsignacionDocente… |
 | `matricula` | Matrícula en dos pasos, traslados, retiros, cronograma de cobros, pagos y comprobantes, pago en línea con Mercado Pago y su conciliación | Matricula, ConceptoCobro, OperacionPago, Pago, Comprobante, IntentoPago… |
 | `horarios` | Bloques horarios del año, horarios por sección versionados (borrador, publicado, archivado) sin cruces de docente ni de aula, sesiones de clase y asistencia de alumnos y docentes | Horario, DetalleHorario, SesionClase, AsistenciaEstudiante… |
@@ -251,6 +252,16 @@ POST /api/v1/matricula/matriculas/{id}/confirmar
 Orden de desarrollo sugerido: `platform` → `identidad` → `comunidad` → `academico` → `matricula` → `horarios` → `evaluacion` → `aula-virtual` → `portal`.
 
 ---
+
+### Roles y portales (bloque M1)
+
+| Rol | Portal | Qué hace |
+|---|---|---|
+| Administrador | `/admin` | Usuarios de todos los roles (registrar, modificar, suspender, reactivar, desbloquear), espacios (aulas), parámetros del sistema, asistencia docente, auditoría y errores |
+| Coordinador académico | `/coordinador` | Año, bimestres y montos, reglas, grados y secciones, cursos y competencias, asignaciones docentes, horarios, matrícula (alumnos, apoderados y vínculos), pagos, morosidad, notas, rectificaciones, bitácora de notas y asistencia de alumnos |
+| Docente · Apoderado · Alumno | `/docente` · `/apoderado` · `/alumno` | Sus portales |
+
+La separación también rige en el servidor: cada ruta exige sus roles (`src/modules/<modulo>/accesos.ts`) y la tabla completa está en [docs/ACCESOS.md](docs/ACCESOS.md). Todos los roles tienen «Mi perfil» (`/perfil`). El seed trae el administrador `admin@kubo.edu.pe` y la coordinadora `coordinacion@kubo.edu.pe` (datos ficticios; cambiar la contraseña inicial al ingresar).
 
 ## 7. Puesta en marcha
 

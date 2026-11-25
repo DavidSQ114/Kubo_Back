@@ -232,3 +232,24 @@ Content-Type: application/json
 
 ### 41. Vínculos de la persona (D-12) → 200 { apoderados, hijos }; persona inexistente → 404 NO_ENCONTRADO
 GET {{base}}/comunidad/personas/{{persona}}/vinculos
+
+### Bloque M1 · Registrar un coordinador académico (solo Administrador)
+POST {{base}}/comunidad/coordinadores
+Content-Type: application/json
+
+{ "dni": "45879632", "nombres": "Lucía", "apellidos": "Ramos Vega", "email": "lramos@colegio.test", "telefono": "987654321", "cargo": "Coordinación de secundaria" }
+
+### Bloque M1 · Mi perfil (cualquier sesión)
+GET {{base}}/comunidad/mi-perfil
+
+### Bloque M1 · Cambiar mi teléfono y mi dirección
+PATCH {{base}}/comunidad/mi-perfil
+Content-Type: application/json
+
+{ "telefono": "912345678", "direccion": "Jr. Ficticio 456, Lima" }
+
+### Bloque M1 · Cambiar el correo desde Mi perfil → 400 DATOS_INVALIDOS
+PATCH {{base}}/comunidad/mi-perfil
+Content-Type: application/json
+
+{ "email": "otro@colegio.test" }

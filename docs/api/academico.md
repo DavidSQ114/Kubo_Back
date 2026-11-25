@@ -1,13 +1,15 @@
 # API · Académico: año, periodos, grados, secciones, aulas, cursos, competencias, reglas, asignaciones y montos del año (US06–US12, US14, US21) y catálogo oficial de competencias (US56)
 
-Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/admin/anio`).
+> **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
 
-Todas las rutas exigen sesión con el rol `ADMINISTRADOR`. La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
+Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantalla: AD-02 (`/coordinador/anio`).
+
+Las rutas exigen sesión con el rol `COORDINADOR` (salvo las lecturas compartidas con el `ADMINISTRADOR`). La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
 Las fechas sin hora viajan como texto `AAAA-MM-DD` (por ejemplo `"2026-03-02"`), sin zona horaria. Los rangos son inclusivos: dos rangos que comparten un día se solapan.
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
@@ -59,7 +61,7 @@ Las fechas sin hora viajan como texto `AAAA-MM-DD` (por ejemplo `"2026-03-02"`),
 | `ANIO_NO_COINCIDE` | 400 | «El año debe coincidir con la fecha de inicio» |
 | `PERIODOS_INCOMPLETOS` | 400 | Los números de los bimestres no son 1, 2, 3 y 4 sin repetir |
 | `NO_AUTENTICADO` · `SESION_INVALIDA` | 401 | Sin sesión o sesión vencida |
-| `CAMBIO_PASSWORD_REQUERIDO` · `ACCESO_DENEGADO` | 403 | Debe cambiar su contraseña, o el rol activo no es `ADMINISTRADOR` |
+| `CAMBIO_PASSWORD_REQUERIDO` · `ACCESO_DENEGADO` | 403 | Debe cambiar su contraseña, o el rol activo no es el del endpoint ([ACCESOS.md](../ACCESOS.md)) |
 | `NO_ENCONTRADO` | 404 | El año académico no existe |
 | `ANIO_SOLAPADO` | 409 | «Ya existe un año académico activo en ese rango de fechas» |
 | `ANIO_DUPLICADO` | 409 | Ya existe un año con ese número (solo puede pasar si el otro está `CERRADO`; si no, se detecta antes el solapamiento) |
@@ -96,9 +98,9 @@ Se registran en `registro_auditoria`, en la misma transacción que el cambio y c
 
 # Grados, secciones y aulas (US08, US09)
 
-Pantalla: AD-03 (`/admin/grados`). Todas las rutas exigen el rol `ADMINISTRADOR`.
+Pantalla: AD-03 (`/coordinador/grados`). Las rutas exigen el rol `COORDINADOR`.
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|
@@ -169,9 +171,9 @@ Pantalla: AD-03 (`/admin/grados`). Todas las rutas exigen el rol `ADMINISTRADOR`
 
 # Cursos y competencias (US10, US11)
 
-Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`. Un **plan de estudio** es curso + grado + año, con sus horas semanales; sus competencias son las que se evalúan con la escala AD, A, B y C.
+Pantalla: AD-04 (`/coordinador/cursos`). Las rutas exigen el rol `COORDINADOR`. Un **plan de estudio** es curso + grado + año, con sus horas semanales; sus competencias son las que se evalúan con la escala AD, A, B y C.
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|
@@ -258,9 +260,9 @@ Pantalla: AD-04 (`/admin/cursos`). Todas las rutas exigen el rol `ADMINISTRADOR`
 
 # Reglas de consolidación (US12, RF10)
 
-Pantalla: AD-05 «Reglas de evaluación» (`/admin/reglas`). Todas las rutas exigen el rol `ADMINISTRADOR`. La regla dice cómo se calcula un logro a partir de varios: el cierre del bimestre (US39, Sprint 3) usará la regla vigente del año.
+Pantalla: AD-05 «Reglas de evaluación» (`/coordinador/reglas`). Las rutas exigen el rol `COORDINADOR`. La regla dice cómo se calcula un logro a partir de varios: el cierre del bimestre (US39, Sprint 3) usará la regla vigente del año.
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
@@ -336,9 +338,9 @@ Pantalla: AD-07 (`/admin/usuarios/registrar-docente`), bloque «Carga académica
 
 | Método y ruta | Rol | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|---|
-| `GET /academico/asignaciones` | `ADMINISTRADOR` | `?docenteId=` (obligatorio) `&anioId=` (opcional) | `Asignacion[]` activas, por año, grado, sección y curso |
-| `POST /academico/asignaciones` | `ADMINISTRADOR` | `{ docenteId, seccionId, cursoId }` | `201 Asignacion` |
-| `DELETE /academico/asignaciones/{id}` | `ADMINISTRADOR` | — | `{ asignacionId, resultado: "ELIMINADA" \| "DESACTIVADA" }` |
+| `GET /academico/asignaciones` | `COORDINADOR` | `?docenteId=` (obligatorio) `&anioId=` (opcional) | `Asignacion[]` activas, por año, grado, sección y curso |
+| `POST /academico/asignaciones` | `COORDINADOR` | `{ docenteId, seccionId, cursoId }` | `201 Asignacion` |
+| `DELETE /academico/asignaciones/{id}` | `COORDINADOR` | — | `{ asignacionId, resultado: "ELIMINADA" \| "DESACTIVADA" }` |
 | `GET /academico/mis-cursos` | `DOCENTE` | — | `Asignacion[]` activas del docente en sesión, de todos los años |
 
 - `Asignacion`: `{ id, docenteId, anio: { id, anio }, curso: { id, codigo, nombre }, grado: { id, numero, nombre }, seccion: { id, nombre }, horasSemanales, horarioPublicado }`.
@@ -385,7 +387,7 @@ Pantalla: AD-07 (`/admin/usuarios/registrar-docente`), bloque «Carga académica
 
 Requisito del cronograma de pagos: la cuota de matrícula y la pensión mensual de cada año. Se guardan en `parametro_institucion` con el año (`anio_academico_id`) y las claves `MONTO_MATRICULA` y `MONTO_PENSION`, como texto «350.00» (nunca float). Los parámetros generales del seed (sin año) solo se sugieren al configurar: **un año sin montos propios no admite matrículas** (`422 SIN_MONTOS`, ver [matricula.md](matricula.md)).
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
@@ -405,9 +407,9 @@ Requisito del cronograma de pagos: la cuota de matrícula y la pensión mensual 
 
 # Catálogo oficial de competencias (US56)
 
-Pestaña «Catálogo oficial» de AD-04 (`/admin/cursos`). Cuando el Ministerio publica una competencia nueva, el administrador la registra en su área curricular; la edita, la desactiva o, si no se usa, la elimina.
+Pestaña «Catálogo oficial» de AD-04 (`/coordinador/cursos`). Cuando el Ministerio publica una competencia nueva, el administrador la registra en su área curricular; la edita, la desactiva o, si no se usa, la elimina.
 
-## Endpoints · solo `ADMINISTRADOR`
+## Endpoints · `COORDINADOR`
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
@@ -438,3 +440,40 @@ Pestaña «Catálogo oficial» de AD-04 (`/admin/cursos`). Cuando el Ministerio 
 ## Dependencias entre módulos
 
 - Las calificaciones se cuentan con el puerto `CierresProvider.notasPorCompetenciaPlan` (lo implementa evaluacion).
+
+---
+
+# Parámetros del sistema (bloque M1)
+
+Pantalla «Parámetros del sistema» del Administrador (`/admin/parametros`). Solo el rol `ADMINISTRADOR` (`ROLES_ACADEMICO.PARAMETROS_SISTEMA`). Son los parámetros **generales** de `parametro_institucion` (sin año); los montos de cada año siguen en «Año y bimestres» del Coordinador académico.
+
+## Endpoints
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /academico/parametros` | — | `ParametroSistema[]` en el orden del catálogo |
+| `PUT /academico/parametros/{clave}` | `{ valor }` (texto o número) | `ParametroSistema` actualizado |
+
+- `ParametroSistema`: `{ clave, grupo, tipo, descripcion, valor, minimo, maximo, actualizadoEn }`. `tipo`: `HORA` · `ENTERO` · `PROPORCION` · `MONTO`. `valor` llega como texto («07:30», «5», «0.15», «350.00») o `null` si la clave aún no está en la base.
+
+## Reglas
+
+| Clave | Tipo | Validación |
+|---|---|---|
+| `MAX_INTENTOS_LOGIN` | ENTERO | 3 a 10 |
+| `MINUTOS_BLOQUEO` | ENTERO | 1 a 1440 |
+| `HORA_INICIO_JORNADA_DOCENTE` · `HORA_LIMITE_ASISTENCIA_DOCENTE` | HORA | `HH:MM` de 24 horas; el inicio debe ser anterior a la hora límite |
+| `PLAZO_CORRECCION_ASISTENCIA_H` | ENTERO | 1 a 168 |
+| `UMBRAL_INASISTENCIA_AVISO` · `UMBRAL_INASISTENCIA` | PROPORCION | Mayor que 0 y menor que 1 (se acepta la coma); el aviso debe ser menor que la alerta |
+| `UMBRAL_FALTAS_MES` | ENTERO | 1 a 31 |
+| `MONTO_MATRICULA` · `MONTO_PENSION` | MONTO | Mayor a 0, hasta dos decimales y S/ 99 999.99; se guarda como texto «350.00» |
+| `DIA_VENCIMIENTO` | ENTERO | 1 a 28 |
+| `PENSIONES_VENCIDAS_RESTRINGEN_LIBRETA` | ENTERO | 1 a 10 |
+
+- `BLOQUES_HORARIO` (la jornada de clases) no se edita aquí: cambia la cuadrícula de horarios.
+- Un valor que no corresponde: `400 PARAMETRO_INVALIDO` con un mensaje claro («Ingresa un número entero entre 3 y 10.», «Ingresa una hora válida en formato HH:MM (por ejemplo, 07:30).»…). Una clave que no es del catálogo: `404 PARAMETRO_NO_EDITABLE`.
+- Se bloquea la fila del parámetro y se guarda en una transacción con la auditoría. Si la clave aún no existía en la base, se crea con su descripción.
+
+## Auditoría (RF03)
+
+`ACTUALIZAR_PARAMETRO` sobre `parametro_institucion`, con `{ clave, valor }` anterior y nuevo.

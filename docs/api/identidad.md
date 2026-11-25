@@ -1,5 +1,7 @@
 # API · Identidad: sesión, contraseñas y acceso de las cuentas (Fase 1)
 
+> **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
+
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09).
 
@@ -62,8 +64,19 @@ El enlace del correo apunta a `{APP_URL}/restablecer?token=…`: esa página deb
 |---|---|---|
 | `POST /identidad/usuarios/{usuarioId}/suspender` | `{ motivo, detalle?, notificar? }` | `{ usuarioId, estado: "SUSPENDIDO" }` |
 | `POST /identidad/usuarios/{usuarioId}/reactivar` | `{ motivo? }` | `{ usuarioId, estado }` |
+| `POST /identidad/usuarios/{usuarioId}/desbloquear` | `{ motivo? }` | `{ usuarioId, intentosFallidos: 0, bloqueadoHasta: null }` |
+
+- **Desbloquear (bloque M1):** solo si la cuenta está bloqueada por intentos fallidos (`bloqueado_hasta` posterior a ahora); si no, `409 USUARIO_NO_BLOQUEADO` «La cuenta no está bloqueada por intentos fallidos.». Pone los intentos en 0 y quita el bloqueo; a diferencia de reactivar, no cambia el estado ni cierra sesiones. Auditoría `DESBLOQUEAR_USUARIO` con los valores anteriores.
 
 El listado de usuarios, su resumen y el registro de administradores son del módulo comunidad: ver [comunidad.md](comunidad.md).
+
+### Operaciones auditadas (RF03, AD-16, bloque M1) · solo `ADMINISTRADOR`, solo lectura
+
+| Método y ruta | Consulta | Respuesta `data` |
+|---|---|---|
+| `GET /identidad/auditoria` | `?desde=AAAA-MM-DD&hasta=AAAA-MM-DD&accion=SUSPENDER_USUARIO&pagina=1&tamano=20` | `{ items: [{ id, fecha, accion, entidad, entidadId, usuarioId, usuario, valorAnterior, valorNuevo, motivo, ipOrigen }], acciones, paginacion }` |
+
+- Lee `registro_auditoria` (inmutable) de la más reciente a la más antigua. `usuario` es el correo de quien hizo la operación («Sistema» si fue una tarea programada). `acciones` lista las acciones registradas, para el filtro. Fechas en días de Lima, como en el log de errores.
 
 ### Log de errores del sistema (US05, AD-16) · solo `ADMINISTRADOR`, solo lectura
 
@@ -107,4 +120,4 @@ El listado de usuarios, su resumen y el registro de administradores son del mód
 
 ## Auditoría (RF03)
 
-Se registran en `registro_auditoria`: `SUSPENDER_USUARIO` y `REACTIVAR_USUARIO`, con el administrador responsable, valor anterior y nuevo, motivo, IP y requestId. Las acciones de comunidad están en [comunidad.md](comunidad.md).
+Se registran en `registro_auditoria`: `SUSPENDER_USUARIO`, `REACTIVAR_USUARIO` y `DESBLOQUEAR_USUARIO`, con el administrador responsable, valor anterior y nuevo, motivo, IP y requestId. Las acciones de comunidad están en [comunidad.md](comunidad.md).
