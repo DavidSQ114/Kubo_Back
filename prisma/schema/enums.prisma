@@ -295,3 +295,19 @@ enum EstadoLote {
   ACTIVO
   ANULADO
 }
+
+/// Bloque M4: «Documentos en revisión», «Con observaciones», «Documentos aprobados», «Matriculado» o «Anulada».
+enum EstadoSolicitudMatricula {
+  EN_REVISION
+  OBSERVADA
+  APROBADA
+  MATRICULADA
+  ANULADA
+}
+
+/// Bloque M4: revisión de cada documento subido por el apoderado.
+enum EstadoDocumentoMatricula {
+  EN_REVISION
+  APROBADO
+  OBSERVADO
+}

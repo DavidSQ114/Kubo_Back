@@ -47,6 +47,22 @@ export const procesos = {
     return p && { ...p, fechaInicio: aTexto(p.fechaInicio), fechaFin: aTexto(p.fechaFin) };
   },
 
+  /** Documentos activos de un proceso, en orden (para validar y revisar una solicitud). */
+  documentosActivos: (procesoId: string, db: Db = prisma) =>
+    db.documentoRequerido.findMany({
+      where: { procesoId, activo: true },
+      orderBy: { orden: "asc" },
+      select: { id: true, nombre: true, obligatorio: true },
+    }),
+
+  /** Todos los documentos de un proceso (también los inactivos): nombran a los ya subidos. */
+  todosLosDocumentos: (procesoId: string, db: Db = prisma) =>
+    db.documentoRequerido.findMany({
+      where: { procesoId },
+      orderBy: { orden: "asc" },
+      select: { id: true, nombre: true, obligatorio: true, activo: true },
+    }),
+
   /** Crea o actualiza las fechas del proceso del año y devuelve su id. */
   async guardarFechas(
     tx: Tx,

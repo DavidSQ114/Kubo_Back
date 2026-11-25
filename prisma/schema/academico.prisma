@@ -51,6 +51,7 @@ model Grado {
   estudiantes   Estudiante[]
   secciones     Seccion[]
   planesEstudio PlanEstudio[]
+  solicitudesMatricula SolicitudMatricula[]
 
   @@map("grado")
 }

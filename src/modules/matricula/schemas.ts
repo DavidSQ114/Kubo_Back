@@ -228,3 +228,17 @@ export const ProcesoMatriculaSchema = z.object({
     .min(1, "Agrega al menos un documento requerido.")
     .max(MAXIMO_DOCUMENTOS_REQUERIDOS, `Puedes pedir hasta ${MAXIMO_DOCUMENTOS_REQUERIDOS} documentos.`),
 });
+
+// ---------- Bloque M4 · Matrícula en línea del apoderado ----------
+
+/** Campos de texto del formulario multipart «Matricular» (los archivos van en «documento:<id>»). */
+export const SolicitudMatriculaSchema = z.object({
+  gradoId: id("Elige el grado al que se matricula"),
+  vinculoResponsableId: id("Elige el responsable del pago"),
+  confirmaDatos: z
+    .enum(["true", "false"], { message: "Confirma que los datos del alumno son correctos." })
+    .transform((v) => v === "true"),
+});
+
+/** Prefijo de los campos de archivo del formulario: «documento:<id del documento requerido>». */
+export const PREFIJO_CAMPO_DOCUMENTO = "documento:";

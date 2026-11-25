@@ -331,4 +331,47 @@ export const erroresMatricula = {
       422,
       { hasta },
     ),
+
+  // ---------- Bloque M4 · Solicitud de matrícula del apoderado ----------
+  hijoYaMatriculado: (anio: number) =>
+    new ErrorApp("HIJO_YA_MATRICULADO", `Tu hijo ya está matriculado en ${anio}.`, 409, { anio }),
+  solicitudExistente: (anio: number) =>
+    new ErrorApp(
+      "SOLICITUD_EXISTENTE",
+      `Ya enviaste la solicitud de matrícula ${anio} de tu hijo: revisa su estado en esta pantalla.`,
+      409,
+      { anio },
+    ),
+  datosNoConfirmados: () =>
+    new ErrorApp("DATOS_NO_CONFIRMADOS", "Confirma que los datos del alumno son correctos.", 400),
+  gradoNoValido: () => new ErrorApp("GRADO_NO_VALIDO", "Elige un grado válido.", 400),
+  documentoFaltante: (nombre: string) =>
+    new ErrorApp("DOCUMENTO_FALTANTE", `Sube el documento «${nombre}».`, 400, { nombre }),
+  documentoNoRequerido: () =>
+    new ErrorApp("DOCUMENTO_NO_REQUERIDO", "Ese documento no está en la lista del proceso de matrícula.", 400),
+  solicitudNoEncontrada: () => new ErrorApp("SOLICITUD_NO_ENCONTRADA", "La solicitud de matrícula no existe.", 404),
+  solicitudCerrada: () =>
+    new ErrorApp("SOLICITUD_CERRADA", "La solicitud ya fue resuelta: sus documentos no cambian.", 409),
+  documentoNoReemplazable: () =>
+    new ErrorApp(
+      "DOCUMENTO_NO_REEMPLAZABLE",
+      "Solo puedes reemplazar un documento observado o subir uno que faltaba.",
+      409,
+    ),
+  documentoYaRevisado: (estado: string) =>
+    new ErrorApp(
+      "DOCUMENTO_YA_REVISADO",
+      `El documento ya está «${estado}». Espera a que el apoderado lo reemplace.`,
+      409,
+    ),
+  observacionRequerida: () => new ErrorApp("OBSERVACION_REQUERIDA", "Escribe qué debe corregir el apoderado.", 400),
+  documentosPendientes: (nombres: string[]) =>
+    new ErrorApp(
+      "DOCUMENTOS_PENDIENTES",
+      `Antes de asignar la sección deben estar aprobados: ${nombres.join(", ")}.`,
+      422,
+      { nombres },
+    ),
+  seccionOtroGrado: (grado: string) =>
+    new ErrorApp("SECCION_OTRO_GRADO", `La sección debe ser de ${grado}, el grado de la solicitud.`, 422, { grado }),
 };
