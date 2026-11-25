@@ -6,7 +6,8 @@ import type { CierresProvider } from "@/modules/academico";
 export const cierresProviderEvaluacion: CierresProvider = {
   async resumenCierres(anioAcademicoId) {
     const delAnio = { periodoEvaluacion: { anioAcademicoId } };
-    const [total, publicados] = await prisma.$transaction([
+    // lectura sin transacción (bloque M5): en frío, una transacción de solo lectura pasó el límite de 5 s
+    const [total, publicados] = await Promise.all([
       prisma.cierreCalificacion.count({ where: delAnio }),
       prisma.cierreCalificacion.count({ where: { ...delAnio, estado: "PUBLICADO" } }),
     ]);

@@ -502,6 +502,19 @@ export const evidencias = {
     await tx.evidenciaPedagogica.delete({ where: { id } });
   },
 
+  /**
+   * Claves en el almacén de los archivos de las evidencias de unas notas (bloque M5): la base las borra en cascada con
+   * la nota, pero el archivo se elimina aparte, después de confirmar la transacción.
+   */
+  clavesDeArchivosDeNotas: async (tx: Tx, notaIds: string[]): Promise<string[]> => {
+    if (!notaIds.length) return [];
+    const filas = await tx.evidenciaPedagogica.findMany({
+      where: { notaId: { in: notaIds }, archivoClave: { not: null } },
+      select: { archivoClave: true },
+    });
+    return filas.map((f) => f.archivoClave!);
+  },
+
   /** Evidencias de varias notas (cuántas se borrarían al quitarlas, bloque M2). */
   contarDeNotas: (notaIds: string[], db: Db = prisma) =>
     notaIds.length ? db.evidenciaPedagogica.count({ where: { notaId: { in: notaIds } } }) : Promise.resolve(0),

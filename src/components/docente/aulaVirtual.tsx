@@ -20,7 +20,8 @@ import {
   type TipoFormato,
 } from "@/components/portal/aulaVirtual";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Tarjeta } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { esRechazoDeArchivo } from "@/lib/archivos";
 import { entradaFechaHora, fechaDia, hoyEnLima, rangoDeHoras } from "@/lib/formato";
 
 // ---------- Tipos de la API ----------
@@ -263,7 +264,9 @@ export function ModalSubirMaterial({
       });
       onSubido(m);
     } catch (e) {
-      setError(mensajeError(e));
+      // el archivo rechazado por el servidor queda marcado y no se reenvía (bloque M5)
+      if (e instanceof ApiError && esRechazoDeArchivo(e.codigo)) setErrorArchivo(e.message);
+      else setError(mensajeError(e));
     } finally {
       setGuardando(false);
     }

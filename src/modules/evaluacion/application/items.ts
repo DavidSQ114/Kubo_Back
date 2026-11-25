@@ -30,7 +30,12 @@ import {
   itemsEvaluacion,
   notas,
 } from "../infrastructure/repositorio";
-import { aplicarRecalculo, calcularNotaDeItems, type ResumenRecalculo } from "./recalculoItems";
+import {
+  aplicarRecalculo,
+  calcularNotaDeItems,
+  eliminarArchivosHuerfanos,
+  type ResumenRecalculo,
+} from "./recalculoItems";
 import {
   alumnosDelRegistro,
   armarRegistro,
@@ -146,7 +151,7 @@ export async function guardarItems(
       seccion: etiquetaDe(asignacion.seccion),
       bimestre: { numero: bimestre.numero, nombre: bimestre.nombre },
     };
-    const recalculo = await aplicarRecalculo(tx, {
+    const { resumen: recalculo, archivosHuerfanos } = await aplicarRecalculo(tx, {
       cierreId: cierre.id,
       cambios,
       usuarioId: auth.usuarioId,
@@ -179,9 +184,12 @@ export async function guardarItems(
       meta,
     );
     const creados = preparados.filter((p) => !p.id).length;
-    return { creados, editados, eliminados: eliminados.length, impacto, recalculo };
+    return { creados, editados, eliminados: eliminados.length, impacto, recalculo, archivosHuerfanos };
   });
-  return { ...(await armarRegistro(asignacion, bimestre, ahora)), itemsGuardados: resumen };
+  // los archivos de las evidencias borradas con sus notas, solo después de confirmar la transacción
+  const { archivosHuerfanos, ...itemsGuardados } = resumen;
+  await eliminarArchivosHuerfanos(archivosHuerfanos, meta.requestId);
+  return { ...(await armarRegistro(asignacion, bimestre, ahora)), itemsGuardados };
 }
 
 // ---------- Importar calificaciones de un ítem desde CSV (fase 7) ----------
@@ -205,6 +213,7 @@ export async function importarCalificacionesItem(
   ids: { asignacionId: string; periodoId: string; itemId: string },
   datos: { csv: string; confirmar: boolean },
   ahora: Date = new Date(),
+  requestId: string | null = null,
 ): Promise<ImportacionItem> {
   const { asignacion, bimestre } = await cargarContexto(auth, ids.asignacionId, ids.periodoId, ahora);
   const cierre = await cierres.de(asignacion.id, bimestre.id);
@@ -229,6 +238,7 @@ export async function importarCalificacionesItem(
             })),
           },
           ahora,
+          requestId,
         )
       : null;
   return {

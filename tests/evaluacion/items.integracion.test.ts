@@ -2,15 +2,20 @@
 // académico en la misma transacción que las calificaciones, alumno incompleto, confirmación al quitar notas o borrar
 // calificaciones, bitácora con origen ITEMS, competencias de mi curso del docente, permisos del docente ajeno (403),
 // triggers del registro cerrado en item_evaluacion y calificacion_item, libreta con el detalle de ítems y apoderado con
-// deuda (US26), y los reportes del coordinador.
+// deuda (US26), y los reportes del coordinador. Bloque M5: al quitar una nota por el recálculo, el archivo de su
+// evidencia se borra del almacén (carpeta temporal) después de la transacción.
 // Necesita una base TEMPORAL migrada y con el seed (nunca kubo_dev ni Neon). Se ejecuta solo si se pide:
 //   KUBO_PRUEBA_INTEGRACION=1 DATABASE_URL=postgresql://…/kubo_tmp_… npx vitest run tests/evaluacion/items.integracion
 // Crea sus propios datos ficticios en el año 2077 (DNI 900024xx) y los borra al terminar (la bitácora de notas y la
 // auditoría son inmutables y no se borran). Quien registra, cierra y publica es el administrador del seed con un perfil
 // Docente temporal: la auditoría es inmutable y quien la firma no se puede borrar.
 import "@/server/wiring";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guardarArchivo, reiniciarAlmacen } from "@/platform/archivos";
 import { hashPassword } from "@/platform/auth/tokens";
 import { prisma } from "@/platform/db/prisma";
 import { GET as misCompetenciasRuta } from "@/app/api/v1/academico/mis-cursos/[id]/competencias/route";
@@ -111,8 +116,16 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
     competenciaPlanId: competencias[competencia],
   });
 
+  // almacén de archivos en una carpeta temporal propia (bloque M5)
+  const entornoArchivos = { driver: process.env.ARCHIVOS_DRIVER, dir: process.env.ARCHIVOS_DIR };
+  let carpeta = "";
+
   beforeAll(async () => {
     process.env.JWT_SECRET ??= "clave-de-firma-solo-para-pruebas-de-integracion";
+    carpeta = await fs.mkdtemp(path.join(os.tmpdir(), "kubo-items-"));
+    process.env.ARCHIVOS_DRIVER = "disco";
+    process.env.ARCHIVOS_DIR = carpeta;
+    reiniciarAlmacen();
     const u = await prisma.usuario.findFirstOrThrow({ where: { email: "admin@kubo.edu.pe" } });
     adminPersonaId = u.personaId;
     admin = {
@@ -267,6 +280,10 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
   }, ESPERA_PREPARACION);
 
   afterAll(async () => {
+    process.env.ARCHIVOS_DRIVER = entornoArchivos.driver;
+    process.env.ARCHIVOS_DIR = entornoArchivos.dir;
+    reiniciarAlmacen();
+    if (carpeta) await fs.rm(carpeta, { recursive: true, force: true });
     if (!anioId) return;
     // al borrar el cierre se van sus ítems, calificaciones, notas y resultados (los triggers dejan pasar la cascada)
     await prisma.cierreCalificacion.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
@@ -412,12 +429,38 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
         { id: examen, nombre: "Examen bimestral", peso: 50 },
       ],
     };
+    // bloque M5: la nota de Ana tiene una evidencia con archivo en el almacén
+    const pdf = new TextEncoder().encode("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF");
+    const clave = await guardarArchivo(
+      "evidencias",
+      { bytes: pdf, tipo: "PDF", mime: "application/pdf", nombre: "ficha.pdf", tamanoBytes: pdf.length },
+      meta.requestId,
+    );
+    const enDisco = path.join(carpeta, ...clave.split("/"));
+    await prisma.evidenciaPedagogica.create({
+      data: {
+        notaId: (await notaEnBase("ana", 0))!.id,
+        archivoClave: clave,
+        nombreArchivo: "ficha.pdf",
+        mimeType: "application/pdf",
+        tamanoBytes: pdf.length,
+        subidoPorId: propio.usuarioId,
+      },
+    });
+    await expect(fs.access(enDisco)).resolves.toBeUndefined();
+
     const e = await codigoDe(guardarItems(propio, ids(), { ...cambio, confirmar: false }, meta, ABRIL));
     expect(e.codigo).toBe("CONFIRMAR_CAMBIO_ITEMS");
-    expect(e.detalles).toMatchObject({ notasQuitadas: 1, calificacionesBorradas: 0 });
+    expect(e.detalles).toMatchObject({ notasQuitadas: 1, calificacionesBorradas: 0, evidenciasBorradas: 1 });
     expect((await notaEnBase("ana", 0))?.logro).toBe("AD");
+    // sin confirmar no se borra nada: el archivo sigue en el almacén
+    await expect(fs.access(enDisco)).resolves.toBeUndefined();
 
     const r = await guardarItems(propio, ids(), { ...cambio, confirmar: true }, meta, ABRIL);
+    // la evidencia se fue con la nota y su archivo ya no queda huérfano en el almacén
+    expect(await prisma.evidenciaPedagogica.count({ where: { archivoClave: clave } })).toBe(0);
+    await expect(fs.access(enDisco)).rejects.toThrow();
+    expect(JSON.stringify(r)).not.toContain(clave);
     expect(r.competencias[0]).toMatchObject({ sumaPesos: 90, pesosCompletos: false });
     expect(await notaEnBase("ana", 0)).toBeNull();
     const ana = r.alumnos.find((a) => a.matriculaId === alumnos.ana)!;

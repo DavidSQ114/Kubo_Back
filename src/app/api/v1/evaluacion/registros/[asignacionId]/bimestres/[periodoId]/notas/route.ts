@@ -7,9 +7,9 @@ import { leerCuerpo, ok, ruta } from "@/platform/http/ruta";
 import { esquemasEvaluacion, guardarNotas } from "@/modules/evaluacion";
 import { requerirSesion } from "@/modules/identidad";
 
-export const PUT = ruta(async (req, { params }) => {
+export const PUT = ruta(async (req, { meta, params }) => {
   const docente = await requerirSesion(req, { roles: ["DOCENTE"] });
   const { asignacionId, periodoId } = esquemasEvaluacion.RegistroParamsSchema.parse(params);
   const datos = await leerCuerpo(req, esquemasEvaluacion.GuardarNotasSchema);
-  return ok(await guardarNotas(docente, asignacionId, periodoId, datos));
+  return ok(await guardarNotas(docente, asignacionId, periodoId, datos, new Date(), meta.requestId));
 });

@@ -8,7 +8,8 @@ import { useState, type DragEvent } from "react";
 import { BadgeLogro, columnaDe, type AlumnoDeRegistro, type RegistroDeNotas } from "@/components/docente/notas";
 import { mensajeError } from "@/components/portal";
 import { Alerta, Badge, Boton, Icono, Modal } from "@/components/ui";
-import { abrirEnPestana, api, descargar } from "@/lib/api";
+import { abrirEnPestana, api, ApiError, descargar } from "@/lib/api";
+import { esRechazoDeArchivo } from "@/lib/archivos";
 import { cantidad, diaYHora } from "@/lib/formato";
 
 // ---------- Tipos de la API ----------
@@ -197,12 +198,15 @@ export function ModalEvidencias({
       form.set("matriculaId", alumno.matriculaId);
       form.set("competenciaPlanId", competencia.competenciaPlanId);
       if (comentario.trim()) form.set("comentario", comentario.trim());
-      if (archivo) form.set("archivo", archivo);
+      // un archivo que ya rechazó el servidor no se vuelve a enviar
+      if (archivo && !errorArchivo) form.set("archivo", archivo);
       const r = await api<EvidenciaAgregada>(base, { method: "POST", body: form });
       onCambio(r.registro, `Evidencia guardada para ${alumno.nombre} en ${competencia.columna}.`);
       onCerrar();
     } catch (e) {
-      setError(mensajeError(e));
+      // M-07: si el servidor rechaza el archivo (tipo real, tamaño), queda marcado como rechazado y no como «Listo»
+      if (e instanceof ApiError && esRechazoDeArchivo(e.codigo)) setErrorArchivo(e.message);
+      else setError(mensajeError(e));
     } finally {
       setGuardando(false);
     }
