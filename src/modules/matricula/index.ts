@@ -102,6 +102,12 @@ export {
   archivoDeDocumentoMatricula,
   type DatosSolicitud,
 } from "./application/solicitudes";
+export {
+  bandejaSolicitudes,
+  detalleSolicitud,
+  revisarDocumentoSolicitud,
+  asignarSeccionSolicitud,
+} from "./application/revision";
 export { MENSAJE_ARCHIVO_MATRICULA } from "./domain/solicitudes";
 export { MAXIMO_DOCUMENTOS_REQUERIDOS } from "./domain/proceso";
 export { prepararDemoMorosidad, type ResultadoDemoMorosidad } from "./application/demoMorosidad";

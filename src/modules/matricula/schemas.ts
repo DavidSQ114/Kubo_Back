@@ -8,6 +8,7 @@ import { DESTINOS_LOTE, LARGO_MAXIMO_CONCEPTO_EXTRA } from "./domain/extraordina
 import { LARGO_MAXIMO_MOTIVO_CUOTA } from "./domain/mora";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NOMBRE_DOCUMENTO, MAXIMO_DOCUMENTOS_REQUERIDOS } from "./domain/proceso";
+import { DECISIONES_DOCUMENTO, ESTADOS_SOLICITUD, LARGO_MAXIMO_OBSERVACION } from "./domain/solicitudes";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { MAXIMO_RECORDATORIOS } from "./domain/recordatorios";
 import { ESTADOS_MATRICULA, MODALIDADES_PAGO, MOTIVOS_ANULACION_MATRICULA } from "./domain/matriculas";
@@ -242,3 +243,20 @@ export const SolicitudMatriculaSchema = z.object({
 
 /** Prefijo de los campos de archivo del formulario: «documento:<id del documento requerido>». */
 export const PREFIJO_CAMPO_DOCUMENTO = "documento:";
+
+// ---------- Bloque M4 · Revisión de solicitudes (coordinador) ----------
+
+export const FiltroSolicitudesSchema = z.object({
+  anioId: id("Elige el año académico"),
+  estado: z.enum(ESTADOS_SOLICITUD, { message: "Estado no válido" }).optional(),
+});
+
+export const RevisionDocumentoSchema = z.object({
+  decision: z.enum(DECISIONES_DOCUMENTO, { message: "Elige aprobar u observar" }),
+  observacion: z.string().trim().max(LARGO_MAXIMO_OBSERVACION, "Observación demasiado larga").nullable().optional(),
+});
+
+export const AsignarSeccionSchema = z.object({
+  seccionId: id("Elige la sección"),
+  modalidadPago: z.enum(MODALIDADES_PAGO, { message: "Elige la modalidad de pago" }).default("MENSUAL"),
+});

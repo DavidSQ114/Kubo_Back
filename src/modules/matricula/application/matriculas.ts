@@ -4,6 +4,7 @@ import { prisma } from "@/platform/db/prisma";
 import { esDuplicado } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { obtenerParametro } from "@/platform/config/parametros";
+import { registrarAvisos } from "@/platform/notificaciones";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import {
   aCentimos,
@@ -42,7 +43,10 @@ import {
   type ModalidadPago,
   type MotivoAnulacionMatricula,
 } from "../domain/matriculas";
+import { verificarListaParaAsignar, verificarSolicitudAbierta } from "../domain/solicitudes";
+import { procesos } from "../infrastructure/proceso";
 import { contarPagosVigentes, cuotas, historial, matriculas, type MatriculaFila } from "../infrastructure/repositorio";
+import { solicitudes } from "../infrastructure/solicitudes";
 
 const etiquetaSeccion = (s: Pick<SeccionVista, "nombre" | "grado">) => `${s.grado.numero}° ${s.nombre}`;
 
@@ -190,6 +194,16 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
 
       const vigente = await matriculas.vigenteBloqueada(tx, datos.estudianteId, anio.id);
       const accion = verificarConfirmable(vigente);
+      // bloque M4: si el apoderado la pidió en línea, sus documentos obligatorios deben estar aprobados
+      const solicitud = accion === "CONFIRMAR" ? await solicitudes.deMatricula(vigente!.id, tx) : null;
+      if (solicitud) {
+        verificarSolicitudAbierta(solicitud.estado);
+        verificarListaParaAsignar(await procesos.documentosActivos(solicitud.procesoId, tx), solicitud.documentos);
+        if (seccion.grado.id !== solicitud.gradoId) {
+          const grado = (await listarGrados()).find((g) => g.id === solicitud.gradoId);
+          throw E.seccionOtroGrado(grado?.nombre ?? "el grado pedido");
+        }
+      }
       // la vacante se valida recién aquí: las matrículas En proceso no la reservan
       verificarCupo(await matriculas.contarMatriculados(seccion.id, tx), seccion.aforoMaximo);
 
@@ -248,6 +262,22 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
         },
         meta,
       );
+      if (solicitud) {
+        await solicitudes.cambiarEstado(tx, solicitud.id, "MATRICULADA");
+        await registrarAvisos(tx, {
+          notificaciones: [
+            {
+              usuarioId: solicitud.creadoPorId,
+              tipo: "SISTEMA",
+              titulo: "Matrícula confirmada",
+              mensaje: `${estudiante.nombreCompleto} · ${anio.anio} · sección ${seccion.grado.numero}° ${seccion.nombre}. Ya puedes ver su cronograma en «Pagos».`,
+              enlace: "/apoderado/matricula",
+            },
+          ],
+          correos: [],
+          origen: { entidad: "solicitud_matricula", id: solicitud.id },
+        });
+      }
       const resumen = vistaCronograma(cronograma);
       await registrarAuditoria(
         tx,
@@ -298,6 +328,9 @@ export async function anularMatricula(
     const ahora = new Date();
     const motivo = textoMotivoAnulacion(datos.motivo, datos.detalle);
     const cuotasAnuladas = await cuotas.anularPendientes(matriculaId, tx);
+    // bloque M4: la solicitud del apoderado, si la había, queda anulada con la matrícula
+    const solicitud = await solicitudes.deMatricula(matriculaId, tx);
+    if (solicitud) await solicitudes.cambiarEstado(tx, solicitud.id, "ANULADA");
     await matriculas.anular(
       matriculaId,
       { anuladoPorId: admin.usuarioId, anuladoEn: ahora, motivoAnulacion: motivo },
