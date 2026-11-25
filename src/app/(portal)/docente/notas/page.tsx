@@ -49,7 +49,7 @@ import {
 } from "@/components/portal/asistencia";
 import { Alerta, Badge, Boton, Tarjeta } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { diaMes, diaYHora, fechaDia, hoyEnLima } from "@/lib/formato";
+import { cantidad, diaMes, diaYHora, fechaDia, hoyEnLima } from "@/lib/formato";
 
 const NUMERAL = ["I", "II", "III", "IV"];
 
@@ -182,14 +182,20 @@ function RegistroDelBimestre({
       const { nuevas, modificadas, calificaciones: deItems, recalculo } = nuevo.guardado;
       const items = deItems.nuevas + deItems.modificadas;
       const calculadas = recalculo.calculadas + recalculo.cambiadas;
+      // solo lo que pasó: «1 nota nueva, 2 calificaciones de ítems y 1 nota calculada por ítems»
+      const partes = [
+        nuevas && cantidad(nuevas, "nota nueva", "notas nuevas"),
+        modificadas && cantidad(modificadas, "cambio", "cambios"),
+        items && cantidad(items, "calificación de ítem", "calificaciones de ítems"),
+        calculadas && cantidad(calculadas, "nota calculada por ítems", "notas calculadas por ítems"),
+        recalculo.quitadas && cantidad(recalculo.quitadas, "nota quitada", "notas quitadas"),
+      ].filter((p): p is string => !!p);
+      const resumen =
+        partes.length > 1 ? `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}` : (partes[0] ?? "");
       setMensaje({
         tipo: "exito",
         titulo: "Notas guardadas.",
-        detalle:
-          `${nuevas} ${nuevas === 1 ? "nota nueva" : "notas nuevas"} y ${modificadas} ${modificadas === 1 ? "cambio" : "cambios"}` +
-          (items ? `; ${items} ${items === 1 ? "calificación de ítem" : "calificaciones de ítems"}` : "") +
-          (calculadas ? ` y ${calculadas} ${calculadas === 1 ? "nota calculada" : "notas calculadas"} por ítems` : "") +
-          ". Puedes volver luego para completar el registro.",
+        detalle: `${resumen.charAt(0).toUpperCase()}${resumen.slice(1)}. Puedes volver luego para completar el registro.`,
       });
     } catch (e) {
       if (e instanceof ApiError && e.codigo === "VALOR_NO_PERMITIDO") {

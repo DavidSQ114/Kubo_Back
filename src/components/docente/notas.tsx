@@ -677,7 +677,7 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvide
                     {!a.notas[c.competenciaPlanId] && a.sinNota?.[c.competenciaPlanId] && (
                       <p className="text-[12px] text-ambar-oscuro">{a.sinNota[c.competenciaPlanId].mensaje}</p>
                     )}
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                       {c.items.map((it) => (
                         <div key={it.id} className="flex items-center justify-between gap-2">
                           <span className="min-w-0 truncate text-[12px] text-texto-2" title={it.nombre}>

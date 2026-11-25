@@ -253,7 +253,7 @@ function FilaCurso({
         </tr>,
         ...(c.items ?? []).map((it) => (
           <tr key={`${c.competenciaPlanId}-${it.nombre}`} className="border-b border-borde bg-white">
-            <td className="py-1.5 pr-4 pl-14 text-[13px] leading-[1.4] text-texto-2">
+            <td className="py-1.5 pr-4 pl-10 text-[13px] leading-[1.4] text-texto-2 sm:pl-14">
               {it.nombre} <span className="text-texto-3">· peso {porcentajeItem(it.peso)}</span>
             </td>
             <td className="px-4 py-1.5 text-center text-[13px] font-semibold text-texto-2">
