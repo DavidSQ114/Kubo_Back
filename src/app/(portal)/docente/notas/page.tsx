@@ -4,13 +4,17 @@
 // uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado. Cada calificación
 // guardada admite evidencias (US38, M-07): se agregan y eliminan con el registro abierto y luego quedan en solo lectura.
 // «Competencias de mi curso» (bloque M2) agrega o quita competencias del plan mientras ninguna tenga notas en el año.
+// «Ítems» (bloque M2) gestiona los ítems de evaluación de una competencia; sus calificaciones se guardan con las notas.
 "use client";
 
 import { useState } from "react";
 import {
   AvanceRegistro,
   claveCelda,
+  claveItem,
   columnaDe,
+  leerClave,
+  porcentaje,
   esLogro,
   GrillaNotas,
   LeyendaLogros,
@@ -27,6 +31,7 @@ import {
 } from "@/components/docente/notas";
 import { ModalCompetenciasDelCurso } from "@/components/docente/competencias";
 import { ModalEvidencias, type CeldaElegida } from "@/components/docente/evidencias";
+import { ModalItems, type ItemsGuardados } from "@/components/docente/items";
 import {
   claveNota,
   ModalSolicitarRectificacion,
@@ -74,14 +79,17 @@ interface Mensaje {
 function celdasInvalidas(registro: RegistroDeNotas, ediciones: Record<string, string>) {
   const invalidas = new Set<string>();
   const textos: string[] = [];
+  const revisar = (clave: string, donde: string, nombre: string) => {
+    const valor = ediciones[clave];
+    if (clave in ediciones && valor !== "" && !esLogro(valor)) {
+      invalidas.add(clave);
+      textos.push(`Se rechazó el valor «${valor}» ingresado para ${nombre} en ${donde}.`);
+    }
+  };
   for (const a of registro.alumnos) {
     registro.competencias.forEach((c, i) => {
-      const clave = claveCelda(a.matriculaId, c.competenciaPlanId);
-      const valor = ediciones[clave];
-      if (clave in ediciones && valor !== "" && !esLogro(valor)) {
-        invalidas.add(clave);
-        textos.push(`Se rechazó el valor «${valor}» ingresado para ${a.nombre} en ${columnaDe(i)}.`);
-      }
+      revisar(claveCelda(a.matriculaId, c.competenciaPlanId), columnaDe(i), a.nombre);
+      for (const it of c.items) revisar(claveItem(a.matriculaId, it.id), `${columnaDe(i)} · ${it.nombre}`, a.nombre);
     });
   }
   return { invalidas, textos };
@@ -108,6 +116,7 @@ function RegistroDelBimestre({
   const [guardando, setGuardando] = useState(false);
   const [modal, setModal] = useState<{ pendientes: Pendiente[] | null; error: string | null } | null>(null);
   const [cerrando, setCerrando] = useState(false);
+  const [itemsDe, setItemsDe] = useState<string | null>(null);
 
   const carga: Carga<RegistroDeNotas> = propio ? { fase: "listo", datos: propio } : consulta.carga;
   if (carga.fase === "cargando") return <CargandoAsistencia />;
@@ -116,9 +125,10 @@ function RegistroDelBimestre({
 
   // cambios reales: celdas tocadas cuyo valor difiere del guardado
   const cambios = Object.entries(ediciones).filter(([clave, valor]) => {
-    const [matriculaId, competenciaPlanId] = clave.split("|");
-    const guardado = r.alumnos.find((a) => a.matriculaId === matriculaId)?.notas[competenciaPlanId]?.logro ?? "";
-    return valor !== guardado && valor !== "";
+    const { matriculaId, competenciaPlanId, itemId } = leerClave(clave);
+    const alumno = r.alumnos.find((a) => a.matriculaId === matriculaId);
+    const guardado = itemId ? alumno?.calificaciones[itemId] : alumno?.notas[competenciaPlanId!]?.logro;
+    return valor !== (guardado ?? "") && valor !== "";
   });
 
   function cambiar(clave: string, valor: string) {
@@ -151,28 +161,49 @@ function RegistroDelBimestre({
       });
       return;
     }
-    const notas = cambios.map(([clave, logro]) => {
-      const [matriculaId, competenciaPlanId] = clave.split("|");
-      return { matriculaId, competenciaPlanId, logro: logro as Logro };
-    });
-    if (!notas.length) return;
+    const celdas = cambios.map(([clave, logro]) => ({ ...leerClave(clave), logro: logro as Logro }));
+    const notas = celdas.flatMap((c) =>
+      c.competenciaPlanId
+        ? [{ matriculaId: c.matriculaId, competenciaPlanId: c.competenciaPlanId, logro: c.logro }]
+        : [],
+    );
+    const calificaciones = celdas.flatMap((c) =>
+      c.itemId ? [{ matriculaId: c.matriculaId, itemId: c.itemId, logro: c.logro }] : [],
+    );
+    if (!notas.length && !calificaciones.length) return;
     setGuardando(true);
     try {
       const nuevo = await api<NotasGuardadas>(`/evaluacion/registros/${asignacionId}/bimestres/${bimestreId}/notas`, {
         method: "PUT",
-        body: { notas },
+        body: { notas, calificaciones },
       });
       actualizar(nuevo);
-      const { nuevas, modificadas } = nuevo.guardado;
+      const { nuevas, modificadas, calificaciones: deItems, recalculo } = nuevo.guardado;
+      const items = deItems.nuevas + deItems.modificadas;
+      const calculadas = recalculo.calculadas + recalculo.cambiadas;
       setMensaje({
         tipo: "exito",
         titulo: "Notas guardadas.",
-        detalle: `${nuevas} ${nuevas === 1 ? "nota nueva" : "notas nuevas"} y ${modificadas} ${modificadas === 1 ? "cambio" : "cambios"}. Puedes volver luego para completar el registro.`,
+        detalle:
+          `${nuevas} ${nuevas === 1 ? "nota nueva" : "notas nuevas"} y ${modificadas} ${modificadas === 1 ? "cambio" : "cambios"}` +
+          (items ? `; ${items} ${items === 1 ? "calificación de ítem" : "calificaciones de ítems"}` : "") +
+          (calculadas ? ` y ${calculadas} ${calculadas === 1 ? "nota calculada" : "notas calculadas"} por ítems` : "") +
+          ". Puedes volver luego para completar el registro.",
       });
     } catch (e) {
       if (e instanceof ApiError && e.codigo === "VALOR_NO_PERMITIDO") {
-        const celdas = (e.detalles.celdas ?? []) as { matriculaId: string; competenciaPlanId: string }[];
-        setInvalidas(new Set(celdas.map((c) => claveCelda(c.matriculaId, c.competenciaPlanId))));
+        const celdas = (e.detalles.celdas ?? []) as {
+          matriculaId: string;
+          competenciaPlanId: string;
+          itemId?: string;
+        }[];
+        setInvalidas(
+          new Set(
+            celdas.map((c) =>
+              c.itemId ? claveItem(c.matriculaId, c.itemId) : claveCelda(c.matriculaId, c.competenciaPlanId),
+            ),
+          ),
+        );
       }
       if (e instanceof ApiError && (e.codigo === "REGISTRO_CERRADO" || e.codigo === "PERIODO_NO_ACTIVO")) {
         // el registro cambió de estado (otra pestaña o el fin del bimestre): se vuelve a cargar en solo lectura
@@ -218,6 +249,28 @@ function RegistroDelBimestre({
     } finally {
       setCerrando(false);
     }
+  }
+
+  function itemsGuardados(nuevo: ItemsGuardados) {
+    const indice = nuevo.competencias.findIndex((c) => c.competenciaPlanId === itemsDe);
+    const c = nuevo.competencias[indice];
+    setItemsDe(null);
+    actualizar(nuevo);
+    const { recalculo } = nuevo.itemsGuardados;
+    setMensaje({
+      tipo: "exito",
+      titulo: `Ítems de ${columnaDe(indice)} guardados.`,
+      detalle:
+        c && c.items.length
+          ? `${c.items.length} ${c.items.length === 1 ? "ítem" : "ítems"} con un total de ${porcentaje(c.sumaPesos)}.` +
+            (recalculo.quitadas
+              ? ` ${recalculo.quitadas} ${recalculo.quitadas === 1 ? "alumno quedó" : "alumnos quedaron"} sin nota en la competencia.`
+              : "") +
+            (recalculo.calculadas + recalculo.cambiadas
+              ? ` Se calcularon ${recalculo.calculadas + recalculo.cambiadas} notas.`
+              : "")
+          : "La competencia ya no tiene ítems: se califica directo.",
+    });
   }
 
   function solicitudEnviada({ solicitud, aviso }: SolicitudCreada) {
@@ -302,13 +355,40 @@ function RegistroDelBimestre({
             Cuando la sección tenga estudiantes matriculados aparecerán aquí para calificarlos.
           </AsistenciaVacia>
         ) : (
-          <GrillaNotas
-            registro={r}
-            ediciones={ediciones}
-            invalidas={invalidas}
-            onCambiar={cambiar}
-            onEvidencias={setEvidencias}
-          />
+          <>
+            {r.competencias.some((c) => c.items.length > 0 && !c.pesosCompletos) && (
+              <Alerta tipo="aviso" titulo="Hay competencias con ítems cuyos pesos no suman 100 %">
+                {r.competencias
+                  .map((c, i) => ({ c, i }))
+                  .filter(({ c }) => c.items.length > 0 && !c.pesosCompletos)
+                  .map(({ c, i }) => `${columnaDe(i)}: ${porcentaje(c.sumaPesos)}`)
+                  .join(" · ")}
+                . Su nota no se calcula hasta que los pesos sumen 100 %.
+              </Alerta>
+            )}
+            <GrillaNotas
+              registro={r}
+              ediciones={ediciones}
+              invalidas={invalidas}
+              onCambiar={cambiar}
+              onEvidencias={setEvidencias}
+              onItems={
+                r.editable
+                  ? (id) => {
+                      if (cambios.length > 0) {
+                        setMensaje({
+                          tipo: "error",
+                          titulo: "Guarda tus cambios antes de editar los ítems.",
+                          detalle: "Así no se pierde ninguna calificación que aún no se guardó.",
+                        });
+                        return;
+                      }
+                      setItemsDe(id);
+                    }
+                  : undefined
+              }
+            />
+          </>
         )}
         {r.alumnos.length > 0 && (
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -338,6 +418,15 @@ function RegistroDelBimestre({
           celda={evidencias}
           onCerrar={() => setEvidencias(null)}
           onCambio={conEvidencias}
+        />
+      )}
+      {itemsDe && r.competencias.some((c) => c.competenciaPlanId === itemsDe) && (
+        <ModalItems
+          registro={r}
+          competencia={r.competencias.find((c) => c.competenciaPlanId === itemsDe)!}
+          columna={columnaDe(r.competencias.findIndex((c) => c.competenciaPlanId === itemsDe))}
+          onCerrar={() => setItemsDe(null)}
+          onGuardado={itemsGuardados}
         />
       )}
       {rectificando && (

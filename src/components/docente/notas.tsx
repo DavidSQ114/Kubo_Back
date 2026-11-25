@@ -1,7 +1,9 @@
 // DO-04 · Registro de notas (US37, US39, US40) y M-10 · Cerrar registro del bimestre: grilla de alumnos por
 // competencias con la escala AD, A, B o C, el consolidado por alumno, las evidencias de cada calificación (US38: clip
 // con su número y columna «Evidencia»), el avance del registro y el modal de cierre con las calificaciones que faltan.
-// En el celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla.
+// En el celular cada alumno ocupa una tarjeta; desde 1024 px, una fila de la tabla. Bloque M2: una competencia con
+// ítems de evaluación muestra un sub-columna por ítem para calificarlo y su nota calculada en solo lectura (con el
+// porqué si falta); la tabla se desplaza dentro de su tarjeta, con la columna del estudiante fija.
 "use client";
 
 import { useState } from "react";
@@ -64,6 +66,10 @@ export interface AlumnoDeRegistro {
   matriculaId: string;
   nombre: string;
   notas: Record<string, NotaVista>;
+  /** Calificación de cada ítem, por id de ítem (bloque M2). */
+  calificaciones: Record<string, Logro>;
+  /** Por qué no tiene nota una competencia con ítems, por id de competencia. */
+  sinNota: Record<string, { motivo: "PESOS_INCOMPLETOS" | "ITEMS_PENDIENTES"; mensaje: string }>;
   completo: boolean;
   consolidado: Logro | null;
 }
@@ -74,12 +80,25 @@ export interface Pendiente {
   competencias: { competenciaPlanId: string; codigo: string; nombre: string }[];
 }
 
+export interface ItemDeRegistro {
+  id: string;
+  nombre: string;
+  peso: number;
+  orden: number;
+  /** Alumnos con el ítem calificado. */
+  calificaciones: number;
+}
+
 export interface CompetenciaDeRegistro {
   competenciaPlanId: string;
   codigo: string;
   nombre: string;
   orden: number;
   peso: number | null;
+  /** Ítems de evaluación (bloque M2); vacío: se califica directo. */
+  items: ItemDeRegistro[];
+  sumaPesos: number;
+  pesosCompletos: boolean;
 }
 
 export interface RegistroDeNotas {
@@ -103,7 +122,13 @@ export interface RegistroDeNotas {
 }
 
 export interface NotasGuardadas extends RegistroDeNotas {
-  guardado: { nuevas: number; modificadas: number; sinCambio: number };
+  guardado: {
+    nuevas: number;
+    modificadas: number;
+    sinCambio: number;
+    calificaciones: { nuevas: number; modificadas: number };
+    recalculo: { calculadas: number; cambiadas: number; quitadas: number };
+  };
 }
 
 export interface RegistroCerrado extends RegistroDeNotas {
@@ -112,6 +137,21 @@ export interface RegistroCerrado extends RegistroDeNotas {
 
 /** Celda de la grilla: alumno y competencia. */
 export const claveCelda = (matriculaId: string, competenciaPlanId: string) => `${matriculaId}|${competenciaPlanId}`;
+
+const PREFIJO_ITEM = "item:";
+/** Celda de un ítem de evaluación (bloque M2): alumno e ítem. */
+export const claveItem = (matriculaId: string, itemId: string) => `${matriculaId}|${PREFIJO_ITEM}${itemId}`;
+
+/** Separa una clave de celda: nota directa de una competencia o calificación de un ítem. */
+export function leerClave(clave: string) {
+  const [matriculaId, resto] = clave.split("|");
+  return resto.startsWith(PREFIJO_ITEM)
+    ? { matriculaId, itemId: resto.slice(PREFIJO_ITEM.length), competenciaPlanId: null }
+    : { matriculaId, itemId: null, competenciaPlanId: resto };
+}
+
+/** «40 %», «33,5 %». */
+export const porcentaje = (valor: number) => `${String(valor).replace(".", ",")} %`;
 
 export const esLogro = (valor: string): valor is Logro => (LOGROS as string[]).includes(valor);
 
@@ -358,6 +398,8 @@ export interface PropsGrilla {
    * Administrador en AD-15) no se muestran las evidencias.
    */
   onEvidencias?: (celda: CeldaElegida) => void;
+  /** Abre la gestión de ítems de una competencia (bloque M2); sin él, no se muestra el botón «Ítems». */
+  onItems?: (competenciaPlanId: string) => void;
 }
 
 /** Valor que se ve en una celda: lo editado o, si no se tocó, lo guardado. */
@@ -371,33 +413,108 @@ export function valorDeCelda(
   return clave in ediciones ? ediciones[clave] : (a.notas[competenciaPlanId]?.logro ?? "");
 }
 
-export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvidencias }: PropsGrilla) {
+/** Valor de la celda de un ítem: lo editado o, si no se tocó, la calificación guardada. */
+export function valorDeItem(ediciones: Record<string, string>, a: AlumnoDeRegistro, itemId: string) {
+  const clave = claveItem(a.matriculaId, itemId);
+  return clave in ediciones ? ediciones[clave] : (a.calificaciones?.[itemId] ?? "");
+}
+
+/** Total de pesos de los ítems: «100 %» en verde u otro valor en rojo. */
+export function TotalPesosItems({ suma, completos }: { suma: number; completos: boolean }) {
+  return (
+    <span
+      title={completos ? "Los pesos suman 100 %" : "Los pesos deben sumar 100 % para calcular la nota"}
+      className={`inline-flex items-center rounded-full px-1.5 py-px text-[11px] font-bold ${completos ? "bg-verde/15 text-verde-oscuro" : "bg-rojo/10 text-rojo-oscuro"}`}
+    >
+      {porcentaje(suma)}
+    </span>
+  );
+}
+
+/** Nota calculada de una competencia con ítems: solo lectura; si falta, «—» con el porqué. */
+function NotaCalculada({ alumno, competencia }: { alumno: AlumnoDeRegistro; competencia: CompetenciaDeRegistro }) {
+  const nota = alumno.notas[competencia.competenciaPlanId];
+  if (nota) return <BadgeLogro logro={nota.logro} titulo={`Calculada por ítems · ${detalleNota(nota)}`} />;
+  const motivo = alumno.sinNota?.[competencia.competenciaPlanId]?.mensaje ?? "Sin nota";
+  return (
+    <span title={motivo} className="inline-flex h-9 w-12 items-center justify-center gap-0.5 text-[14px] text-texto-3">
+      —<Icono nombre="alerta-warn" size={14} />
+      <span className="sr-only">Sin nota: {motivo}</span>
+    </span>
+  );
+}
+
+const STICKY = "sticky left-0 z-10";
+
+export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvidencias, onItems }: PropsGrilla) {
   const cerrado = registro.estado !== "ABIERTO";
-  const celda = (a: AlumnoDeRegistro, c: CompetenciaDeRegistro, i: number) => {
-    const clave = claveCelda(a.matriculaId, c.competenciaPlanId);
+  const conItems = registro.competencias.some((c) => c.items.length > 0);
+  const marca = (a: AlumnoDeRegistro, c: CompetenciaDeRegistro, i: number) => {
     const evidencias = a.notas[c.competenciaPlanId]?.evidencias?.length ?? 0;
     return (
-      <span className="inline-flex items-center gap-0.5">
-        <CeldaLogro
-          alumno={a.nombre}
-          competencia={`${columnaDe(i)} · ${c.nombre}`}
-          valor={valorDeCelda(registro, ediciones, a, c.competenciaPlanId)}
-          nota={a.notas[c.competenciaPlanId]}
-          editable={registro.editable}
-          invalida={invalidas.has(clave)}
-          cambiada={clave in ediciones}
-          onCambiar={(v) => onCambiar(clave, v)}
+      onEvidencias &&
+      evidencias > 0 && (
+        <MarcaEvidencia
+          total={evidencias}
+          etiqueta={`${a.nombre} en ${columnaDe(i)}`}
+          onAbrir={() => onEvidencias({ matriculaId: a.matriculaId, competenciaPlanId: c.competenciaPlanId })}
         />
-        {onEvidencias && evidencias > 0 && (
-          <MarcaEvidencia
-            total={evidencias}
-            etiqueta={`${a.nombre} en ${columnaDe(i)}`}
-            onAbrir={() => onEvidencias({ matriculaId: a.matriculaId, competenciaPlanId: c.competenciaPlanId })}
+      )
+    );
+  };
+  const celda = (a: AlumnoDeRegistro, c: CompetenciaDeRegistro, i: number) => {
+    const clave = claveCelda(a.matriculaId, c.competenciaPlanId);
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        {c.items.length ? (
+          <NotaCalculada alumno={a} competencia={c} />
+        ) : (
+          <CeldaLogro
+            alumno={a.nombre}
+            competencia={`${columnaDe(i)} · ${c.nombre}`}
+            valor={valorDeCelda(registro, ediciones, a, c.competenciaPlanId)}
+            nota={a.notas[c.competenciaPlanId]}
+            editable={registro.editable}
+            invalida={invalidas.has(clave)}
+            cambiada={clave in ediciones}
+            onCambiar={(v) => onCambiar(clave, v)}
           />
         )}
+        {marca(a, c, i)}
       </span>
     );
   };
+  const celdaItem = (a: AlumnoDeRegistro, it: ItemDeRegistro, i: number) => {
+    const clave = claveItem(a.matriculaId, it.id);
+    const guardada = a.calificaciones?.[it.id];
+    return registro.editable ? (
+      <CeldaLogro
+        alumno={a.nombre}
+        competencia={`${columnaDe(i)} · ${it.nombre}`}
+        valor={valorDeItem(ediciones, a, it.id)}
+        nota={undefined}
+        editable
+        invalida={invalidas.has(clave)}
+        cambiada={clave in ediciones}
+        onCambiar={(v) => onCambiar(clave, v)}
+      />
+    ) : guardada ? (
+      <BadgeLogro logro={guardada} titulo={`${it.nombre}: ${NOMBRE_LOGRO[guardada]}`} />
+    ) : (
+      <span className="text-[14px] text-texto-3">—</span>
+    );
+  };
+  const botonItems = (c: CompetenciaDeRegistro, i: number) =>
+    onItems && (
+      <button
+        type="button"
+        onClick={() => onItems(c.competenciaPlanId)}
+        aria-label={`Ítems de ${columnaDe(i)} · ${c.nombre}`}
+        className="inline-flex items-center gap-1 rounded-md border border-borde bg-white px-1.5 py-0.5 text-[12px] font-semibold text-kubo-azul hover:bg-fondo"
+      >
+        <Icono nombre="icon-sliders" size={12} /> Ítems
+      </button>
+    );
   const accion = (a: AlumnoDeRegistro) =>
     onEvidencias && (
       <AccionEvidencia
@@ -407,58 +524,128 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvide
       />
     );
   const fila = (a: AlumnoDeRegistro) =>
-    registro.competencias.some((c) => invalidas.has(claveCelda(a.matriculaId, c.competenciaPlanId)));
+    registro.competencias.some(
+      (c) =>
+        invalidas.has(claveCelda(a.matriculaId, c.competenciaPlanId)) ||
+        c.items.some((it) => invalidas.has(claveItem(a.matriculaId, it.id))),
+    );
+  const filas = conItems ? 2 : 1;
 
   return (
     <>
-      {/* Desde 1024 px: tabla */}
-      <div className="hidden overflow-x-auto rounded-lg border border-borde lg:block">
+      {/* Desde 1024 px: tabla; con muchos ítems se desplaza dentro de su tarjeta, no la página */}
+      <div className="hidden max-w-full overflow-x-auto rounded-lg border border-borde lg:block">
         <table className="w-full border-collapse text-left">
           <thead className="bg-fondo">
             <tr>
-              <th scope="col" className="px-4 py-3 text-[13px] font-semibold text-texto-2">
+              <th
+                scope="col"
+                rowSpan={filas}
+                className={`${STICKY} bg-fondo px-4 py-3 text-[13px] font-semibold text-texto-2`}
+              >
                 Estudiante
               </th>
               {registro.competencias.map((c, i) => (
                 <th
                   key={c.competenciaPlanId}
                   scope="col"
+                  colSpan={c.items.length ? c.items.length + 1 : 1}
+                  rowSpan={c.items.length ? 1 : filas}
                   title={c.nombre}
-                  className="px-2 py-3 text-center text-[13px] font-semibold text-texto-2"
+                  className={`px-2 py-2.5 text-center text-[13px] font-semibold text-texto-2 ${c.items.length ? "border-x border-borde" : ""}`}
                 >
-                  <span className="block">{columnaDe(i)}</span>
-                  <span className="mx-auto block max-w-[110px] truncate text-[12px] font-normal text-texto-3">
+                  <span className="flex items-center justify-center gap-1.5">
+                    {columnaDe(i)}
+                    {c.items.length > 0 && <TotalPesosItems suma={c.sumaPesos} completos={c.pesosCompletos} />}
+                  </span>
+                  <span className="mx-auto block max-w-[130px] truncate text-[12px] font-normal text-texto-3">
                     {c.nombre}
                   </span>
+                  {onItems && <span className="mt-1 flex justify-center">{botonItems(c, i)}</span>}
                 </th>
               ))}
-              <th scope="col" className="px-3 py-3 text-center text-[13px] font-semibold text-texto-2">
+              <th scope="col" rowSpan={filas} className="px-3 py-3 text-center text-[13px] font-semibold text-texto-2">
                 Consolidado
               </th>
               {onEvidencias && (
-                <th scope="col" className="px-3 py-3 text-[13px] font-semibold text-texto-2">
+                <th scope="col" rowSpan={filas} className="px-3 py-3 text-[13px] font-semibold text-texto-2">
                   Evidencia
                 </th>
               )}
             </tr>
+            {conItems && (
+              <tr className="border-t border-borde">
+                {registro.competencias.flatMap((c, i) =>
+                  c.items.length
+                    ? [
+                        ...c.items.map((it, k) => (
+                          <th
+                            key={it.id}
+                            scope="col"
+                            title={`${it.nombre} · peso ${porcentaje(it.peso)}`}
+                            className={`px-1.5 py-2 text-center text-[11px] font-medium text-texto-2 ${k === 0 ? "border-l border-borde" : ""}`}
+                          >
+                            <span className="mx-auto block max-w-[84px] truncate">{it.nombre}</span>
+                            <span className="block font-normal text-texto-3">{porcentaje(it.peso)}</span>
+                          </th>
+                        )),
+                        <th
+                          key={`${c.competenciaPlanId}-nota`}
+                          scope="col"
+                          className="border-r border-borde px-1.5 py-2 text-center text-[11px] font-semibold text-texto"
+                        >
+                          Nota {columnaDe(i)}
+                          <span className="block font-normal text-texto-3">calculada</span>
+                        </th>,
+                      ]
+                    : [],
+                )}
+              </tr>
+            )}
           </thead>
           <tbody>
-            {registro.alumnos.map((a) => (
-              <tr key={a.matriculaId} className={`border-t border-borde ${fila(a) ? "bg-rojo/5" : "bg-white"}`}>
-                <th scope="row" className="px-4 py-2.5 text-[14px] font-medium whitespace-nowrap text-texto">
-                  {a.nombre}
-                </th>
-                {registro.competencias.map((c, i) => (
-                  <td key={c.competenciaPlanId} className="px-2 py-2.5 text-center">
-                    {celda(a, c, i)}
+            {registro.alumnos.map((a) => {
+              // la columna fija necesita un fondo opaco: blanco con el tinte rojo encima
+              const fondo = fila(a) ? "bg-white bg-linear-to-r from-rojo/5 to-rojo/5" : "bg-white";
+              return (
+                <tr key={a.matriculaId} className={`border-t border-borde ${fondo}`}>
+                  <th
+                    scope="row"
+                    className={`${STICKY} ${fondo} px-4 py-2.5 text-[14px] font-medium whitespace-nowrap text-texto`}
+                  >
+                    {a.nombre}
+                  </th>
+                  {registro.competencias.flatMap((c, i) =>
+                    c.items.length
+                      ? [
+                          ...c.items.map((it, k) => (
+                            <td
+                              key={it.id}
+                              className={`px-1 py-2.5 text-center ${k === 0 ? "border-l border-borde" : ""}`}
+                            >
+                              {celdaItem(a, it, i)}
+                            </td>
+                          )),
+                          <td
+                            key={`${c.competenciaPlanId}-nota`}
+                            className="border-r border-borde bg-fondo/60 px-1.5 py-2.5 text-center"
+                          >
+                            {celda(a, c, i)}
+                          </td>,
+                        ]
+                      : [
+                          <td key={c.competenciaPlanId} className="px-2 py-2.5 text-center">
+                            {celda(a, c, i)}
+                          </td>,
+                        ],
+                  )}
+                  <td className="px-3 py-2.5 text-center">
+                    <Consolidado alumno={a} cerrado={cerrado} />
                   </td>
-                ))}
-                <td className="px-3 py-2.5 text-center">
-                  <Consolidado alumno={a} cerrado={cerrado} />
-                </td>
-                {onEvidencias && <td className="px-3 py-2.5">{accion(a)}</td>}
-              </tr>
-            ))}
+                  {onEvidencias && <td className="px-3 py-2.5">{accion(a)}</td>}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -475,14 +662,41 @@ export function GrillaNotas({ registro, ediciones, invalidas, onCambiar, onEvide
               <Consolidado alumno={a} cerrado={cerrado} />
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:grid-cols-3">
-              {registro.competencias.map((c, i) => (
-                <div key={c.competenciaPlanId} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-[13px] text-texto-2" title={c.nombre}>
-                    <span className="font-semibold text-texto">{columnaDe(i)}</span> · {c.nombre}
-                  </span>
-                  {celda(a, c, i)}
-                </div>
-              ))}
+              {registro.competencias.map((c, i) =>
+                c.items.length ? (
+                  <div
+                    key={c.competenciaPlanId}
+                    className="col-span-full flex flex-col gap-2 rounded-lg border border-borde p-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[13px] text-texto-2" title={c.nombre}>
+                        <span className="font-semibold text-texto">{columnaDe(i)}</span> · {c.nombre}
+                      </span>
+                      {celda(a, c, i)}
+                    </div>
+                    {!a.notas[c.competenciaPlanId] && a.sinNota?.[c.competenciaPlanId] && (
+                      <p className="text-[12px] text-ambar-oscuro">{a.sinNota[c.competenciaPlanId].mensaje}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
+                      {c.items.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-[12px] text-texto-2" title={it.nombre}>
+                            {it.nombre} · {porcentaje(it.peso)}
+                          </span>
+                          {celdaItem(a, it, i)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={c.competenciaPlanId} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-[13px] text-texto-2" title={c.nombre}>
+                      <span className="font-semibold text-texto">{columnaDe(i)}</span> · {c.nombre}
+                    </span>
+                    {celda(a, c, i)}
+                  </div>
+                ),
+              )}
             </div>
             {onEvidencias && (
               <div className="flex items-center justify-between gap-3 border-t border-borde pt-2">
