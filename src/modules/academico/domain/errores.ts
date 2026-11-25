@@ -116,7 +116,7 @@ export const erroresAcademico = {
   aulaEnUso: (secciones: string) =>
     new ErrorApp(
       "AULA_EN_USO",
-      `El aula está asignada a ${secciones}. Quítala de esas secciones antes de inactivarla.`,
+      `El aula está asignada a ${secciones}. Pide a la coordinación académica que la quite de esas secciones antes de inactivarla.`,
       409,
     ),
   aforoMenorQueSecciones: (maximo: number) =>

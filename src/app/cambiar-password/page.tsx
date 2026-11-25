@@ -16,6 +16,7 @@ export default function CambiarPasswordPage() {
   const [confirmacion, setConfirmacion] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listo, setListo] = useState(false);
 
   useEffect(() => {
     api<Sesion>("/identidad/sesion")
@@ -30,7 +31,7 @@ export default function CambiarPasswordPage() {
     setEnviando(true);
     try {
       await api("/identidad/password", { method: "PUT", body: { actual, nueva, confirmacion } });
-      router.replace(inicioPorRol(sesion.rolActivo));
+      setListo(true);
     } catch (err) {
       if (err instanceof ApiError && err.codigo === "PASSWORD_DEBIL") {
         setError(`La nueva contraseña no cumple: ${(err.detalles.requisitos as string[]).join(", ").toLowerCase()}.`);
@@ -48,6 +49,20 @@ export default function CambiarPasswordPage() {
     return (
       <PaginaCentrada>
         <Spinner claro={false} />
+      </PaginaCentrada>
+    );
+  }
+
+  if (listo) {
+    return (
+      <PaginaCentrada>
+        <TarjetaAcceso ancho={440}>
+          <IconoCircular nombre="icon-lock-grande" />
+          <Alerta tipo="exito" titulo="Tu contraseña fue actualizada">
+            Se cerraron tus sesiones en otros equipos. Desde ahora ingresa con la nueva contraseña.
+          </Alerta>
+          <Boton onClick={() => router.replace(inicioPorRol(sesion.rolActivo))}>Ir al inicio</Boton>
+        </TarjetaAcceso>
       </PaginaCentrada>
     );
   }

@@ -90,7 +90,7 @@ export default function LoginPage() {
       setError({
         titulo: "Correo o contraseña incorrectos",
         texto:
-          "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras 5 intentos fallidos la cuenta se bloquea 15 minutos.",
+          "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras varios intentos fallidos la cuenta se bloquea por unos minutos.",
       });
       return;
     }

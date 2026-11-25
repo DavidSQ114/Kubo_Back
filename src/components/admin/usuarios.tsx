@@ -465,7 +465,7 @@ export function ModalRegistrarAdministrador({
     >
       {resultado ? (
         <>
-          <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es ${textos.nombre}`}>
+          <Alerta tipo="exito" titulo={`Se registró a ${resultado.nombreCompleto} como ${textos.nombre}`}>
             {resultado.personaExistia
               ? "La persona ya estaba registrada: se le agregó el perfil sin duplicar sus datos. "
               : ""}
