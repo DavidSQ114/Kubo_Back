@@ -72,7 +72,7 @@ describe("reporte de logro de competencias (bloque M2)", () => {
 
   it("el CSV lleva BOM, una fila por alumno y competencia y el logro del curso", () => {
     const texto = csvDelReporte({ anio: 2026, bimestre: "Bimestre I" }, reporte);
-    expect(texto.startsWith("﻿Año,Bimestre,Curso")).toBe(true);
+    expect(texto.startsWith("\uFEFFAño,Bimestre,Curso")).toBe(true);
     const filas = texto.trim().split("\r\n");
     expect(filas).toHaveLength(1 + 2 * 3);
     expect(filas[1]).toBe('2026,Bimestre I,Matemática,1° A,"Álvarez, Bruno",C1,Cantidad,B');

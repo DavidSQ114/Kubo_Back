@@ -170,7 +170,7 @@ export function csvDelReporte(contexto: { anio: number; bimestre: string }, curs
       ]);
     }
   }
-  return `﻿${filas.map((f) => f.map(campoCsv).join(",")).join("\r\n")}\r\n`;
+  return `\uFEFF${filas.map((f) => f.map(campoCsv).join(",")).join("\r\n")}\r\n`;
 }
 
 /** «Reporte_logro_BimestreI_2026.csv»: sin tildes ni espacios ni datos personales. */
