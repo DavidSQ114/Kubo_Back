@@ -61,6 +61,8 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | PUT | `/api/v1/academico/cursos/{id}/planes` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
 | GET | `/api/v1/academico/grados` | Coordinador, Administrador (`ROLES_ACADEMICO.CONSULTA`) |
 | GET | `/api/v1/academico/mis-cursos` | Docente |
+| GET | `/api/v1/academico/mis-cursos/{id}/competencias` | Docente (solo su asignación) |
+| PUT | `/api/v1/academico/mis-cursos/{id}/competencias` | Docente (solo su asignación) |
 | GET | `/api/v1/academico/parametros` | Administrador (`ROLES_ACADEMICO.PARAMETROS_SISTEMA`) |
 | PUT | `/api/v1/academico/parametros/{clave}` | Administrador (`ROLES_ACADEMICO.PARAMETROS_SISTEMA`) |
 | GET | `/api/v1/academico/planes/{id}/competencias` | Coordinador (`ROLES_ACADEMICO.GESTION`) |
@@ -133,6 +135,10 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | GET | `/api/v1/evaluacion/publicaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/publicaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | GET | `/api/v1/evaluacion/publicaciones/{cierreId}` | Coordinador (`ROLES_EVALUACION.GESTION`) |
+| GET | `/api/v1/evaluacion/reportes/alumnos/{matriculaId}/notas` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias/csv` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
+| GET | `/api/v1/evaluacion/reportes/logro-competencias/pdf` | Coordinador (`ROLES_EVALUACION.REPORTES`) |
 | GET | `/api/v1/evaluacion/rectificaciones` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/rectificaciones/{id}/aprobar` | Coordinador (`ROLES_EVALUACION.GESTION`) |
 | POST | `/api/v1/evaluacion/rectificaciones/{id}/rechazar` | Coordinador (`ROLES_EVALUACION.GESTION`) |
@@ -141,6 +147,8 @@ Las constantes de cada grupo están en `src/modules/<modulo>/accesos.ts` (`ROLES
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/cerrar` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias` | Docente |
 | DELETE | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/evidencias/{evidenciaId}` | Docente |
+| PUT | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/competencias/{competenciaPlanId}/items` | Docente |
+| POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/items/{itemId}/importar` | Docente |
 | PUT | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/notas` | Docente |
 | POST | `/api/v1/evaluacion/registros/{asignacionId}/bimestres/{periodoId}/rectificaciones` | Docente |
 

@@ -1,9 +1,9 @@
-# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51), libreta en PDF (US66), rectificación de nota (US41), bitácora de notas (US03) y evidencias pedagógicas (US38, US47)
+# API · Evaluación: registro de notas (US37), cierre, consolidación y publicación del bimestre (US39), bloqueo del registro cerrado (US40), libreta del apoderado (US46, US26), «Mis notas» del alumno (US51), libreta en PDF (US66), rectificación de nota (US41), bitácora de notas (US03), evidencias pedagógicas (US38, US47), ítems de evaluación con pesos y reportes del coordinador (bloque M2)
 
 > **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
 
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)); M-08, la bandeja de AD-15 y AD-16 «Cambios de notas» ([frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md)); M-07 y M-09, las evidencias en DO-04, AP-04 y AL-03 ([frontend-evidencias.md](../frontend-evidencias.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md), [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md), [pruebas/casos-sprint3-rectificacion.md](../pruebas/casos-sprint3-rectificacion.md) y [pruebas/casos-sprint4-evidencias.md](../pruebas/casos-sprint4-evidencias.md); ejemplos en [evaluacion.http](evaluacion.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Pantallas: DO-04 «Registro de notas» (`/docente/notas`) y el modal M-10 «Cerrar registro del bimestre» ([frontend-notas.md](../frontend-notas.md)); AD-15, AP-04, AP-06 y AL-03 ([frontend-notas-visibles.md](../frontend-notas-visibles.md)); M-08, la bandeja de AD-15 y AD-16 «Cambios de notas» ([frontend-rectificacion-notas.md](../frontend-rectificacion-notas.md)); M-07 y M-09, las evidencias en DO-04, AP-04 y AL-03 ([frontend-evidencias.md](../frontend-evidencias.md)). Casos de prueba en [pruebas/casos-sprint3-notas.md](../pruebas/casos-sprint3-notas.md), [pruebas/casos-sprint3-notas-visibles.md](../pruebas/casos-sprint3-notas-visibles.md), [pruebas/casos-sprint3-rectificacion.md](../pruebas/casos-sprint3-rectificacion.md) [pruebas/casos-sprint4-evidencias.md](../pruebas/casos-sprint4-evidencias.md) y [pruebas/casos-sprint4-items.md](../pruebas/casos-sprint4-items.md); ejemplos en [evaluacion.http](evaluacion.http).
 
 La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md).
 
@@ -66,6 +66,98 @@ Todos son **solo del Docente** y solo para sus propios cursos y secciones (asign
 
 - Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si detectas un error, envía una solicitud de rectificación a la administración.» (ver [Rectificación de nota](#rectificación-de-nota-us41)).
 - Toda escritura sobre él responde `409 REGISTRO_CERRADO`, venga de la pantalla o directo por la API. En la base, el trigger `tg_nota_registro_cerrado` rechaza crear o cambiar notas y `tg_nota_borrado_registro_cerrado` rechaza borrarlas (D-15), aunque se intente fuera de la aplicación.
+
+## Ítems de evaluación con pesos (bloque M2)
+
+Cada competencia de un registro (asignación y bimestre) puede tener **ítems de evaluación** (prácticas, exposiciones,
+examen…) con nombre y peso. El docente califica cada ítem con `AD`, `A`, `B` o `C` y la nota de la competencia se
+**calcula**. Una competencia **sin** ítems se sigue calificando directo, como siempre; los registros anteriores no
+cambian. Pantalla: DO-04, botón «Ítems» de cada competencia ([frontend-items-evaluacion.md](../frontend-items-evaluacion.md)).
+
+**Modelo** (migración `items_evaluacion`):
+
+- `item_evaluacion`: `cierre_id` (el registro), `competencia_plan_id`, `nombre` (1 a 100 caracteres,
+  `ck_item_evaluacion_nombre`), `peso` `numeric(5,2)` mayor que 0 y hasta 100 (`ck_item_evaluacion_peso`), `orden`.
+- `calificacion_item`: `item_id`, `matricula_id`, `valor` (`Logro`), `registrado_por_id`; única por ítem y matrícula.
+- Triggers `tg_item_evaluacion_registro_cerrado` y `tg_calificacion_item_registro_cerrado`: con el registro `CERRADO`
+  o `PUBLICADO` no se crea, cambia ni borra ningún ítem ni calificación, con el mismo mensaje `REGISTRO_CERRADO` (sin
+  excepción para las rectificaciones).
+- `bitacora_nota.origen` admite `ITEMS` y `logro_nuevo` admite `null` (la nota se quitó).
+
+**Cálculo de la nota**
+
+- Promedio ponderado de las calificaciones con AD = 4, A = 3, B = 2, C = 1 y redondeo `MITAD_HACIA_ARRIBA`, con la
+  misma función de la regla `PONDERADO` de académico (`consolidarLogro`), no una copia. Ejemplo: AD (40) y B (60) →
+  2,8 → A; A (50) y B (50) → 2,5 → A.
+- Solo se calcula si los pesos de la competencia suman **exactamente 100** (se suman en centésimas: 33,33 + 33,33 +
+  33,34 = 100) y el alumno tiene **todos** sus ítems calificados. Si no, la competencia queda **sin nota** para ese
+  alumno y `sinNota` dice por qué: «Los pesos de los ítems suman 90 %; deben sumar 100 %.» o «Falta calificar el ítem:
+  Examen bimestral.».
+- La nota calculada se guarda en `nota` en la **misma transacción** que las calificaciones o los ítems, con el valor
+  anterior y una fila en la bitácora con origen `ITEMS` (también cuando se quita: `logro_nuevo` null).
+- Una competencia con ítems no acepta nota directa: `422 COMPETENCIA_CON_ITEMS`. Si se eliminan todos sus ítems, vuelve
+  a calificarse directo y conserva la última nota calculada.
+- El cierre (US39) no cambia: exige nota en todas las competencias, así que una competencia con ítems incompletos o
+  pesos que no suman 100 deja al alumno pendiente.
+- **Rectificación (US41)**: sigue siendo sobre la **nota de la competencia**. Con el registro cerrado, el docente pide
+  la corrección de la nota (C1, C2…) y la coordinación la aprueba como siempre; las calificaciones de los ítems quedan
+  como se registraron. La libreta muestra el detalle de ítems y la nota vigente (la rectificada, si la hubo).
+
+**Endpoints** (solo el docente de la asignación, en el bimestre activo y con el registro `ABIERTO`; el registro se
+crea si no existe y su fila se bloquea):
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `PUT /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/competencias/{competenciaPlanId}/items` | `{ items: [{ id?, nombre, peso }], confirmar? }` | `RegistroDeNotas` + `itemsGuardados: { creados, editados, eliminados, impacto, recalculo }` |
+| `PUT /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/notas` | `{ notas?: […], calificaciones?: [{ itemId, matriculaId, logro }] }` | `RegistroDeNotas` + `guardado: { nuevas, modificadas, sinCambio, calificaciones: { nuevas, modificadas }, recalculo }` |
+| `POST /evaluacion/registros/{asignacionId}/bimestres/{periodoId}/items/{itemId}/importar` | `{ csv, confirmar? }` | `{ item, filas, validas, rechazadas, guardado }` |
+
+- `PUT …/items` recibe la **lista completa** de la competencia, en orden: los ítems con `id` se editan y reordenan,
+  los que no tienen `id` se crean y los que faltan se eliminan (con sus calificaciones). Hasta 20 ítems, nombres sin
+  repetir. La suma puede no ser 100: se guarda y la competencia queda sin nota hasta completarla.
+- Si el cambio borra calificaciones o deja alumnos sin nota (y borra las evidencias de esas notas), sin
+  `confirmar: true` responde `409 CONFIRMAR_CAMBIO_ITEMS` con `details: { itemsEliminados, calificacionesBorradas,
+  notasQuitadas, evidenciasBorradas }` y no cambia nada.
+- `recalculo`: `{ calculadas, cambiadas, quitadas }` (notas creadas, cambiadas o quitadas por los ítems).
+- `RegistroDeNotas` agrega, por competencia, `items: [{ id, nombre, peso, orden, calificaciones }]`, `sumaPesos` y
+  `pesosCompletos`; por alumno, `calificaciones` (por id de ítem) y `sinNota: { [competenciaPlanId]: { motivo:
+  "PESOS_INCOMPLETOS" | "ITEMS_PENDIENTES", mensaje } }`.
+- `PUT …/notas` necesita al menos una nota o una calificación; hasta 500 notas y 2000 calificaciones. Un valor fuera de
+  la escala en una calificación responde `400 VALOR_NO_PERMITIDO` con la celda (`itemId`) en `details.celdas`.
+- **Importar CSV** (`…/importar`): archivo `dni,calificativo` (también con `;`, cabecera opcional, hasta 300 filas y
+  50 000 caracteres). Sin `confirmar` devuelve cada fila (`linea`, `dni`, `calificativo`, `matriculaId`, `nombre`,
+  `motivo`) sin guardar nada; motivos: DNI de 8 dígitos, valor de la escala, DNI repetido, alumno fuera del registro,
+  columnas de más. Con `confirmar: true` guarda **solo las válidas** con el mismo guardado de `PUT …/notas`.
+
+## Reportes del coordinador (bloque M2)
+
+Solo el **Coordinador académico** (`ROLES_EVALUACION.REPORTES`). Pantallas `/coordinador/notas-alumno` y
+`/coordinador/reporte-competencias`.
+
+| Método y ruta | Consulta | Respuesta |
+|---|---|---|
+| `GET /evaluacion/reportes/logro-competencias` | `anioId?`, `periodoId?`, `gradoId?`, `seccionId?`, `cursoId?` | `ReporteLogro` |
+| `GET /evaluacion/reportes/logro-competencias/csv` | la misma | `text/csv` (UTF-8 con BOM) |
+| `GET /evaluacion/reportes/logro-competencias/pdf` | la misma | `application/pdf` |
+| `GET /evaluacion/reportes/alumnos/{matriculaId}/notas` | — | `NotasDelAlumno` |
+
+- **Reporte de logro de competencias**: solo registros `CERRADO` o `PUBLICADO` (los abiertos aún son del docente).
+  Año por defecto: el que está en curso; bimestre por defecto: el último con registros cerrados. `ReporteLogro`:
+  `{ anios, anio, bimestres, bimestre, grados, secciones, cursos, registros, resultados }`; `secciones` y `cursos` son
+  las opciones con registros en ese año, bimestre y grado. Cada curso de `resultados`: `{ cursoId, codigo, nombre,
+  secciones, competencias: [{ codigo, nombre, columna, conteo: { AD, A, B, C }, total, porcentajes }], consolidado,
+  alumnos: [{ matriculaId, nombre, seccion, logros: { [codigo]: logro | null }, consolidado }] }`. Porcentajes con
+  un decimal.
+- **CSV**: `Año,Bimestre,Curso,Sección,Estudiante,Columna,Competencia,Logro`, una fila por alumno y competencia y otra
+  con el «Logro del curso». Los campos que empiezan con `=`, `+`, `-` o `@` se neutralizan con `'`. Archivo
+  `Reporte_logro_<Bimestre>_<Año>.csv` (sin datos personales en el nombre).
+- **PDF** (platform/pdf): filtros, por curso la tabla por competencia con cantidad y porcentaje, y el detalle por alumno.
+- **Notas por alumno**: la búsqueda por DNI o nombre es `GET /matricula/matriculas?anioId=&q=`. `NotasDelAlumno`:
+  `{ matriculaId, estudiante: { nombreCompleto, dni }, anio, seccion, estadoMatricula, bimestres: [{ id, numero,
+  nombre, cursos }] }`. Cada curso: `{ cursoId, codigo, nombre, docente, estado, etiquetaEstado, publicado,
+  consolidado, competencias: [{ codigo, nombre, columna, logro, items }] }`. `estado`: `PUBLICADO`, `CERRADO`,
+  `ABIERTO` o `SIN_REGISTRO` (curso del plan de su sección sin notas); `etiquetaEstado`: «Publicado», «Sin publicar ·
+  cerrado», «Sin publicar · en registro» o «Sin publicar · sin notas».
 
 ## Publicación de notas (US39, criterio 4)
 
@@ -235,6 +327,11 @@ Reglas:
 | 422 | `VALOR_IGUAL_AL_ACTUAL` | Rectificación con el mismo valor que ya tiene la nota |
 | 422 | `BITACORA_NOTA_INMUTABLE` | Intento de cambiar o borrar la bitácora de notas directo en la base |
 | 422 | `NOTA_SIN_CALIFICAR` | Evidencia para una celda sin calificación guardada |
+| 400 | `ITEM_NOMBRE_REQUERIDO`, `ITEM_NOMBRE_LARGO`, `ITEM_NOMBRE_REPETIDO`, `ITEM_PESO_INVALIDO`, `DEMASIADOS_ITEMS` | Lista de ítems inválida (bloque M2) |
+| 400 | `CSV_VACIO`, `CSV_DEMASIADO_GRANDE` | Archivo de calificaciones sin filas o con más de 300 |
+| 404 | `NO_ENCONTRADO` | Ítem que no es de esa competencia o de ese registro |
+| 409 | `CONFIRMAR_CAMBIO_ITEMS` | Guardar ítems que borran calificaciones o quitan notas sin `confirmar`; `details` con lo que se pierde |
+| 422 | `COMPETENCIA_CON_ITEMS` | Nota directa en una competencia que se califica por ítems |
 | 503 | `ALMACEN_NO_CONFIGURADO` | Subir o descargar un archivo sin almacén configurado (`ARCHIVOS_DRIVER`) |
 
 ## Auditoría (RF03)
@@ -247,6 +344,7 @@ Reglas:
 | `RECHAZAR_RECTIFICACION_NOTA` | `solicitud_rectificacion` | `{ estado }` | `{ estado: "RECHAZADA", notaId, valorAnterior, valorSolicitado, curso, seccion, bimestre }`; `motivo`: el del rechazo |
 | `AGREGAR_EVIDENCIA` | `evidencia_pedagogica` | — | `{ notaId, anio, curso, seccion, bimestre, competenciaPlanId, largoComentario, archivo: { clave, mime, tamanoBytes } \| null }` |
 | `ELIMINAR_EVIDENCIA` | `evidencia_pedagogica` | lo mismo que `AGREGAR_EVIDENCIA` | — |
+| `GUARDAR_ITEMS_EVALUACION` | `cierre_calificacion` | `{ items: [{ nombre, peso, orden }] }` | `{ anio, curso, seccion, bimestre, competencia, items, sumaPesos, impacto, recalculo }` (bloque M2) |
 
 La auditoría y los logs de las evidencias **no** llevan el comentario ni el nombre del archivo (pueden tener datos personales), solo su largo, la clave, el tipo y el tamaño.
 
@@ -256,10 +354,10 @@ Cada cambio de nota guarda en la propia nota el valor anterior, quién y cuándo
 
 `evaluacion` está por encima de `academico`, `comunidad` y `matricula` y los usa por su `index.ts`:
 
-- `academico`: `asignacionParaNotas` y `asignacionesParaNotas` (curso, sección, año y plan de una o varias asignaciones), `listarSecciones`, `listarGrados`, `planDeSeccion` (cursos de la sección para la libreta), `competenciasDelPlan`, `listarAsignaciones`, `listarAnios`, `reglaDelBimestre` (versión de la regla que rige en un bimestre, nueva en este bloque) y `consolidarLogro` (US12).
+- `academico`: `asignacionParaNotas` y `asignacionesParaNotas` (curso, sección, año y plan de una o varias asignaciones), `listarSecciones`, `listarGrados`, `planDeSeccion` (cursos de la sección para la libreta), `competenciasDelPlan`, `listarAsignaciones`, `listarAnios`, `reglaDelBimestre` (versión de la regla que rige en un bimestre, nueva en este bloque), `obtenerAnio` (reportes) y `consolidarLogro` (US12; también calcula la nota por ítems con la regla `PONDERADO`, bloque M2).
 - `comunidad`: `docentesProviderComunidad` (docente en sesión y nombres de docentes), `resumenEstudiantes`, `nombresDeUsuarios`, `contactosDeCoordinadores` y `personasDeCoordinadores` (cierre y solicitud de rectificación), `contactosDeDocentes` (resultado de la rectificación) y `apoderadosDeEstudiantes` (correo de notas publicadas).
 - `matricula`: `matriculasDeSeccionEnFecha`, `datosDeMatriculas`, `matriculaDelHijo` (vínculo del apoderado), `matriculaVigenteDelAlumno` y `restriccionPorDeuda` (US26).
 - `comunidad`, para el archivo de una evidencia (US47): `estudiantesVinculadosAPersona` (vínculo del apoderado) y `estudianteDePersona` (el alumno en sesión).
 - `platform/archivos`: `validarArchivo`, `guardarArchivo`, `abrirArchivo`, `eliminarArchivo`, `leerFormulario` y `respuestaArchivo`.
 
-Académico sigue consultando los cierres y las notas por su puerto `CierresProvider`, que implementa evaluación.
+Académico sigue consultando los cierres y las notas por su puerto `CierresProvider`, que implementa evaluación; desde el bloque M2 también `itemsPorCompetenciaPlan` (una competencia con ítems no se quita del plan).

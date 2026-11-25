@@ -342,9 +342,19 @@ Pantalla: AD-07 (`/admin/usuarios/registrar-docente`), bloque «Carga académica
 | `POST /academico/asignaciones` | `COORDINADOR` | `{ docenteId, seccionId, cursoId }` | `201 Asignacion` |
 | `DELETE /academico/asignaciones/{id}` | `COORDINADOR` | — | `{ asignacionId, resultado: "ELIMINADA" \| "DESACTIVADA" }` |
 | `GET /academico/mis-cursos` | `DOCENTE` | — | `Asignacion[]` activas del docente en sesión, de todos los años |
+| `GET /academico/mis-cursos/{id}/competencias` | `DOCENTE` (solo su asignación) | — | `CompetenciasDeMiCurso` (bloque M2) |
+| `PUT /academico/mis-cursos/{id}/competencias` | `DOCENTE` (solo su asignación) | `{ competencias: [{ competenciaId, orden?, peso? }] }` | `CompetenciasDeMiCurso` |
 
 - `Asignacion`: `{ id, docenteId, anio: { id, anio }, curso: { id, codigo, nombre }, grado: { id, numero, nombre }, seccion: { id, nombre }, horasSemanales, horarioPublicado }`.
 - El curso se busca en el plan de estudios del grado y año de la sección: la asignación guarda ese `plan_estudio`.
+- **Competencias de mi curso (bloque M2, DO-04):** `CompetenciasDeMiCurso` es la misma respuesta de
+  `GET /academico/planes/{id}/competencias` más `{ asignacionId, secciones («3° A»…), editable, motivo }`. El docente
+  de la asignación activa (otro docente: `403`) agrega competencias **activas** del catálogo del área de su curso y
+  quita las del plan, con su peso (en todas o en ninguna), con las mismas reglas que el coordinador. Solo mientras
+  **ninguna** competencia del plan tenga notas en el año: si no, `409 PLAN_CON_NOTAS` «Este curso ya tiene notas
+  registradas en el año…». El cambio aplica al plan del curso en el grado (todas sus secciones). Auditoría
+  `GUARDAR_COMPETENCIAS_PLAN` con `por: "DOCENTE"` y la asignación. Una competencia con ítems de evaluación no se
+  quita del plan (`409 COMPETENCIA_CON_ITEMS`), ni por el docente ni por el coordinador.
 
 ## Reglas
 

@@ -362,6 +362,16 @@ DELETE {{base}}/academico/asignaciones/{{asignacionId}}
 ### 54. «Mis cursos»: inicia sesión como el docente (y cambia su contraseña temporal) antes de este bloque → 200
 GET {{base}}/academico/mis-cursos
 
+### 54b. Competencias de mi curso (bloque M2): las del plan de su curso y grado, las del área y las secciones
+@miAsignacion = 00000000-0000-0000-0000-000000000000
+GET {{base}}/academico/mis-cursos/{{miAsignacion}}/competencias
+
+### 54c. Guardarlas (agrega o quita, con peso) → con notas en el año: 409 PLAN_CON_NOTAS
+PUT {{base}}/academico/mis-cursos/{{miAsignacion}}/competencias
+Content-Type: application/json
+
+{ "competencias": [{ "competenciaId": "00000000-0000-0000-0000-000000000000", "orden": 1, "peso": 60 }, { "competenciaId": "00000000-0000-0000-0000-000000000001", "orden": 2, "peso": 40 }] }
+
 # ---------- Sprint 2: editar y eliminar el año, insignia y reglas de consolidación (US06, US12) ----------
 # Usa el año 2026 del bloque 3 con sus bimestres (bloque de periodos). Para probar «rige desde» cerrado, marca
 # el Bimestre I como FINALIZADO en la base de pruebas.

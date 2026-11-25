@@ -211,3 +211,46 @@ DELETE {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/evide
 ### 32. Archivo de la evidencia: inline para JPG y PDF. Apoderado ajeno, otro alumno o registro sin publicar → 404;
 ### apoderado con deuda → 403 LIBRETA_RESTRINGIDA
 GET {{base}}/evaluacion/evidencias/{{evidencia}}/archivo
+
+### ---------- Bloque M2 · Ítems de evaluación con pesos · Docente ----------
+
+### 33. Ítems de una competencia (lista completa: crear, editar, reordenar, eliminar). Pesos que no suman 100 → se
+### guarda y la competencia queda sin nota. Si se borran calificaciones o se quitan notas → 409 CONFIRMAR_CAMBIO_ITEMS
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/competencias/{{competencia}}/items
+Content-Type: application/json
+
+{ "items": [{ "nombre": "Práctica calificada", "peso": 40 }, { "nombre": "Examen bimestral", "peso": 60 }], "confirmar": false }
+
+### 34. Calificar ítems (junto a notas directas, en una transacción) → la nota de la competencia se recalcula
+@item = 00000000-0000-0000-0000-000000000000
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "calificaciones": [{ "itemId": "{{item}}", "matriculaId": "{{matricula}}", "logro": "AD" }] }
+
+### 35. Nota directa en una competencia con ítems → 422 COMPETENCIA_CON_ITEMS
+PUT {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/notas
+Content-Type: application/json
+
+{ "notas": [{ "matriculaId": "{{matricula}}", "competenciaPlanId": "{{competencia}}", "logro": "A" }] }
+
+### 36. Importar calificaciones de un ítem desde CSV: sin confirmar solo valida (filas y motivos)
+POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/items/{{item}}/importar
+Content-Type: application/json
+
+{ "csv": "dni,calificativo\n71234567,AD\n70000000,B\n71234568,15", "confirmar": false }
+
+### ---------- Bloque M2 · Reportes · Coordinador académico ----------
+
+### 37. Reporte de logro de competencias (solo registros cerrados o publicados)
+GET {{base}}/evaluacion/reportes/logro-competencias?periodoId={{bimestre}}
+
+### 38. El mismo reporte en CSV y en PDF
+GET {{base}}/evaluacion/reportes/logro-competencias/csv?periodoId={{bimestre}}
+
+###
+GET {{base}}/evaluacion/reportes/logro-competencias/pdf?periodoId={{bimestre}}
+
+### 39. Notas por alumno: libreta completa del año (lo no publicado sale «Sin publicar»)
+GET {{base}}/evaluacion/reportes/alumnos/{{matricula}}/notas
+
