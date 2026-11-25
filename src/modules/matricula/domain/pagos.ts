@@ -1,5 +1,6 @@
 // matricula/domain: reglas puras de los pagos manuales (US22), la validación de duplicados (US23), la anulación
 // auditada (US04) y el correlativo del comprobante (US25). Montos en céntimos enteros; fechas «AAAA-MM-DD».
+import type { TipoConcepto } from "./cronograma";
 import { erroresMatricula as E } from "./errores";
 
 /** Medios que tesorería registra a mano (US22). PASARELA solo lo asigna el pago en línea (US70). */
@@ -80,7 +81,7 @@ export function verificarCuotasPagables(idsElegidos: string[], cuotas: CuotaPara
 
 export interface CuotaParaOrden {
   id: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   concepto: string;
   /** «AAAA-MM-DD». */
   fechaVencimiento: string;

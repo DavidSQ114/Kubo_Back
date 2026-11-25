@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
+import type { TipoCuota } from "@/lib/ordenCuotas";
 import { Avatar } from "./apoderados";
 import { BarraOcupacion, Selector, separarErrores, type Grado, type Seccion } from "./grados";
 import { alertaError } from "./PortalAdmin";
@@ -19,7 +20,7 @@ export type ModalidadPago = "MENSUAL" | "ANUAL";
 
 export interface Cuota {
   id?: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoCuota;
   mes: number | null;
   concepto: string;
   monto: string;
@@ -63,7 +64,9 @@ export interface SituacionEstudiante {
     modalidadPago: ModalidadPago;
     fechaMatricula: string;
   } | null;
-  montos: { montoMatricula: string | null; montoPension: string | null };
+  montos: { montoMatricula: string | null; montoPension: string | null; montoIngreso: string | null };
+  /** Sin matrículas anteriores en el colegio: se le cobra la cuota de ingreso (bloque M4). */
+  esAlumnoNuevo: boolean;
   cronogramaPrevisto: CronogramaPrevisto | null;
 }
 
@@ -72,6 +75,9 @@ export interface MontosAnio {
   anio: number;
   montoMatricula: string | null;
   montoPension: string | null;
+  /** Bloque M4: «0.00» o null si el año no la cobra. */
+  montoIngreso: string | null;
+  montoMora: string | null;
   configurados: boolean;
   sugeridos: { montoMatricula: string | null; montoPension: string | null };
 }
@@ -160,6 +166,9 @@ export function BadgeEstado({ estado }: { estado: EstadoMatricula }) {
 
 // ---------- Montos del año ----------
 
+/** Cuota de ingreso o mora: «No se cobra» si es 0 o no está configurada. */
+const montoOpcional = (monto: string | null) => (monto && Number(monto) > 0 ? soles(monto) : "No se cobra");
+
 /** Barra con los montos del año y el botón para editarlos; sin montos, aviso de que no se puede matricular. */
 export function BarraMontos({ montos, onEditar }: { montos: MontosAnio; onEditar: () => void }) {
   if (!montos.configurados) {
@@ -185,6 +194,12 @@ export function BarraMontos({ montos, onEditar }: { montos: MontosAnio; onEditar
       <span className="text-texto-2">
         Pensión mensual <strong className="text-texto">{soles(montos.montoPension!)}</strong>
       </span>
+      <span className="text-texto-2">
+        Ingreso (alumno nuevo) <strong className="text-texto">{montoOpcional(montos.montoIngreso)}</strong>
+      </span>
+      <span className="text-texto-2">
+        Mora por pensión vencida <strong className="text-texto">{montoOpcional(montos.montoMora)}</strong>
+      </span>
       <button
         type="button"
         onClick={onEditar}
@@ -207,6 +222,8 @@ export function ModalMontos({
 }) {
   const [matricula, setMatricula] = useState(montos.montoMatricula ?? montos.sugeridos.montoMatricula ?? "");
   const [pension, setPension] = useState(montos.montoPension ?? montos.sugeridos.montoPension ?? "");
+  const [ingreso, setIngreso] = useState(montos.montoIngreso ?? "0.00");
+  const [mora, setMora] = useState(montos.montoMora ?? "0.00");
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -217,7 +234,7 @@ export function ModalMontos({
     try {
       const m = await api<MontosAnio>(`/academico/anios/${montos.anioAcademicoId}/montos`, {
         method: "PUT",
-        body: { montoMatricula: matricula, montoPension: pension },
+        body: { montoMatricula: matricula, montoPension: pension, montoIngreso: ingreso, montoMora: mora },
       });
       onGuardado(m);
     } catch (e) {
@@ -271,6 +288,28 @@ export function ModalMontos({
         error={errores.montoPension}
         onChange={(e) => setPension(e.target.value)}
       />
+      <Campo
+        etiqueta="Cuota de ingreso (S/)"
+        inputMode="decimal"
+        maxLength={10}
+        placeholder="0.00"
+        value={ingreso}
+        error={errores.montoIngreso}
+        onChange={(e) => setIngreso(e.target.value)}
+      />
+      <Campo
+        etiqueta="Mora por pensión vencida (S/)"
+        inputMode="decimal"
+        maxLength={10}
+        placeholder="0.00"
+        value={mora}
+        error={errores.montoMora}
+        onChange={(e) => setMora(e.target.value)}
+      />
+      <p className="text-[13px] leading-[1.4] text-texto-3">
+        La cuota de ingreso se cobra una sola vez, a los alumnos nuevos en el colegio. La mora es un monto fijo que se
+        agrega por cada pensión vencida. Con 0 no se cobran.
+      </p>
       <p className="text-[13px] leading-[1.4] text-texto-3">
         Los cambios solo afectan a las matrículas que se confirmen después: los cronogramas ya generados no cambian.
       </p>
@@ -346,7 +385,7 @@ export function TablaCronograma({ cuotas, total, conEstado }: { cuotas: Cuota[];
           key={c.id ?? `${c.tipo}-${c.mes}`}
           className={`flex flex-wrap justify-between gap-x-3 ${c.estado === "ANULADO" ? "text-texto-3 line-through" : "text-texto-2"}`}
         >
-          <span>{c.tipo === "MATRICULA" ? `${c.concepto} (pago único)` : c.concepto}</span>
+          <span>{c.tipo === "MATRICULA" || c.tipo === "INGRESO" ? `${c.concepto} (pago único)` : c.concepto}</span>
           <span className="text-texto">
             {soles(c.monto)} · vence {fechaDia(c.fechaVencimiento)}
             {conEstado && c.estado

@@ -245,6 +245,9 @@ const monto = (que: string) =>
 export const MontosSchema = z.object({
   montoMatricula: monto("el monto de matrícula"),
   montoPension: monto("el monto de la pensión mensual"),
+  /** Bloque M4: 0 si el año no cobra cuota de ingreso o mora. */
+  montoIngreso: monto("la cuota de ingreso").optional(),
+  montoMora: monto("el monto de la mora").optional(),
 });
 
 // ---------- Parámetros del sistema (bloque M1) ----------

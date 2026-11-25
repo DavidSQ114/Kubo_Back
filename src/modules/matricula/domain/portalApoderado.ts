@@ -1,6 +1,7 @@
 // matricula/domain: reglas puras del portal del apoderado. Qué hijos se muestran (US42, AC-05), autorización por
 // vínculo, estado «Pagado / Pendiente / Vencido» y resumen de pagos (US43, AP-02) y nombre del comprobante (US44).
 // Fechas «AAAA-MM-DD» con el día de Lima y montos en céntimos enteros.
+import type { TipoConcepto } from "./cronograma";
 import { erroresMatricula as E } from "./errores";
 
 export type EstadoCuotaPortal = "PAGADO" | "PENDIENTE" | "VENCIDO" | "ANULADO";
@@ -114,14 +115,23 @@ const primeraPalabra = (texto: string) => {
   return palabra.charAt(0).toUpperCase() + palabra.slice(1);
 };
 
+/** Bloque M4: las cuotas que no son pensión llevan su tipo en el nombre del recibo. */
+const PERIODO_POR_TIPO: Partial<Record<TipoConcepto, string>> = {
+  MATRICULA: "Matricula",
+  INGRESO: "Ingreso",
+  MORA: "Mora",
+  EXTRAORDINARIA: "Extraordinaria",
+};
+
 /**
  * Nombre del comprobante que descarga el apoderado (US44): Recibo_<Mes><Año>_<NombreApellido>.pdf, sin tildes ni
- * espacios. La cuota de matrícula usa «Matricula» y el pago anual adelantado (US58), «Anual».
+ * espacios. La cuota de matrícula usa «Matricula» (y la de ingreso, la mora y la extraordinaria, su tipo) y el pago
+ * anual adelantado (US58), «Anual».
  *   nombreArchivoComprobante({ tipo: "PENSION", mes: 3, anio: 2026, anual: false, nombres: "Valeria",
  *     apellidos: "Quispe Rojas" }) // "Recibo_Marzo2026_ValeriaQuispe.pdf"
  */
 export function nombreArchivoComprobante(datos: {
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   mes: number | null;
   anio: number;
   anual: boolean;
@@ -130,8 +140,6 @@ export function nombreArchivoComprobante(datos: {
 }): string {
   const periodo = datos.anual
     ? "Anual"
-    : datos.tipo === "MATRICULA" || datos.mes == null
-      ? "Matricula"
-      : MESES[datos.mes - 1];
+    : (PERIODO_POR_TIPO[datos.tipo] ?? (datos.mes == null ? "Matricula" : MESES[datos.mes - 1]));
   return `Recibo_${periodo}${datos.anio}_${primeraPalabra(datos.nombres)}${primeraPalabra(datos.apellidos)}.pdf`;
 }

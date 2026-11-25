@@ -7,6 +7,7 @@ import { obtenerParametro } from "@/platform/config/parametros";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import {
   aCentimos,
+  aCentimosOCero,
   deCentimos,
   fechaEnLima,
   listarGrados,
@@ -29,6 +30,7 @@ import {
 } from "../domain/cronograma";
 import { erroresMatricula as E } from "../domain/errores";
 import {
+  esAlumnoNuevo,
   textoMotivoAnulacion,
   verificarAnioMatriculable,
   verificarAnulable,
@@ -54,24 +56,39 @@ function vistaCronograma(lista: CuotaCronograma[]) {
   };
 }
 
+interface MontosCentimos {
+  matricula: number;
+  pension: number;
+  /** Cuota de ingreso del alumno nuevo (0: el año no la cobra). */
+  ingreso: number;
+}
+
 /** Montos del año en céntimos; sin montos el año no admite matrículas (422 SIN_MONTOS). */
 async function montosParaMatricular(anioAcademicoId: string) {
   const m = await montosDelAnio(anioAcademicoId);
   if (!m.montoMatricula || !m.montoPension) throw E.sinMontos(m.anio);
-  return { anio: m.anio, matricula: aCentimos(m.montoMatricula), pension: aCentimos(m.montoPension) };
+  return {
+    anio: m.anio,
+    matricula: aCentimos(m.montoMatricula),
+    pension: aCentimos(m.montoPension),
+    ingreso: aCentimosOCero(m.montoIngreso ?? "0"),
+  };
 }
 
 function cronogramaPara(
   anio: number,
   fechaMatricula: string,
-  montos: { matricula: number; pension: number },
+  montos: MontosCentimos,
   dia: unknown,
+  alumnoNuevo: boolean,
 ) {
   return generarCronograma({
     anio,
     fechaMatricula,
     montoMatriculaCentimos: montos.matricula,
     montoPensionCentimos: montos.pension,
+    montoIngresoCentimos: montos.ingreso,
+    esAlumnoNuevo: alumnoNuevo,
     diaVencimiento: dia == null ? undefined : Number(dia),
   });
 }
@@ -91,6 +108,7 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
   ]);
   if (!estudiante?.activo) throw E.estudianteNoEncontrado();
   const vigente = await matriculas.vigente(estudianteId, anioAcademicoId);
+  const alumnoNuevo = esAlumnoNuevo(await matriculas.otrasDelEstudiante(estudianteId, vigente?.id ?? null));
   const hoy = fechaEnLima(new Date());
   const previsto =
     montos.montoMatricula && montos.montoPension
@@ -98,8 +116,13 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
           cronogramaPara(
             anio.anio,
             hoy,
-            { matricula: aCentimos(montos.montoMatricula), pension: aCentimos(montos.montoPension) },
+            {
+              matricula: aCentimos(montos.montoMatricula),
+              pension: aCentimos(montos.montoPension),
+              ingreso: aCentimosOCero(montos.montoIngreso ?? "0"),
+            },
             dia,
+            alumnoNuevo,
           ),
         )
       : null;
@@ -114,7 +137,12 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
       modalidadPago: vigente.modalidadPago,
       fechaMatricula: vigente.fechaMatricula,
     },
-    montos: { montoMatricula: montos.montoMatricula, montoPension: montos.montoPension },
+    montos: {
+      montoMatricula: montos.montoMatricula,
+      montoPension: montos.montoPension,
+      montoIngreso: montos.montoIngreso,
+    },
+    esAlumnoNuevo: alumnoNuevo,
     cronogramaPrevisto: previsto,
   };
 }
@@ -192,7 +220,10 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
         tx,
       );
 
-      const cronograma = cronogramaPara(anio.anio, fechaMatricula, montos, dia);
+      const alumnoNuevo = esAlumnoNuevo(
+        await matriculas.otrasDelEstudiante(datos.estudianteId, accion === "CONFIRMAR" ? vigente!.id : null, tx),
+      );
+      const cronograma = cronogramaPara(anio.anio, fechaMatricula, montos, dia, alumnoNuevo);
       await cuotas.crear(id, cronograma, tx);
 
       await registrarAuditoria(
@@ -231,6 +262,7 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
             pensiones: resumen.pensiones,
             montoMatricula: deCentimos(montos.matricula),
             montoPension: deCentimos(montos.pension),
+            cuotaIngreso: cronograma.some((c) => c.tipo === "INGRESO") ? deCentimos(montos.ingreso) : null,
           },
         },
         meta,

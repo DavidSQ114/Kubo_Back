@@ -5,9 +5,12 @@
 export const AYUDA_ORDEN_CUOTAS =
   "Las cuotas se pagan en orden: primero la matrícula y luego las pensiones por fecha de vencimiento.";
 
+/** Tipos de cuota de la API (concepto_cobro.tipo). INGRESO, MORA y EXTRAORDINARIA: bloque M4. */
+export type TipoCuota = "MATRICULA" | "PENSION" | "INGRESO" | "MORA" | "EXTRAORDINARIA";
+
 export interface CuotaOrdenable {
   id: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoCuota;
   /** «AAAA-MM-DD». */
   fechaVencimiento: string;
   /** false: pendiente pero no se puede elegir (por ejemplo, con un pago en revisión); bloquea las posteriores. */

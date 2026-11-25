@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import { fechaEnLima } from "@/modules/academico";
+import type { TipoConcepto } from "../domain/cronograma";
 import type { EstadoPago, MedioPago, MotivoAnulacionPago } from "../domain/pagos";
 import type { OrigenPago } from "../domain/pasarela";
 
@@ -38,7 +39,7 @@ export interface CuotaDePago {
   id: string;
   matriculaId: string;
   estudianteId: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   mes: number | null;
   concepto: string;
   monto: string;

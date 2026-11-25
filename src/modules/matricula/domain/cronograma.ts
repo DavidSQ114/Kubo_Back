@@ -1,4 +1,5 @@
-// matricula/domain: cronograma de pagos que se genera al confirmar la matrícula (US21, RF16).
+// matricula/domain: cronograma de pagos que se genera al confirmar la matrícula (US21, RF16), con la cuota de ingreso
+// del alumno nuevo (bloque M4).
 // Fechas como texto «AAAA-MM-DD» (columnas @db.Date, sin zona horaria) y montos en céntimos enteros: nunca float.
 
 /** Pensiones de marzo (3) a diciembre (12). */
@@ -23,11 +24,21 @@ const NOMBRE_MES = [
   "diciembre",
 ] as const;
 
-export type TipoConcepto = "MATRICULA" | "PENSION";
+/** Tipos de cuota (concepto_cobro.tipo). INGRESO, MORA y EXTRAORDINARIA: bloque M4. */
+export const TIPOS_CONCEPTO = ["MATRICULA", "PENSION", "INGRESO", "MORA", "EXTRAORDINARIA"] as const;
+export type TipoConcepto = (typeof TIPOS_CONCEPTO)[number];
+
+export const NOMBRE_TIPO_CONCEPTO: Record<TipoConcepto, string> = {
+  MATRICULA: "Matrícula",
+  PENSION: "Pensión",
+  INGRESO: "Cuota de ingreso",
+  MORA: "Mora",
+  EXTRAORDINARIA: "Extraordinaria",
+};
 
 export interface CuotaCronograma {
   tipo: TipoConcepto;
-  /** null en la cuota de matrícula. */
+  /** Mes de la pensión; null en las demás cuotas. */
   mes: number | null;
   concepto: string;
   /** Céntimos: 45000 = S/ 450.00. */
@@ -42,6 +53,9 @@ export interface DatosCronograma {
   fechaMatricula: string;
   montoMatriculaCentimos: number;
   montoPensionCentimos: number;
+  /** Cuota de ingreso; solo se genera si es mayor a 0 y el estudiante es nuevo en el colegio (bloque M4). */
+  montoIngresoCentimos?: number;
+  esAlumnoNuevo?: boolean;
   diaVencimiento?: number;
 }
 
@@ -55,7 +69,8 @@ const dosDigitos = (n: number) => String(n).padStart(2, "0");
 
 /**
  * Cuota de matrícula (vence el día de la confirmación) y pensiones de marzo a diciembre que vencen el día 5.
- * Matrícula extemporánea: solo las pensiones que vencen DESPUÉS de la fecha de matrícula.
+ * Matrícula extemporánea: solo las pensiones que vencen DESPUÉS de la fecha de matrícula. Al alumno nuevo se le
+ * agrega la cuota de ingreso con el mismo vencimiento que la matrícula (bloque M4).
  *   generarCronograma({ anio: 2026, fechaMatricula: "2026-09-16", … }) // matrícula + octubre, noviembre, diciembre
  */
 export function generarCronograma(d: DatosCronograma): CuotaCronograma[] {
@@ -74,7 +89,19 @@ export function generarCronograma(d: DatosCronograma): CuotaCronograma[] {
     montoCentimos: d.montoPensionCentimos,
     fechaVencimiento: `${d.anio}-${dosDigitos(mes)}-${dosDigitos(dia)}`,
   })).filter((p) => p.fechaVencimiento > d.fechaMatricula);
-  return [matricula, ...pensiones];
+  const ingreso: CuotaCronograma[] =
+    d.esAlumnoNuevo && (d.montoIngresoCentimos ?? 0) > 0
+      ? [
+          {
+            tipo: "INGRESO",
+            mes: null,
+            concepto: `Cuota de ingreso ${d.anio}`,
+            montoCentimos: d.montoIngresoCentimos!,
+            fechaVencimiento: d.fechaMatricula,
+          },
+        ]
+      : [];
+  return [matricula, ...ingreso, ...pensiones];
 }
 
 /** La matrícula es extemporánea si se pierde al menos una pensión (US21). */

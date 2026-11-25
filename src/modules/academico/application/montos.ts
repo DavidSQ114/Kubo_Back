@@ -1,5 +1,5 @@
-// academico/application: montos de matrícula y pensión del año (requisito de US21, AD-10) y sección bloqueada para
-// matricular (US18). El módulo matricula los usa por el index.ts para confirmar la matrícula y generar el cronograma.
+// academico/application: montos de matrícula, pensión, cuota de ingreso y mora del año (requisito de US21, AD-10 y
+// bloque M4) y sección bloqueada para matricular (US18). El módulo matricula los usa por el index.ts para confirmar la matrícula y generar el cronograma.
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
@@ -7,22 +7,28 @@ import { ErrorApp } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import type { Autenticado } from "@/modules/identidad";
 import {
+  CLAVE_MONTO_INGRESO,
   CLAVE_MONTO_MATRICULA,
+  CLAVE_MONTO_MORA,
   CLAVE_MONTO_PENSION,
   montoGuardado,
+  montoOpcionalGuardado,
   normalizarMonto,
+  normalizarMontoOpcional,
   verificarMontosEditables,
   type MontosAnio,
 } from "../domain/montos";
 import { anios, bloquearSeccionParaMatricula, parametros } from "../infrastructure/repositorio";
 
-const CLAVES = [CLAVE_MONTO_MATRICULA, CLAVE_MONTO_PENSION];
+const CLAVES = [CLAVE_MONTO_MATRICULA, CLAVE_MONTO_PENSION, CLAVE_MONTO_INGRESO, CLAVE_MONTO_MORA];
 
 const noEncontrado = () => new ErrorApp("NO_ENCONTRADO", "El año académico no existe.", 404);
 
 const leerMontos = (valores: Record<string, unknown>): MontosAnio => ({
   montoMatricula: montoGuardado(valores[CLAVE_MONTO_MATRICULA]),
   montoPension: montoGuardado(valores[CLAVE_MONTO_PENSION]),
+  montoIngreso: montoOpcionalGuardado(valores[CLAVE_MONTO_INGRESO]),
+  montoMora: montoOpcionalGuardado(valores[CLAVE_MONTO_MORA]),
 });
 
 /**
@@ -46,16 +52,22 @@ export async function montosDelAnio(anioAcademicoId: string, db: Tx | typeof pri
   };
 }
 
-/** Guarda los dos montos del año (solo Administrador) y registra GUARDAR_MONTOS_ANIO con los valores anteriores. */
+/**
+ * Guarda los montos del año (Coordinador académico) y registra GUARDAR_MONTOS_ANIO con los valores anteriores. La
+ * cuota de ingreso y la mora aceptan 0 (no se cobran); si no vienen, se conservan las que tenía el año.
+ */
 export async function guardarMontos(
   admin: Autenticado,
   anioAcademicoId: string,
-  datos: { montoMatricula: string; montoPension: string },
+  datos: { montoMatricula: string; montoPension: string; montoIngreso?: string; montoMora?: string },
   meta: MetaSolicitud,
 ) {
-  const nuevos = {
+  const opcional = (v: string | undefined) => (v === undefined ? undefined : normalizarMontoOpcional(v));
+  const pedidos = {
     montoMatricula: normalizarMonto(datos.montoMatricula),
     montoPension: normalizarMonto(datos.montoPension),
+    montoIngreso: opcional(datos.montoIngreso),
+    montoMora: opcional(datos.montoMora),
   };
   await prisma.$transaction(async (tx) => {
     await anios.bloquearFila(tx, anioAcademicoId);
@@ -63,6 +75,11 @@ export async function guardarMontos(
     if (!anio) throw noEncontrado();
     verificarMontosEditables(anio.estado);
     const anteriores = leerMontos(await parametros.delAnio(anioAcademicoId, CLAVES, tx));
+    const nuevos = {
+      ...pedidos,
+      montoIngreso: pedidos.montoIngreso ?? anteriores.montoIngreso ?? "0.00",
+      montoMora: pedidos.montoMora ?? anteriores.montoMora ?? "0.00",
+    };
     const base = { anioAcademicoId, actualizadoPorId: admin.usuarioId };
     await parametros.guardar(
       {
@@ -79,6 +96,24 @@ export async function guardarMontos(
         clave: CLAVE_MONTO_PENSION,
         valor: nuevos.montoPension,
         descripcion: `Pensión mensual ${anio.anio} (S/)`,
+      },
+      tx,
+    );
+    await parametros.guardar(
+      {
+        ...base,
+        clave: CLAVE_MONTO_INGRESO,
+        valor: nuevos.montoIngreso,
+        descripcion: `Cuota de ingreso de alumnos nuevos ${anio.anio} (S/)`,
+      },
+      tx,
+    );
+    await parametros.guardar(
+      {
+        ...base,
+        clave: CLAVE_MONTO_MORA,
+        valor: nuevos.montoMora,
+        descripcion: `Mora por pensión vencida ${anio.anio} (S/)`,
       },
       tx,
     );

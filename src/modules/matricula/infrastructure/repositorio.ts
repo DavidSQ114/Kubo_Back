@@ -4,7 +4,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
-import type { CuotaCronograma } from "../domain/cronograma";
+import type { CuotaCronograma, TipoConcepto } from "../domain/cronograma";
 import type { MotivoRetiro, TramoSeccion } from "../domain/cambios";
 import type { EstadoMatricula, ModalidadPago } from "../domain/matriculas";
 
@@ -54,7 +54,7 @@ const fila = (m: FilaPrisma): MatriculaFila => ({ ...m, fechaMatricula: aTexto(m
 
 export interface CuotaFila {
   id: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoConcepto;
   mes: number | null;
   concepto: string;
   monto: string;
@@ -110,6 +110,14 @@ export const matriculas = {
     if (!ids.length) return [];
     const filas = await db.matricula.findMany({ where: { id: { in: ids } }, select: selectMatricula });
     return filas.map(fila);
+  },
+
+  /** Bloque M4: estados de las otras matrículas del estudiante (de cualquier año), para saber si es alumno nuevo. */
+  async otrasDelEstudiante(estudianteId: string, excepto: string | null, db: Db = prisma) {
+    return db.matricula.findMany({
+      where: { estudianteId, ...(excepto ? { id: { not: excepto } } : {}) },
+      select: { estado: true },
+    });
   },
 
   /** Matrículas Matriculado de la sección: se cuenta con la fila de la sección ya bloqueada. */
