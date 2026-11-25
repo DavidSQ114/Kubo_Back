@@ -1,5 +1,5 @@
 // evaluacion/infrastructure: implementa el puerto CierresProvider de académico: cierres del año (US06) y
-// notas por competencia del plan (US11) y por asignación docente (US14). evaluacion es dueño de cierre_calificacion y nota; el resto llega en su fase.
+// notas por competencia del plan (US11), ítems de evaluación por competencia (bloque M2) y notas por asignación (US14). evaluacion es dueño de cierre_calificacion y nota; el resto llega en su fase.
 import { prisma } from "@/platform/db/prisma";
 import type { CierresProvider } from "@/modules/academico";
 
@@ -16,6 +16,16 @@ export const cierresProviderEvaluacion: CierresProvider = {
   async notasPorCompetenciaPlan(competenciaPlanIds) {
     if (competenciaPlanIds.length === 0) return {};
     const filas = await prisma.nota.groupBy({
+      by: ["competenciaPlanId"],
+      where: { competenciaPlanId: { in: competenciaPlanIds } },
+      _count: { _all: true },
+    });
+    return Object.fromEntries(filas.map((f) => [f.competenciaPlanId, f._count._all]));
+  },
+
+  async itemsPorCompetenciaPlan(competenciaPlanIds) {
+    if (competenciaPlanIds.length === 0) return {};
+    const filas = await prisma.itemEvaluacion.groupBy({
       by: ["competenciaPlanId"],
       where: { competenciaPlanId: { in: competenciaPlanIds } },
       _count: { _all: true },

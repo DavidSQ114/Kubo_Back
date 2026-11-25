@@ -1,15 +1,30 @@
-// academico/application: competencias que evalúa cada plan de estudio, curso + grado del año (US11, RF09, AD-04).
-// Las notas son de evaluacion: se cuentan por el puerto CierresProvider.
+// academico/application: competencias que evalúa cada plan de estudio, curso + grado del año (US11, RF09, AD-04), y
+// «Competencias de mi curso» del docente en DO-04 (bloque M2). Las notas son de evaluacion: se cuentan por el puerto
+// CierresProvider.
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { errores } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
 import type { Autenticado } from "@/modules/identidad";
-import { prepararCompetencias, verificarQuitarCompetencias, type CompetenciaPedida } from "../domain/cursos";
+import {
+  prepararCompetencias,
+  verificarEdicionDocente,
+  verificarQuitarCompetencias,
+  type CompetenciaPedida,
+} from "../domain/cursos";
 import { verificarAnioEditable } from "../domain/secciones";
-import { anios, competencias, competenciasPlan, cursos, planes } from "../infrastructure/repositorio";
-import { cierresProvider } from "../puertos";
+import type { EstadoAnio } from "../domain/tipos";
+import {
+  anios,
+  asignaciones,
+  competencias,
+  competenciasPlan,
+  cursos,
+  planes,
+  secciones,
+} from "../infrastructure/repositorio";
+import { cierresProvider, docentesProvider } from "../puertos";
 
 export interface CompetenciaDelPlan {
   /** Id de competencia_plan: es el que guardan las notas. */
@@ -43,13 +58,17 @@ export async function competenciasDePlan(planId: string) {
   };
 }
 
-/** Reemplaza las competencias del plan por las pedidas (en ese orden). Usada también al registrar un curso. */
+/**
+ * Reemplaza las competencias del plan por las pedidas (en ese orden). Usada también al registrar un curso y por el
+ * docente en «Competencias de mi curso» (`docente`: su asignación queda en la auditoría y el plan no debe tener notas).
+ */
 export async function guardarCompetenciasTx(
   tx: Tx,
   admin: Autenticado,
   planId: string,
   pedidas: CompetenciaPedida[],
   meta: MetaSolicitud,
+  docente?: { asignacionId: string },
 ) {
   await planes.bloquearFila(tx, planId);
   const plan = await planes.porId(planId, tx);
@@ -60,12 +79,25 @@ export async function guardarCompetenciasTx(
     pedidas.map((p) => p.competenciaId),
     tx,
   );
+  if (docente) {
+    // con el plan bloqueado: una nota registrada mientras tanto también lo impide
+    const notasDelPlan = await cierresProvider().notasPorCompetenciaPlan(plan.competencias.map((c) => c.id));
+    verificarEdicionDocente(Object.values(notasDelPlan).reduce((s, n) => s + n, 0));
+  }
   const actuales = new Map(plan.competencias.map((c) => [c.competencia.id, c]));
   const elegidas = prepararCompetencias(pedidas, curso.areaCurricular.id, catalogo, [...actuales.keys()]);
 
   const quitadas = plan.competencias.filter((c) => !elegidas.some((e) => e.competenciaId === c.competencia.id));
-  const notas = quitadas.length ? await cierresProvider().notasPorCompetenciaPlan(quitadas.map((q) => q.id)) : {};
-  verificarQuitarCompetencias(quitadas.map((q) => ({ nombre: q.competencia.nombre, notas: notas[q.id] ?? 0 })));
+  const ids = quitadas.map((q) => q.id);
+  const [notas, items] = ids.length
+    ? await Promise.all([
+        cierresProvider().notasPorCompetenciaPlan(ids),
+        cierresProvider().itemsPorCompetenciaPlan(ids),
+      ])
+    : [{}, {}];
+  verificarQuitarCompetencias(
+    quitadas.map((q) => ({ nombre: q.competencia.nombre, notas: notas[q.id] ?? 0, items: items[q.id] ?? 0 })),
+  );
 
   await competenciasPlan.eliminar(
     quitadas.map((q) => q.id),
@@ -91,6 +123,7 @@ export async function guardarCompetenciasTx(
         curso: curso.codigo,
         grado: plan.grado.numero,
         competencias: elegidas.map((e) => ({ codigo: codigos.get(e.competenciaId), orden: e.orden, peso: e.peso })),
+        ...(docente ? { por: "DOCENTE", asignacionId: docente.asignacionId } : {}),
       },
     },
     meta,
@@ -105,6 +138,77 @@ export async function guardarCompetenciasPlan(
 ) {
   await prisma.$transaction((tx) => guardarCompetenciasTx(tx, admin, planId, pedidas, meta));
   return competenciasDePlan(planId);
+}
+
+// ---------- Competencias de mi curso (docente, bloque M2) ----------
+
+export interface CompetenciasDeMiCurso extends Awaited<ReturnType<typeof competenciasDePlan>> {
+  asignacionId: string;
+  /** Secciones del grado en el año («3° A», «3° B»): el cambio aplica a todas, no solo a la del docente. */
+  secciones: string[];
+  /** El docente puede cambiar las competencias: el año no está cerrado y ninguna tiene notas. */
+  editable: boolean;
+  /** Por qué no se puede cambiar; null si es editable. */
+  motivo: string | null;
+}
+
+/** Asignación activa del docente en sesión: un curso ajeno responde 403, aunque sea del mismo grado. */
+async function asignacionDelDocente(auth: Autenticado, asignacionId: string) {
+  const docente = await docentesProvider().docentePorPersona(auth.personaId);
+  if (!docente) throw errores.accesoDenegado();
+  const asignacion = await asignaciones.porId(asignacionId);
+  if (!asignacion) throw errores.noEncontrado("El curso");
+  if (asignacion.docenteId !== docente.id || !asignacion.activo) throw errores.accesoDenegado();
+  return asignacion;
+}
+
+function motivoNoEditable(estadoAnio: EstadoAnio, notas: number): string | null {
+  try {
+    verificarAnioEditable(estadoAnio);
+    verificarEdicionDocente(notas);
+    return null;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
+/**
+ * Competencias del plan de un curso del docente (su curso + grado del año), las del área que puede agregar y las
+ * secciones del grado a las que aplica el cambio (bloque M2, DO-04 «Competencias de mi curso»).
+ */
+export async function competenciasDeMiCurso(auth: Autenticado, asignacionId: string): Promise<CompetenciasDeMiCurso> {
+  const asignacion = await asignacionDelDocente(auth, asignacionId);
+  const detalle = await competenciasDePlan(asignacion.planEstudio.id);
+  const delGrado = (await secciones.delAnio(asignacion.planEstudio.anioAcademico.id)).filter(
+    (s) => s.grado.id === asignacion.seccion.grado.id && s.estado === "ACTIVA",
+  );
+  const notas = detalle.competencias.reduce((s, c) => s + c.notas, 0);
+  const motivo = motivoNoEditable(asignacion.planEstudio.anioAcademico.estado, notas);
+  return {
+    ...detalle,
+    asignacionId,
+    secciones: delGrado.map((s) => `${s.grado.numero}° ${s.nombre}`),
+    editable: motivo === null,
+    motivo,
+  };
+}
+
+/**
+ * El docente agrega o quita competencias del catálogo oficial (activas y del área del curso) en el plan de su curso y
+ * grado, con su peso. Solo mientras ninguna competencia del plan tenga notas en el año; aplica a todas las secciones
+ * del grado y queda en la auditoría (GUARDAR_COMPETENCIAS_PLAN con `por: "DOCENTE"`).
+ */
+export async function guardarCompetenciasDeMiCurso(
+  auth: Autenticado,
+  asignacionId: string,
+  pedidas: CompetenciaPedida[],
+  meta: MetaSolicitud,
+): Promise<CompetenciasDeMiCurso> {
+  const asignacion = await asignacionDelDocente(auth, asignacionId);
+  await prisma.$transaction((tx) =>
+    guardarCompetenciasTx(tx, auth, asignacion.planEstudio.id, pedidas, meta, { asignacionId }),
+  );
+  return competenciasDeMiCurso(auth, asignacionId);
 }
 
 /**

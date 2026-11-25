@@ -44,7 +44,7 @@ export interface Curso {
   uso: { docentes: number; seccionesConHorario: number };
 }
 
-interface CompetenciaPlan {
+export interface CompetenciaPlan {
   id: string;
   orden: number;
   peso: number | null;
@@ -52,8 +52,8 @@ interface CompetenciaPlan {
   competencia: { id: string; codigo: string; nombre: string };
 }
 
-interface DetallePlan {
-  plan: { id: string; grado: Grado; curso: { area: { nombre: string } } };
+export interface DetallePlan {
+  plan: { id: string; grado: Grado; curso: { nombre: string; area: { nombre: string } } };
   competencias: CompetenciaPlan[];
   disponibles: Competencia[];
 }
@@ -381,11 +381,15 @@ function FilaCompetencia({
   );
 }
 
-/** Edita las competencias de un plan ya cargado. Para descartar, el padre cambia su key (estándar 6.5). */
-function EditorCompetencias({
+/**
+ * Edita las competencias de un plan ya cargado. Para descartar, el padre cambia su key (estándar 6.5). Lo usan el
+ * coordinador (AD-04) y el docente en «Competencias de mi curso» (DO-04, bloque M2), cada uno con su `ruta`.
+ */
+export function EditorCompetencias({
   detalle,
   soloLectura,
   ponderado,
+  ruta = `/academico/planes/${detalle.plan.id}/competencias`,
   onDescartar,
   onGuardado,
 }: {
@@ -393,6 +397,8 @@ function EditorCompetencias({
   soloLectura: boolean;
   /** La regla vigente del año es «Promedio ponderado» (US12): se editan los pesos. */
   ponderado: boolean;
+  /** Endpoint del PUT: el del plan (coordinador) o el de la asignación (docente). */
+  ruta?: string;
   onDescartar: () => void;
   onGuardado: (mensaje: string) => void;
 }) {
@@ -441,7 +447,7 @@ function EditorCompetencias({
     }
     setEnviando(true);
     try {
-      await api(`/academico/planes/${detalle.plan.id}/competencias`, { method: "PUT", body: { competencias } });
+      await api(ruta, { method: "PUT", body: { competencias } });
       onGuardado(`Se guardaron las competencias de ${detalle.plan.grado.nombre}.`);
     } catch (e) {
       setError(alertaError(e));
@@ -498,7 +504,7 @@ function EditorCompetencias({
 const PORCENTAJE_COMPLETO = 100;
 
 /** «Total 100 %»: los pesos son relativos, pero sumar 100 ayuda a leerlos como porcentajes (AD-05). */
-function TotalPesos({ pesos }: { pesos: string[] }) {
+export function TotalPesos({ pesos }: { pesos: string[] }) {
   const total = pesos.reduce((s, p) => s + (Number(p) || 0), 0);
   const completo = Math.abs(total - PORCENTAJE_COMPLETO) < 0.01;
   return (

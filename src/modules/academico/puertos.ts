@@ -11,6 +11,8 @@ export interface CierresProvider {
   resumenCierres(anioAcademicoId: string): Promise<ResumenCierres>;
   /** Notas registradas por competencia del plan (US11: no se quita una competencia con notas). Sin notas no aparece. */
   notasPorCompetenciaPlan(competenciaPlanIds: string[]): Promise<Record<string, number>>;
+  /** Ítems de evaluación por competencia del plan (bloque M2: no se quita una competencia con ítems). */
+  itemsPorCompetenciaPlan(competenciaPlanIds: string[]): Promise<Record<string, number>>;
   /** Notas registradas por asignación docente (US14: con notas, la asignación se desactiva en vez de borrarse). */
   notasPorAsignacion(asignacionIds: string[]): Promise<Record<string, number>>;
   /** Bimestres del año con algún cierre de calificación CERRADO o PUBLICADO (US12: la regla nueva no los afecta). */

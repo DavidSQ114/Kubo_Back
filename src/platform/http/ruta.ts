@@ -48,6 +48,23 @@ export function pdf(bytes: Uint8Array, nombreArchivo: string, disposicion: "atta
   });
 }
 
+/**
+ * Respuesta con un CSV para descargar (reportes del coordinador, bloque M2). Igual que `pdf`, el nombre del archivo
+ * no debe llevar datos personales.
+ */
+export function csv(texto: string, nombreArchivo: string) {
+  const bytes = Buffer.from(texto, "utf8");
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${nombreArchivo.replace(/[^\w.-]/g, "_")}"`,
+      "Content-Length": String(bytes.byteLength),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 function respuestaError(codigo: string, mensaje: string, estado: number, detalles?: unknown) {
   return NextResponse.json({ error: { code: codigo, message: mensaje, details: detalles ?? {} } }, { status: estado });
 }

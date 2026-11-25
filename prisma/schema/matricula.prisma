@@ -33,6 +33,7 @@ model Matricula {
   avisosAsistencia       AvisoAsistencia[]
   notas                  Nota[]
   resultadosConsolidados ResultadoConsolidado[]
+  calificacionesItem     CalificacionItem[]
   entregasTrabajo        EntregaTrabajo[]
   intentosPago           IntentoPago[]
 

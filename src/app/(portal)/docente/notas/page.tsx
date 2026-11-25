@@ -3,13 +3,18 @@
 // cierra el registro (M-10). Un bimestre no activo o un registro cerrado se muestran en solo lectura con su mensaje; en
 // uno cerrado o publicado, «Solicitar rectificación» (M-08) y sus solicitudes con su estado. Cada calificación
 // guardada admite evidencias (US38, M-07): se agregan y eliminan con el registro abierto y luego quedan en solo lectura.
+// «Competencias de mi curso» (bloque M2) agrega o quita competencias del plan mientras ninguna tenga notas en el año.
+// «Ítems» (bloque M2) gestiona los ítems de evaluación de una competencia; sus calificaciones se guardan con las notas.
 "use client";
 
 import { useState } from "react";
 import {
   AvanceRegistro,
   claveCelda,
+  claveItem,
   columnaDe,
+  leerClave,
+  porcentaje,
   esLogro,
   GrillaNotas,
   LeyendaLogros,
@@ -24,7 +29,9 @@ import {
   type RegistroCerrado,
   type RegistroDeNotas,
 } from "@/components/docente/notas";
+import { ModalCompetenciasDelCurso } from "@/components/docente/competencias";
 import { ModalEvidencias, type CeldaElegida } from "@/components/docente/evidencias";
+import { ModalImportarCsv, ModalItems, type ItemsGuardados } from "@/components/docente/items";
 import {
   claveNota,
   ModalSolicitarRectificacion,
@@ -42,7 +49,7 @@ import {
 } from "@/components/portal/asistencia";
 import { Alerta, Badge, Boton, Tarjeta } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { diaMes, diaYHora, fechaDia, hoyEnLima } from "@/lib/formato";
+import { cantidad, diaMes, diaYHora, fechaDia, hoyEnLima } from "@/lib/formato";
 
 const NUMERAL = ["I", "II", "III", "IV"];
 
@@ -72,14 +79,17 @@ interface Mensaje {
 function celdasInvalidas(registro: RegistroDeNotas, ediciones: Record<string, string>) {
   const invalidas = new Set<string>();
   const textos: string[] = [];
+  const revisar = (clave: string, donde: string, nombre: string) => {
+    const valor = ediciones[clave];
+    if (clave in ediciones && valor !== "" && !esLogro(valor)) {
+      invalidas.add(clave);
+      textos.push(`Se rechazó el valor «${valor}» ingresado para ${nombre} en ${donde}.`);
+    }
+  };
   for (const a of registro.alumnos) {
     registro.competencias.forEach((c, i) => {
-      const clave = claveCelda(a.matriculaId, c.competenciaPlanId);
-      const valor = ediciones[clave];
-      if (clave in ediciones && valor !== "" && !esLogro(valor)) {
-        invalidas.add(clave);
-        textos.push(`Se rechazó el valor «${valor}» ingresado para ${a.nombre} en ${columnaDe(i)}.`);
-      }
+      revisar(claveCelda(a.matriculaId, c.competenciaPlanId), columnaDe(i), a.nombre);
+      for (const it of c.items) revisar(claveItem(a.matriculaId, it.id), `${columnaDe(i)} · ${it.nombre}`, a.nombre);
     });
   }
   return { invalidas, textos };
@@ -106,6 +116,8 @@ function RegistroDelBimestre({
   const [guardando, setGuardando] = useState(false);
   const [modal, setModal] = useState<{ pendientes: Pendiente[] | null; error: string | null } | null>(null);
   const [cerrando, setCerrando] = useState(false);
+  const [itemsDe, setItemsDe] = useState<string | null>(null);
+  const [importando, setImportando] = useState<{ id: string; nombre: string; columna: string } | null>(null);
 
   const carga: Carga<RegistroDeNotas> = propio ? { fase: "listo", datos: propio } : consulta.carga;
   if (carga.fase === "cargando") return <CargandoAsistencia />;
@@ -114,9 +126,10 @@ function RegistroDelBimestre({
 
   // cambios reales: celdas tocadas cuyo valor difiere del guardado
   const cambios = Object.entries(ediciones).filter(([clave, valor]) => {
-    const [matriculaId, competenciaPlanId] = clave.split("|");
-    const guardado = r.alumnos.find((a) => a.matriculaId === matriculaId)?.notas[competenciaPlanId]?.logro ?? "";
-    return valor !== guardado && valor !== "";
+    const { matriculaId, competenciaPlanId, itemId } = leerClave(clave);
+    const alumno = r.alumnos.find((a) => a.matriculaId === matriculaId);
+    const guardado = itemId ? alumno?.calificaciones[itemId] : alumno?.notas[competenciaPlanId!]?.logro;
+    return valor !== (guardado ?? "") && valor !== "";
   });
 
   function cambiar(clave: string, valor: string) {
@@ -149,28 +162,55 @@ function RegistroDelBimestre({
       });
       return;
     }
-    const notas = cambios.map(([clave, logro]) => {
-      const [matriculaId, competenciaPlanId] = clave.split("|");
-      return { matriculaId, competenciaPlanId, logro: logro as Logro };
-    });
-    if (!notas.length) return;
+    const celdas = cambios.map(([clave, logro]) => ({ ...leerClave(clave), logro: logro as Logro }));
+    const notas = celdas.flatMap((c) =>
+      c.competenciaPlanId
+        ? [{ matriculaId: c.matriculaId, competenciaPlanId: c.competenciaPlanId, logro: c.logro }]
+        : [],
+    );
+    const calificaciones = celdas.flatMap((c) =>
+      c.itemId ? [{ matriculaId: c.matriculaId, itemId: c.itemId, logro: c.logro }] : [],
+    );
+    if (!notas.length && !calificaciones.length) return;
     setGuardando(true);
     try {
       const nuevo = await api<NotasGuardadas>(`/evaluacion/registros/${asignacionId}/bimestres/${bimestreId}/notas`, {
         method: "PUT",
-        body: { notas },
+        body: { notas, calificaciones },
       });
       actualizar(nuevo);
-      const { nuevas, modificadas } = nuevo.guardado;
+      const { nuevas, modificadas, calificaciones: deItems, recalculo } = nuevo.guardado;
+      const items = deItems.nuevas + deItems.modificadas;
+      const calculadas = recalculo.calculadas + recalculo.cambiadas;
+      // solo lo que pasó: «1 nota nueva, 2 calificaciones de ítems y 1 nota calculada por ítems»
+      const partes = [
+        nuevas && cantidad(nuevas, "nota nueva", "notas nuevas"),
+        modificadas && cantidad(modificadas, "cambio", "cambios"),
+        items && cantidad(items, "calificación de ítem", "calificaciones de ítems"),
+        calculadas && cantidad(calculadas, "nota calculada por ítems", "notas calculadas por ítems"),
+        recalculo.quitadas && cantidad(recalculo.quitadas, "nota quitada", "notas quitadas"),
+      ].filter((p): p is string => !!p);
+      const resumen =
+        partes.length > 1 ? `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}` : (partes[0] ?? "");
       setMensaje({
         tipo: "exito",
         titulo: "Notas guardadas.",
-        detalle: `${nuevas} ${nuevas === 1 ? "nota nueva" : "notas nuevas"} y ${modificadas} ${modificadas === 1 ? "cambio" : "cambios"}. Puedes volver luego para completar el registro.`,
+        detalle: `${resumen.charAt(0).toUpperCase()}${resumen.slice(1)}. Puedes volver luego para completar el registro.`,
       });
     } catch (e) {
       if (e instanceof ApiError && e.codigo === "VALOR_NO_PERMITIDO") {
-        const celdas = (e.detalles.celdas ?? []) as { matriculaId: string; competenciaPlanId: string }[];
-        setInvalidas(new Set(celdas.map((c) => claveCelda(c.matriculaId, c.competenciaPlanId))));
+        const celdas = (e.detalles.celdas ?? []) as {
+          matriculaId: string;
+          competenciaPlanId: string;
+          itemId?: string;
+        }[];
+        setInvalidas(
+          new Set(
+            celdas.map((c) =>
+              c.itemId ? claveItem(c.matriculaId, c.itemId) : claveCelda(c.matriculaId, c.competenciaPlanId),
+            ),
+          ),
+        );
       }
       if (e instanceof ApiError && (e.codigo === "REGISTRO_CERRADO" || e.codigo === "PERIODO_NO_ACTIVO")) {
         // el registro cambió de estado (otra pestaña o el fin del bimestre): se vuelve a cargar en solo lectura
@@ -216,6 +256,28 @@ function RegistroDelBimestre({
     } finally {
       setCerrando(false);
     }
+  }
+
+  function itemsGuardados(nuevo: ItemsGuardados) {
+    const indice = nuevo.competencias.findIndex((c) => c.competenciaPlanId === itemsDe);
+    const c = nuevo.competencias[indice];
+    setItemsDe(null);
+    actualizar(nuevo);
+    const { recalculo } = nuevo.itemsGuardados;
+    setMensaje({
+      tipo: "exito",
+      titulo: `Ítems de ${columnaDe(indice)} guardados.`,
+      detalle:
+        c && c.items.length
+          ? `${c.items.length} ${c.items.length === 1 ? "ítem" : "ítems"} con un total de ${porcentaje(c.sumaPesos)}.` +
+            (recalculo.quitadas
+              ? ` ${recalculo.quitadas} ${recalculo.quitadas === 1 ? "alumno quedó" : "alumnos quedaron"} sin nota en la competencia.`
+              : "") +
+            (recalculo.calculadas + recalculo.cambiadas
+              ? ` Se calcularon ${recalculo.calculadas + recalculo.cambiadas} notas.`
+              : "")
+          : "La competencia ya no tiene ítems: se califica directo.",
+    });
   }
 
   function solicitudEnviada({ solicitud, aviso }: SolicitudCreada) {
@@ -300,13 +362,40 @@ function RegistroDelBimestre({
             Cuando la sección tenga estudiantes matriculados aparecerán aquí para calificarlos.
           </AsistenciaVacia>
         ) : (
-          <GrillaNotas
-            registro={r}
-            ediciones={ediciones}
-            invalidas={invalidas}
-            onCambiar={cambiar}
-            onEvidencias={setEvidencias}
-          />
+          <>
+            {r.competencias.some((c) => c.items.length > 0 && !c.pesosCompletos) && (
+              <Alerta tipo="aviso" titulo="Hay competencias con ítems cuyos pesos no suman 100 %">
+                {r.competencias
+                  .map((c, i) => ({ c, i }))
+                  .filter(({ c }) => c.items.length > 0 && !c.pesosCompletos)
+                  .map(({ c, i }) => `${columnaDe(i)}: ${porcentaje(c.sumaPesos)}`)
+                  .join(" · ")}
+                . Su nota no se calcula hasta que los pesos sumen 100 %.
+              </Alerta>
+            )}
+            <GrillaNotas
+              registro={r}
+              ediciones={ediciones}
+              invalidas={invalidas}
+              onCambiar={cambiar}
+              onEvidencias={setEvidencias}
+              onItems={
+                r.editable
+                  ? (id) => {
+                      if (cambios.length > 0) {
+                        setMensaje({
+                          tipo: "error",
+                          titulo: "Guarda tus cambios antes de editar los ítems.",
+                          detalle: "Así no se pierde ninguna calificación que aún no se guardó.",
+                        });
+                        return;
+                      }
+                      setItemsDe(id);
+                    }
+                  : undefined
+              }
+            />
+          </>
         )}
         {r.alumnos.length > 0 && (
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -338,6 +427,33 @@ function RegistroDelBimestre({
           onCambio={conEvidencias}
         />
       )}
+      {itemsDe && r.competencias.some((c) => c.competenciaPlanId === itemsDe) && (
+        <ModalItems
+          registro={r}
+          competencia={r.competencias.find((c) => c.competenciaPlanId === itemsDe)!}
+          columna={columnaDe(r.competencias.findIndex((c) => c.competenciaPlanId === itemsDe))}
+          onCerrar={() => setItemsDe(null)}
+          onGuardado={itemsGuardados}
+          onImportar={(item) => {
+            const columna = columnaDe(r.competencias.findIndex((c) => c.competenciaPlanId === itemsDe));
+            setItemsDe(null);
+            setImportando({ ...item, columna });
+          }}
+        />
+      )}
+      {importando && (
+        <ModalImportarCsv
+          registro={r}
+          item={importando}
+          columna={importando.columna}
+          onCerrar={() => setImportando(null)}
+          onImportado={(nuevo, aviso) => {
+            setImportando(null);
+            actualizar(nuevo);
+            setMensaje({ tipo: "exito", titulo: aviso });
+          }}
+        />
+      )}
       {rectificando && (
         <ModalSolicitarRectificacion
           registro={r}
@@ -365,6 +481,10 @@ export default function RegistroDeNotasPage() {
   const mis = useConsulta<MisRegistros>("/evaluacion/registros");
   const [cursoElegido, setCursoElegido] = useState<string | null>(null);
   const [bimestreElegido, setBimestreElegido] = useState<string | null>(null);
+  const [editandoCompetencias, setEditandoCompetencias] = useState(false);
+  const [avisoCompetencias, setAvisoCompetencias] = useState<string | null>(null);
+  // al cambiar las competencias del plan, el registro se vuelve a montar con las columnas nuevas
+  const [versionRegistro, setVersionRegistro] = useState(0);
 
   const datos = mis.carga.fase === "listo" ? mis.carga.datos : null;
   const curso = datos?.cursos.find((c) => c.asignacionId === cursoElegido) ?? datos?.cursos[0];
@@ -393,20 +513,29 @@ export default function RegistroDeNotasPage() {
       {datos && curso && bimestreId && (
         <>
           <Tarjeta className="flex flex-col gap-4 p-4 lg:p-5">
-            <label className="flex max-w-[360px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">
-              Curso y sección
-              <select
-                value={curso.asignacionId}
-                onChange={(e) => setCursoElegido(e.target.value)}
-                className="h-11 w-full rounded-lg border border-borde bg-white px-3 text-[16px] font-normal text-texto outline-none focus:border-kubo-azul"
-              >
-                {datos.cursos.map((c) => (
-                  <option key={c.asignacionId} value={c.asignacionId}>
-                    {c.curso.nombre} · {c.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="flex w-full max-w-[360px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">
+                Curso y sección
+                <select
+                  value={curso.asignacionId}
+                  onChange={(e) => {
+                    setCursoElegido(e.target.value);
+                    setAvisoCompetencias(null);
+                  }}
+                  className="h-11 w-full rounded-lg border border-borde bg-white px-3 text-[16px] font-normal text-texto outline-none focus:border-kubo-azul"
+                >
+                  {datos.cursos.map((c) => (
+                    <option key={c.asignacionId} value={c.asignacionId}>
+                      {c.curso.nombre} · {c.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Boton variante="secundario" icono="icon-award" onClick={() => setEditandoCompetencias(true)}>
+                Competencias de mi curso
+              </Boton>
+            </div>
+            {avisoCompetencias && <Alerta tipo="exito" titulo={avisoCompetencias} icono="icon-check-verde" />}
             <div
               role="tablist"
               aria-label="Bimestres"
@@ -440,12 +569,22 @@ export default function RegistroDeNotasPage() {
             aria-label={`Registro de notas de ${curso.curso.nombre} ${curso.etiqueta}`}
           >
             <RegistroDelBimestre
-              key={`${curso.asignacionId}-${bimestreId}`}
+              key={`${curso.asignacionId}-${bimestreId}-${versionRegistro}`}
               asignacionId={curso.asignacionId}
               bimestreId={bimestreId}
               onCambio={mis.recargar}
             />
           </section>
+          {editandoCompetencias && (
+            <ModalCompetenciasDelCurso
+              asignacionId={curso.asignacionId}
+              onCerrar={() => setEditandoCompetencias(false)}
+              onGuardado={(aviso) => {
+                setAvisoCompetencias(aviso);
+                setVersionRegistro((v) => v + 1);
+              }}
+            />
+          )}
         </>
       )}
     </>

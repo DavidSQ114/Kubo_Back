@@ -99,6 +99,8 @@ export function verificarEditable(situacion: SituacionDelRegistro) {
 export interface AlumnoDelRegistro {
   matriculaId: string;
   nombre: string;
+  /** Para importar calificaciones desde CSV (bloque M2); nunca sale en la grilla. */
+  dni?: string;
 }
 
 export interface CompetenciaDelRegistro {

@@ -124,10 +124,20 @@ export function prepararCompetencias(
   });
 }
 
-/** Al quitar competencias del plan: ninguna puede tener notas registradas. */
-export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: number }[]) {
+/** Al quitar competencias del plan: ninguna puede tener notas registradas ni ítems de evaluación (bloque M2). */
+export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: number; items?: number }[]) {
   const conNotas = quitadas.find((q) => q.notas > 0);
   if (conNotas) throw E.competenciaConNotas(conNotas.nombre, conNotas.notas);
+  const conItems = quitadas.find((q) => (q.items ?? 0) > 0);
+  if (conItems) throw E.competenciaConItems(conItems.nombre, conItems.items!);
+}
+
+/**
+ * Bloque M2: el docente cambia las competencias de su curso y grado solo mientras ninguna tenga notas en el año (el
+ * plan es del año). Con notas, el cambio lo hace la coordinación académica en AD-04.
+ */
+export function verificarEdicionDocente(notasDelPlan: number) {
+  if (notasDelPlan > 0) throw E.planConNotas(notasDelPlan);
 }
 
 /** Para registrar notas: el plan debe tener al menos una competencia configurada. */

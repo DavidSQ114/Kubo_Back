@@ -394,7 +394,7 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
       { notas: [nota("ana", 0, "A"), nota("ana", 1, "AD"), nota("ana", 2, "AD")] },
       ABRIL,
     );
-    expect(r1.guardado).toEqual({ nuevas: 3, modificadas: 0, sinCambio: 0 });
+    expect(r1.guardado).toMatchObject({ nuevas: 3, modificadas: 0, sinCambio: 0 });
     expect(r1.avance).toMatchObject({ calificadas: 3, porcentaje: 50, alumnosPendientes: 1 });
     // Ana ya está completa: vista previa con la moda (AD)
     expect(r1.alumnos[0]).toMatchObject({ completo: true, consolidado: "AD" });
@@ -406,7 +406,7 @@ describe.skipIf(!ACTIVA)("registro de notas, cierre de bimestre y bloqueo (US37,
       { notas: [nota("ana", 0, "B"), nota("ana", 1, "AD")] },
       ABRIL,
     );
-    expect(r2.guardado).toEqual({ nuevas: 0, modificadas: 1, sinCambio: 1 });
+    expect(r2.guardado).toMatchObject({ nuevas: 0, modificadas: 1, sinCambio: 1 });
     const cambiada = await prisma.nota.findFirstOrThrow({
       where: { matriculaId: alumnos.ana, competenciaPlanId: competencias[0] },
     });

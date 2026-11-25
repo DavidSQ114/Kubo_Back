@@ -258,8 +258,8 @@ Orden de desarrollo sugerido: `platform` → `identidad` → `comunidad` → `ac
 | Rol | Portal | Qué hace |
 |---|---|---|
 | Administrador | `/admin` | Usuarios de todos los roles (registrar, modificar, suspender, reactivar, desbloquear), espacios (aulas), parámetros del sistema, asistencia docente, auditoría y errores |
-| Coordinador académico | `/coordinador` | Año, bimestres y montos, reglas, grados y secciones, cursos y competencias, asignaciones docentes, horarios, matrícula (alumnos, apoderados y vínculos), pagos, morosidad, notas, rectificaciones, bitácora de notas y asistencia de alumnos |
-| Docente · Apoderado · Alumno | `/docente` · `/apoderado` · `/alumno` | Sus portales |
+| Coordinador académico | `/coordinador` | Año, bimestres y montos, reglas, grados y secciones, cursos y competencias, asignaciones docentes, horarios, matrícula (alumnos, apoderados y vínculos), pagos, morosidad, notas, rectificaciones, bitácora de notas, asistencia de alumnos, notas por alumno y reporte de logro de competencias (bloque M2) |
+| Docente · Apoderado · Alumno | `/docente` · `/apoderado` · `/alumno` | Sus portales; el docente califica por ítems de evaluación con pesos y elige las competencias de su curso mientras no haya notas (bloque M2) |
 
 La separación también rige en el servidor: cada ruta exige sus roles (`src/modules/<modulo>/accesos.ts`) y la tabla completa está en [docs/ACCESOS.md](docs/ACCESOS.md). Todos los roles tienen «Mi perfil» (`/perfil`). El seed trae el administrador `admin@kubo.edu.pe` y la coordinadora `coordinacion@kubo.edu.pe` (datos ficticios; cambiar la contraseña inicial al ingresar).
 
