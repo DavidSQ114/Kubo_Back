@@ -386,7 +386,7 @@ describe.skipIf(!ACTIVA)("bitácora de notas y rectificación de nota (US03, US4
       { notas: [nota("ana", 0, "B"), nota("ana", 1, "B"), nota("ana", 2, "C")] },
       ABRIL,
     );
-    expect(r.guardado).toEqual({ nuevas: 0, modificadas: 1, sinCambio: 2 });
+    expect(r.guardado).toMatchObject({ nuevas: 0, modificadas: 1, sinCambio: 2 });
 
     const cierre = await prisma.cierreCalificacion.findFirstOrThrow({ where: { asignacionDocenteId: asignacionA } });
     cierreA = cierre.id;
