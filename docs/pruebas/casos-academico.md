@@ -88,7 +88,7 @@ Precondición adicional: año 2026 «En matrícula» y las aulas de los casos re
 | CP-US09-03 | US09 | excepción | PC | 1. Registrar un aula con aforo decimal (API). | aforo 25.5 | 400. Mensaje: «El aforo debe ser un número entero mayor a 0». |
 | CP-US09-04 | US09 | excepción | Existe Aula 101 | 1. Registrar otra aula con el mismo nombre. | Aula 101 | No se registra. Mensaje: «Ya existe un aula con ese nombre». |
 | CP-US09-05 | US09 | excepción | 1° A (aforo 30) usa el Aula 101 | 1. Editar el Aula 101 con aforo 25. | aforo 25 | No se guarda. Mensaje: «El aforo del aula no puede ser menor que el de sus secciones (máximo 30).» |
-| CP-US09-06 | US09 | excepción | 1° A usa el Aula 101 | 1. Desactivar el Aula 101. | — | No se desactiva. Mensaje: «El aula está asignada a 1° A. Quítala de esas secciones antes de inactivarla.» |
+| CP-US09-06 | US09 | excepción | 1° A usa el Aula 101 | 1. Desactivar el Aula 101. | — | No se desactiva. Mensaje: «El aula está asignada a 1° A. Pide a la coordinación académica que la quite de esas secciones antes de inactivarla.» |
 | CP-US09-07 | US09 | básico | Aula 206 sin secciones activas | 1. Desactivar el Aula 206. | — | Queda «desactivada» en la lista (no se borra) y ya no aparece al elegir aula. Auditoría `DESACTIVAR_AULA`. |
 | CP-US09-08 | US09 | alterno | Aula 206 desactivada | 1. Activarla con el ícono de la fila. | — | Vuelve a estar disponible. Auditoría `ACTIVAR_AULA`. |
 | CP-US09-09 | US09 | básico | 1° A usa el Aula 101 con alumnos matriculados | 1. Ver «Aulas físicas». | — | El Aula 101 muestra «Sección asignada» 1° A y su ocupación (matriculados/aforo del aula). |

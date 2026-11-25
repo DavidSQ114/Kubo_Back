@@ -19,6 +19,23 @@ const PANTALLAS_MOVIDAS = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  // Bloque M5: Kubo no usa next/image. Se apaga el optimizador de imágenes (/_next/image), la vía de la vulnerabilidad
+  // crítica de next 16.0–16.4.4 con SVG (GHSA-2464-fhr4-w9xw), corregida recién en 16.4.6, fuera de la versión menor.
+  images: { unoptimized: true },
+  // Bloque M5: cabeceras de seguridad en todas las respuestas (páginas, API y descargas).
+  async headers() {
+    return [
+      {
+        source: "/:ruta*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return PANTALLAS_MOVIDAS.flatMap((pantalla) => [
       { source: `/admin/${pantalla}`, destination: `/coordinador/${pantalla}`, permanent: false },

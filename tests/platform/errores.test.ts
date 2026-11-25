@@ -18,7 +18,7 @@ vi.mock("@/platform/db/prisma", () => ({
 
 const { clasificarError, politicaDeRegistro } = await import("@/platform/http/clasificador");
 const { ErrorApp } = await import("@/platform/http/errores");
-const { ruta } = await import("@/platform/http/ruta");
+const { leerCuerpo, pdf, ruta, TAMANO_MAXIMO_CUERPO_JSON } = await import("@/platform/http/ruta");
 const { logger, redactarTexto } = await import("@/platform/logger");
 const { firmarAcceso } = await import("@/platform/auth/jwt");
 
@@ -157,5 +157,33 @@ describe("ruta() ante un 500 controlado (US05)", () => {
     expect(creado.filas).toEqual([
       expect.objectContaining({ codigoHttp: 400, nivel: "INFO", stackTrace: null, usuarioId: null }),
     ]);
+  });
+});
+
+describe("límites de las peticiones y descargas (bloque M5)", () => {
+  const esquema = z.object({ texto: z.string() });
+
+  it("rechaza con 413 un cuerpo JSON más grande que el límite, sin leerlo ni validarlo", async () => {
+    const enorme = JSON.stringify({ texto: "x".repeat(TAMANO_MAXIMO_CUERPO_JSON) });
+    const req = new NextRequest("http://localhost/api/v1/prueba", { method: "POST", body: enorme });
+    await expect(leerCuerpo(req, esquema)).rejects.toMatchObject({
+      codigo: "CUERPO_DEMASIADO_GRANDE",
+      estadoHttp: 413,
+    });
+  });
+
+  it("acepta un cuerpo dentro del límite", async () => {
+    const req = new NextRequest("http://localhost/api/v1/prueba", {
+      method: "POST",
+      body: JSON.stringify({ texto: "hola" }),
+    });
+    await expect(leerCuerpo(req, esquema)).resolves.toEqual({ texto: "hola" });
+  });
+
+  it("las descargas en PDF no se guardan en caché y no se interpretan como otro tipo", () => {
+    const r = pdf(new Uint8Array([37, 80, 68, 70]), "Recibo con espacios.pdf");
+    expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(r.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(r.headers.get("Content-Disposition")).toBe('attachment; filename="Recibo_con_espacios.pdf"');
   });
 });
