@@ -41,6 +41,12 @@ describe("clasificador de errores (US05)", () => {
       detalles: { email: expect.any(String) },
     });
   });
+  it("un campo sin mensaje propio responde en español, no con el texto por defecto de Zod (bloque M5)", () => {
+    const sinCampo = z.object({ periodoId: z.string() }).safeParse({});
+    const { detalles } = clasificarError(sinCampo.error) as { detalles: Record<string, string> };
+    expect(detalles.periodoId).not.toMatch(/Invalid input|expected/);
+    expect(detalles.periodoId).toMatch(/se esperaba/);
+  });
   it("otros rechazos esperados (401, 409, 422) solo van como INFO al log, no a log_error", () => {
     for (const estado of [401, 409, 422]) {
       const c = clasificarError(new ErrorApp("RECHAZO", "Rechazado", estado));
