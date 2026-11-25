@@ -9,7 +9,7 @@ import { mensajeError } from "@/components/portal";
 import { CargandoAsistencia, ErrorAsistencia, useConsulta } from "@/components/portal/asistencia";
 import { Alerta, Boton, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
-import { diaYHora, fechaDia } from "@/lib/formato";
+import { cantidad, diaYHora, fechaDia } from "@/lib/formato";
 import { useTutoria } from "./tutoria";
 
 type Logro = "AD" | "A" | "B" | "C";
@@ -47,6 +47,10 @@ interface Marca {
 }
 
 /** Lista editable de la conducta del bimestre; el padre cambia la key al guardar o al cambiar de bimestre. */
+/** Valores guardados de la lista: cambia cuando el servidor devuelve la conducta recién guardada. */
+const firmaConducta = (d: ConductaDeLaSeccion) =>
+  d.alumnos.map((a) => `${a.matriculaId}:${a.valor ?? ""}:${a.comentario ?? ""}`).join("|");
+
 function ListaConducta({
   seccionId,
   datos,
@@ -92,7 +96,7 @@ function ListaConducta({
       onGuardado(
         r,
         creadas + modificadas
-          ? `Conducta guardada: ${creadas} registradas y ${modificadas} modificadas.`
+          ? `Conducta guardada: ${cantidad(creadas, "registrada", "registradas")} y ${cantidad(modificadas, "modificada", "modificadas")}.`
           : "No había cambios que guardar.",
       );
     } catch (e) {
@@ -191,7 +195,6 @@ function ListaConducta({
 export function ConductaTutoria() {
   const t = useTutoria();
   const [periodoId, setPeriodoId] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
   const [aviso, setAviso] = useState<string | null>(null);
   const ruta = `/evaluacion/tutoria/${t.seccion.id}/conducta${periodoId ? `?periodoId=${periodoId}` : ""}`;
   const { carga, reintentar, recargar } = useConsulta<ConductaDeLaSeccion>(ruta);
@@ -241,12 +244,12 @@ export function ConductaTutoria() {
         <Alerta tipo="info" titulo="La sección no tiene alumnos con matrícula vigente en este bimestre." />
       ) : (
         <ListaConducta
-          key={`${d.periodo.id}-${version}`}
+          // se vuelve a montar cuando llegan los datos guardados (no antes: mostraría los anteriores como cambios)
+          key={`${d.periodo.id}-${firmaConducta(d)}`}
           seccionId={t.seccion.id}
           datos={d}
           onGuardado={(_, mensaje) => {
             setAviso(mensaje);
-            setVersion((n) => n + 1);
             recargar();
           }}
         />
