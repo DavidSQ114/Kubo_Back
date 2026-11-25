@@ -169,6 +169,13 @@ export const erroresAcademico = {
       409,
       { notas },
     ),
+  competenciaConItems: (nombre: string, items: number) =>
+    new ErrorApp(
+      "COMPETENCIA_CON_ITEMS",
+      `No se puede quitar «${nombre}»: tiene ítems de evaluación en algún registro de notas. Elimínalos primero.`,
+      409,
+      { competencia: nombre, items },
+    ),
   competenciaConNotas: (nombre: string, notas: number) =>
     new ErrorApp("COMPETENCIA_CON_NOTAS", "No se puede eliminar una competencia con notas registradas.", 409, {
       competencia: nombre,

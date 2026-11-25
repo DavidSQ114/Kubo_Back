@@ -16,7 +16,20 @@ export interface Pendiente {
 export interface CeldaRechazada {
   matriculaId: string;
   competenciaPlanId: string;
+  /** Solo en la calificación de un ítem (bloque M2). */
+  itemId?: string;
   valor: string;
+}
+
+/** Lo que se pierde al guardar los ítems de una competencia (bloque M2): se pide confirmación antes. */
+export interface ImpactoCambioItems {
+  /** Ítems que se eliminan y tienen calificaciones. */
+  itemsEliminados: string[];
+  calificacionesBorradas: number;
+  /** Alumnos que tenían nota en la competencia y quedan sin ella. */
+  notasQuitadas: number;
+  /** Evidencias de esas notas, que se borran con ellas. */
+  evidenciasBorradas: number;
 }
 
 export const MENSAJE_VALOR_NO_PERMITIDO = "Solo se permiten los valores AD, A, B o C";
@@ -106,6 +119,34 @@ export const erroresEvaluacion = {
       "NOTA_SIN_CALIFICAR",
       "Primero guarda la calificación de esta competencia: la evidencia se asocia a una calificación registrada.",
       422,
+    ),
+  // ---------- Ítems de evaluación (bloque M2) ----------
+  nombreItemVacio: () => new ErrorApp("ITEM_NOMBRE_REQUERIDO", "Escribe el nombre de cada ítem.", 400),
+  nombreItemLargo: () =>
+    new ErrorApp("ITEM_NOMBRE_LARGO", "El nombre de un ítem admite como máximo 100 caracteres.", 400),
+  nombreItemRepetido: (nombre: string) =>
+    new ErrorApp("ITEM_NOMBRE_REPETIDO", `Hay dos ítems con el nombre «${nombre}» en esta competencia.`, 400),
+  pesoItemInvalido: (nombre: string) =>
+    new ErrorApp(
+      "ITEM_PESO_INVALIDO",
+      `El peso de «${nombre}» debe ser mayor que 0 y hasta 100, con dos decimales como máximo.`,
+      400,
+    ),
+  demasiadosItems: (maximo: number) =>
+    new ErrorApp("DEMASIADOS_ITEMS", `Una competencia admite como máximo ${maximo} ítems.`, 400),
+  itemAjeno: () => new ErrorApp("NO_ENCONTRADO", "El ítem no existe en esta competencia del registro.", 404),
+  competenciaConItems: (columna: string) =>
+    new ErrorApp(
+      "COMPETENCIA_CON_ITEMS",
+      `La competencia ${columna} se califica por ítems: su nota se calcula sola con las calificaciones de sus ítems.`,
+      422,
+    ),
+  confirmarCambioItems: (impacto: ImpactoCambioItems) =>
+    new ErrorApp(
+      "CONFIRMAR_CAMBIO_ITEMS",
+      "Este cambio borra calificaciones o deja alumnos sin nota en la competencia. Confírmalo para continuar.",
+      409,
+      { ...impacto },
     ),
   /** También para quien no puede verla (apoderado ajeno, otro alumno, registro sin publicar): no se revela que existe. */
   evidenciaNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La evidencia no existe.", 404),

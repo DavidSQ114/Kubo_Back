@@ -88,8 +88,16 @@ export async function guardarCompetenciasTx(
   const elegidas = prepararCompetencias(pedidas, curso.areaCurricular.id, catalogo, [...actuales.keys()]);
 
   const quitadas = plan.competencias.filter((c) => !elegidas.some((e) => e.competenciaId === c.competencia.id));
-  const notas = quitadas.length ? await cierresProvider().notasPorCompetenciaPlan(quitadas.map((q) => q.id)) : {};
-  verificarQuitarCompetencias(quitadas.map((q) => ({ nombre: q.competencia.nombre, notas: notas[q.id] ?? 0 })));
+  const ids = quitadas.map((q) => q.id);
+  const [notas, items] = ids.length
+    ? await Promise.all([
+        cierresProvider().notasPorCompetenciaPlan(ids),
+        cierresProvider().itemsPorCompetenciaPlan(ids),
+      ])
+    : [{}, {}];
+  verificarQuitarCompetencias(
+    quitadas.map((q) => ({ nombre: q.competencia.nombre, notas: notas[q.id] ?? 0, items: items[q.id] ?? 0 })),
+  );
 
   await competenciasPlan.eliminar(
     quitadas.map((q) => q.id),

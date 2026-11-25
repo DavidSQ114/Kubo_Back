@@ -180,3 +180,13 @@ describe("competencias de mi curso por el docente (bloque M2, DO-04)", () => {
     esperarError(() => prepararCompetencias([{ competenciaId: "mat-c9" }], MAT, catalogo, []), "COMPETENCIA_INACTIVA");
   });
 });
+
+describe("quitar una competencia con ítems de evaluación (bloque M2)", () => {
+  it("no se quita si tiene ítems en algún registro, aunque no tenga notas", () => {
+    expect(() => verificarQuitarCompetencias([{ nombre: "Resuelve problemas", notas: 0, items: 0 }])).not.toThrow();
+    esperarError(
+      () => verificarQuitarCompetencias([{ nombre: "Resuelve problemas", notas: 0, items: 2 }]),
+      "COMPETENCIA_CON_ITEMS",
+    );
+  });
+});

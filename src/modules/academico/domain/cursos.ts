@@ -124,10 +124,12 @@ export function prepararCompetencias(
   });
 }
 
-/** Al quitar competencias del plan: ninguna puede tener notas registradas. */
-export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: number }[]) {
+/** Al quitar competencias del plan: ninguna puede tener notas registradas ni ítems de evaluación (bloque M2). */
+export function verificarQuitarCompetencias(quitadas: { nombre: string; notas: number; items?: number }[]) {
   const conNotas = quitadas.find((q) => q.notas > 0);
   if (conNotas) throw E.competenciaConNotas(conNotas.nombre, conNotas.notas);
+  const conItems = quitadas.find((q) => (q.items ?? 0) > 0);
+  if (conItems) throw E.competenciaConItems(conItems.nombre, conItems.items!);
 }
 
 /**

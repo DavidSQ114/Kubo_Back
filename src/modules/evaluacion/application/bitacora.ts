@@ -1,5 +1,5 @@
 // evaluacion/application: bitácora de notas (US03, AD-16 «Cambios de notas»). Cada nota registrada o cambiada por el
-// docente (US37) o por una rectificación aprobada (US41) deja una fila en bitacora_nota dentro de la misma
+// docente (US37), por una rectificación aprobada (US41) o calculada por los ítems de evaluación (bloque M2) deja una fila en bitacora_nota dentro de la misma
 // transacción; el Administrador la consulta en solo lectura, filtrada por rango de fechas y por docente.
 import type { Tx } from "@/platform/db/tipos";
 import type { LogroNota } from "../domain/notas";
@@ -34,7 +34,8 @@ export interface CambioDeNota {
   competenciaPlanId: string;
   /** null si es el primer registro de la nota. */
   anterior: LogroNota | null;
-  nuevo: LogroNota;
+  /** null: la nota se quitó (origen ITEMS: al alumno le faltan ítems o los pesos no suman 100). */
+  nuevo: LogroNota | null;
   /** «Castillo Ramos, Bruno». */
   estudiante: string;
   competencia: CompetenciaDeColumna;
