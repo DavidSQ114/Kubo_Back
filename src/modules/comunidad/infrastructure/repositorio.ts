@@ -1,4 +1,4 @@
-// comunidad/infrastructure: consultas de persona y sus perfiles (administrador, docente, apoderado, estudiante) y vínculos.
+// comunidad/infrastructure: consultas de persona y sus perfiles (administrador, coordinador, docente, apoderado, estudiante) y vínculos.
 // Excepción documentada: las LECTURAS del listado de usuarios incluyen la relación persona.usuario
 // (tabla de identidad) para filtrar por estado y correo en una sola consulta paginada, y la búsqueda por DNI
 // (D-07) lee el correo de la cuenta cuando la persona no tiene uno propio. Los nombres de los responsables de pagos
@@ -25,6 +25,7 @@ export interface DatosPersonaNueva {
 /** Relación de Persona que representa cada rol. */
 export const RELACION_POR_ROL = {
   ADMINISTRADOR: "administrador",
+  COORDINADOR: "coordinador",
   DOCENTE: "docente",
   APODERADO: "apoderado",
   ALUMNO: "estudiante",
@@ -32,6 +33,7 @@ export const RELACION_POR_ROL = {
 
 const selectPerfiles = {
   administrador: { select: { activo: true, cargo: true } },
+  coordinador: { select: { activo: true, cargo: true } },
   docente: { select: { activo: true, especialidad: true } },
   apoderado: { select: { activo: true } },
   estudiante: { select: { activo: true } },
@@ -53,6 +55,7 @@ function busquedaPersona(q: string | undefined): Prisma.PersonaWhereInput {
 
 interface PerfilesFila {
   administrador: { activo: boolean; cargo?: string | null } | null;
+  coordinador: { activo: boolean; cargo?: string | null } | null;
   docente: { activo: boolean; especialidad?: string | null } | null;
   apoderado: { activo: boolean } | null;
   estudiante: { activo: boolean } | null;
@@ -61,6 +64,7 @@ interface PerfilesFila {
 export function rolesActivos(p: PerfilesFila): Rol[] {
   const roles: Rol[] = [];
   if (p.administrador?.activo) roles.push("ADMINISTRADOR");
+  if (p.coordinador?.activo) roles.push("COORDINADOR");
   if (p.docente?.activo) roles.push("DOCENTE");
   if (p.apoderado?.activo) roles.push("APODERADO");
   if (p.estudiante?.activo) roles.push("ALUMNO");
@@ -122,6 +126,19 @@ export const personas = {
 
   reactivarAdministrador: (id: string, cargo: string | null | undefined, db: Db = prisma) =>
     db.administrador.update({
+      where: { id },
+      data: { activo: true, ...(cargo ? { cargo } : {}) },
+      select: { id: true },
+    }),
+
+  coordinadorDe: (personaId: string, db: Db = prisma) =>
+    db.coordinador.findUnique({ where: { personaId }, select: { id: true, activo: true } }),
+
+  crearCoordinador: (data: { personaId: string; cargo?: string | null }, db: Db = prisma) =>
+    db.coordinador.create({ data, select: { id: true } }),
+
+  reactivarCoordinador: (id: string, cargo: string | null | undefined, db: Db = prisma) =>
+    db.coordinador.update({
       where: { id },
       data: { activo: true, ...(cargo ? { cargo } : {}) },
       select: { id: true },
@@ -205,15 +222,18 @@ export async function buscarUsuarios(f: FiltroUsuarios) {
 
 export async function contarUsuarios() {
   const conRol = (rel: string) => ({ [rel]: { is: { activo: true } } }) as Prisma.PersonaWhereInput;
-  const [administradores, docentes, apoderados, alumnos, suspendidos, todos] = await prisma.$transaction([
-    prisma.persona.count({ where: conRol("administrador") }),
-    prisma.persona.count({ where: conRol("docente") }),
-    prisma.persona.count({ where: conRol("apoderado") }),
-    prisma.persona.count({ where: conRol("estudiante") }),
-    prisma.persona.count({ where: { usuario: { is: { estado: "SUSPENDIDO" } } } }),
-    prisma.persona.count({ where: condicionRol(undefined) }),
-  ]);
-  return { todos, administradores, docentes, apoderados, alumnos, suspendidos };
+  const [administradores, coordinadores, docentes, apoderados, alumnos, suspendidos, todos] = await prisma.$transaction(
+    [
+      prisma.persona.count({ where: conRol("administrador") }),
+      prisma.persona.count({ where: conRol("coordinador") }),
+      prisma.persona.count({ where: conRol("docente") }),
+      prisma.persona.count({ where: conRol("apoderado") }),
+      prisma.persona.count({ where: conRol("estudiante") }),
+      prisma.persona.count({ where: { usuario: { is: { estado: "SUSPENDIDO" } } } }),
+      prisma.persona.count({ where: condicionRol(undefined) }),
+    ],
+  );
+  return { todos, administradores, coordinadores, docentes, apoderados, alumnos, suspendidos };
 }
 
 // ---------- Docentes (tutores de sección US08, asignación de cursos US14) ----------
@@ -275,6 +295,22 @@ export const administradores = {
   /** Persona de cada administrador activo (destinatarios de las notificaciones internas, US55). */
   personas: (db: Db = prisma) =>
     db.administrador.findMany({
+      where: { activo: true, persona: { activo: true } },
+      select: { personaId: true },
+    }),
+};
+
+export const coordinadores = {
+  /** Nombre y correo de los coordinadores activos: reciben los avisos académicos (cierre de notas, rectificaciones). */
+  contactos: (db: Db = prisma) =>
+    db.coordinador.findMany({
+      where: { activo: true, persona: { activo: true } },
+      select: { id: true, persona: { select: { nombres: true, email: true } } },
+    }),
+
+  /** Persona de cada coordinador activo (destinatarios de las notificaciones internas académicas, US55). */
+  personas: (db: Db = prisma) =>
+    db.coordinador.findMany({
       where: { activo: true, persona: { activo: true } },
       select: { personaId: true },
     }),
@@ -600,6 +636,7 @@ const selectPersonaEdicion = {
   fechaNacimiento: true,
   sexo: true,
   administrador: { select: { activo: true, cargo: true } },
+  coordinador: { select: { activo: true, cargo: true } },
   docente: { select: { id: true, activo: true, especialidad: true } },
   apoderado: { select: { activo: true, ocupacion: true, _count: { select: { vinculosApoderado: true } } } },
   estudiante: {
@@ -652,6 +689,7 @@ export const edicionPersonas = {
   async desactivarPerfil(personaId: string, rol: Rol, db: Db = prisma) {
     const cambio = { where: { personaId }, data: { activo: false }, select: { id: true } } as const;
     if (rol === "ADMINISTRADOR") await db.administrador.update(cambio);
+    else if (rol === "COORDINADOR") await db.coordinador.update(cambio);
     else if (rol === "DOCENTE") await db.docente.update(cambio);
     else if (rol === "APODERADO") await db.apoderado.update(cambio);
     else await db.estudiante.update(cambio);
@@ -660,6 +698,7 @@ export const edicionPersonas = {
   /** Borra la persona y sus perfiles. Quien llama ya comprobó que no tiene registros en otros módulos. */
   async eliminar(id: string, db: Db = prisma) {
     await db.administrador.deleteMany({ where: { personaId: id } });
+    await db.coordinador.deleteMany({ where: { personaId: id } });
     await db.docente.deleteMany({ where: { personaId: id } });
     await db.apoderado.deleteMany({ where: { personaId: id } });
     await db.estudiante.deleteMany({ where: { personaId: id } });

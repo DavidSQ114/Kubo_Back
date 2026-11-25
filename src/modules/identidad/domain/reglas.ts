@@ -1,6 +1,6 @@
 // identidad/domain: reglas puras (sin Prisma ni Next.js), fáciles de probar.
 
-export const ROLES = ["ADMINISTRADOR", "DOCENTE", "APODERADO", "ALUMNO"] as const;
+export const ROLES = ["ADMINISTRADOR", "COORDINADOR", "DOCENTE", "APODERADO", "ALUMNO"] as const;
 export type Rol = (typeof ROLES)[number];
 
 export const ESTADOS_USUARIO = ["PENDIENTE_ACTIVACION", "ACTIVO", "SUSPENDIDO", "DADO_DE_BAJA"] as const;

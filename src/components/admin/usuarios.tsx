@@ -1,4 +1,4 @@
-// Piezas de AD-06 Usuarios: tipos, badges, avatar y los modales M-04 (suspender), reactivar y registrar administrador.
+// Piezas de AD-06 Usuarios: tipos, badges, avatar y los modales M-04 (suspender), reactivar y registrar administrador o coordinador académico.
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -24,6 +24,7 @@ export interface UsuarioListado {
 export interface Resumen {
   todos: number;
   administradores: number;
+  coordinadores: number;
   docentes: number;
   apoderados: number;
   alumnos: number;
@@ -35,11 +36,13 @@ const TONO_ROL: Record<Rol, "azul" | "verde" | "celeste" | "gris"> = {
   APODERADO: "verde",
   ALUMNO: "celeste",
   ADMINISTRADOR: "gris",
+  COORDINADOR: "gris",
 };
 
 const COLOR_AVATAR: Record<Rol, string> = {
   DOCENTE: "bg-kubo-azul",
   ADMINISTRADOR: "bg-kubo-azul",
+  COORDINADOR: "bg-kubo-azul",
   APODERADO: "bg-verde-oscuro",
   ALUMNO: "bg-celeste",
 };
@@ -318,7 +321,23 @@ export function ModalReactivar({
   );
 }
 
-// ---------- Registrar administrador (pantalla no diseñada en el Figma: usa el estilo de M-04) ----------
+// ---------- Registrar administrador o coordinador (pantalla no diseñada en el Figma: usa el estilo de M-04) ----------
+
+/** Perfiles de gestión que se registran con este modal: misma ficha, distinto endpoint y textos (bloque M1). */
+export type PerfilGestion = "ADMINISTRADOR" | "COORDINADOR";
+
+const REGISTRO_GESTION: Record<PerfilGestion, { ruta: string; nombre: string; ejemploCargo: string }> = {
+  ADMINISTRADOR: {
+    ruta: "/comunidad/administradores",
+    nombre: "administrador",
+    ejemploCargo: "Ej.: Secretaria académica",
+  },
+  COORDINADOR: {
+    ruta: "/comunidad/coordinadores",
+    nombre: "coordinador académico",
+    ejemploCargo: "Ej.: Coordinación de secundaria",
+  },
+};
 
 interface ResultadoRegistro {
   nombreCompleto: string;
@@ -332,14 +351,17 @@ interface ResultadoRegistro {
 const VACIO = { dni: "", nombres: "", apellidos: "", email: "", telefono: "", cargo: "" };
 
 export function ModalRegistrarAdministrador({
+  perfil = "ADMINISTRADOR",
   abierto,
   onCerrar,
   onListo,
 }: {
+  perfil?: PerfilGestion;
   abierto: boolean;
   onCerrar: () => void;
   onListo: (mensaje: string) => void;
 }) {
+  const textos = REGISTRO_GESTION[perfil];
   const [datos, setDatos] = useState(VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -365,7 +387,7 @@ export function ModalRegistrarAdministrador({
     setErrores({});
     setError(null);
     try {
-      const r = await api<ResultadoRegistro>("/comunidad/administradores", {
+      const r = await api<ResultadoRegistro>(textos.ruta, {
         method: "POST",
         body: {
           dni: datos.dni,
@@ -377,7 +399,7 @@ export function ModalRegistrarAdministrador({
         },
       });
       setResultado(r);
-      onListo(`Se registró a ${r.nombreCompleto} como administrador.`);
+      onListo(`Se registró a ${r.nombreCompleto} como ${textos.nombre}.`);
     } catch (err) {
       if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
         setErrores(err.detalles as Record<string, string>);
@@ -393,7 +415,7 @@ export function ModalRegistrarAdministrador({
       onCerrar={cerrar}
       icono="icon-userplus"
       tonoIcono="azul"
-      titulo={resultado ? "Administrador registrado" : "Registrar administrador"}
+      titulo={resultado ? `Registro de ${textos.nombre} completo` : `Registrar ${textos.nombre}`}
       subtitulo={
         resultado ? undefined : "Se creará su cuenta con una contraseña temporal que deberá cambiar al ingresar."
       }
@@ -414,7 +436,7 @@ export function ModalRegistrarAdministrador({
     >
       {resultado ? (
         <>
-          <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es administrador`}>
+          <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es ${textos.nombre}`}>
             {resultado.personaExistia
               ? "La persona ya estaba registrada: se le agregó el perfil sin duplicar sus datos. "
               : ""}
@@ -488,7 +510,7 @@ export function ModalRegistrarAdministrador({
           />
           <Campo
             etiqueta="Cargo (opcional)"
-            placeholder="Ej.: Secretaria académica"
+            placeholder={textos.ejemploCargo}
             value={datos.cargo}
             onChange={cambiar("cargo")}
             error={errores.cargo}

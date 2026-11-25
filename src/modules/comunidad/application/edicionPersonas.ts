@@ -62,6 +62,7 @@ export type DatosEdicion = Partial<DatosEditables> & { motivo?: string | null };
 const perfilesRegistrados = (p: PersonaEdicion): Rol[] => {
   const roles: Rol[] = [];
   if (p.administrador) roles.push("ADMINISTRADOR");
+  if (p.coordinador) roles.push("COORDINADOR");
   if (p.docente) roles.push("DOCENTE");
   if (p.apoderado) roles.push("APODERADO");
   if (p.estudiante) roles.push("ALUMNO");

@@ -85,6 +85,20 @@ SELECT id, 'admin@kubo.edu.pe', crypt('Kubo#2026', gen_salt('bf', 10)), 'ACTIVO'
 FROM persona WHERE dni = '00000000'
 ON CONFLICT (email) DO NOTHING;
 
+-- Coordinadora académica ficticia (bloque M1). Misma contraseña inicial que el administrador; cambiarla al ingresar.
+INSERT INTO persona (dni, nombres, apellidos, email)
+VALUES ('00000001', 'Coordinación', 'Académica Kubo', 'coordinacion@kubo.edu.pe')
+ON CONFLICT (dni) DO NOTHING;
+
+INSERT INTO coordinador (persona_id, cargo)
+SELECT id, 'Coordinación académica' FROM persona WHERE dni = '00000001'
+ON CONFLICT (persona_id) DO NOTHING;
+
+INSERT INTO usuario (persona_id, email, password_hash, estado, debe_cambiar_password)
+SELECT id, 'coordinacion@kubo.edu.pe', crypt('Kubo#2026', gen_salt('bf', 10)), 'ACTIVO', true
+FROM persona WHERE dni = '00000001'
+ON CONFLICT (email) DO NOTHING;
+
 -- Parámetros generales (sin año). Ajustar montos antes de abrir la matrícula.
 INSERT INTO parametro_institucion (clave, valor, descripcion, actualizado_por_id)
 SELECT v.clave, v.valor::jsonb, v.descripcion, u.id FROM (VALUES

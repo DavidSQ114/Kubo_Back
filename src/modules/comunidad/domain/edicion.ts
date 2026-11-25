@@ -3,10 +3,11 @@
 import { erroresComunidad as E } from "./errores";
 
 /** Perfiles de una persona. Son los mismos valores que los roles de identidad. */
-export type Perfil = "ADMINISTRADOR" | "DOCENTE" | "APODERADO" | "ALUMNO";
+export type Perfil = "ADMINISTRADOR" | "COORDINADOR" | "DOCENTE" | "APODERADO" | "ALUMNO";
 
 export const NOMBRE_PERFIL: Record<Perfil, string> = {
   ADMINISTRADOR: "Administrador",
+  COORDINADOR: "Coordinador académico",
   DOCENTE: "Docente",
   APODERADO: "Apoderado",
   ALUMNO: "Estudiante",

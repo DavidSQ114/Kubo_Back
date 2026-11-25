@@ -28,6 +28,9 @@ export const RegistrarAdministradorSchema = z.object({
   cargo: z.string().trim().max(100, "Cargo demasiado largo").optional().nullable(),
 });
 
+/** El coordinador académico se registra con los mismos datos que un administrador (bloque M1). */
+export const RegistrarCoordinadorSchema = RegistrarAdministradorSchema;
+
 export const FiltroUsuariosSchema = z.object({
   q: z.string().trim().max(100).optional(),
   rol: z.enum(ROLES).optional(),

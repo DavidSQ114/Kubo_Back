@@ -4,7 +4,7 @@
 // - Un cuerpo FormData (subida de archivos, US38) se envía como multipart/form-data; los archivos protegidos se
 //   leen como Blob para verlos, abrirlos o descargarlos sin exponer ninguna URL pública.
 
-export type Rol = "ADMINISTRADOR" | "DOCENTE" | "APODERADO" | "ALUMNO";
+export type Rol = "ADMINISTRADOR" | "COORDINADOR" | "DOCENTE" | "APODERADO" | "ALUMNO";
 
 export interface Sesion {
   usuario: { id: string; email: string; nombres: string; apellidos: string; nombreCompleto: string; iniciales: string };
@@ -151,7 +151,8 @@ export async function abrirEnPestana(ruta: string): Promise<void> {
 
 /** A dónde va cada perfil después de iniciar sesión. */
 export function inicioPorRol(rol: Rol): string {
-  if (rol === "ADMINISTRADOR") return "/admin/usuarios";
+  if (rol === "ADMINISTRADOR") return "/admin";
+  if (rol === "COORDINADOR") return "/coordinador";
   if (rol === "APODERADO") return "/apoderado";
   if (rol === "DOCENTE") return "/docente";
   return "/alumno";
@@ -159,6 +160,7 @@ export function inicioPorRol(rol: Rol): string {
 
 export const NOMBRE_ROL: Record<Rol, string> = {
   ADMINISTRADOR: "Administrador",
+  COORDINADOR: "Coordinador académico",
   DOCENTE: "Docente",
   APODERADO: "Apoderado",
   ALUMNO: "Alumno",

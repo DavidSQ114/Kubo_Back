@@ -12,6 +12,7 @@ import {
   ModalReactivar,
   ModalRegistrarAdministrador,
   ModalSuspender,
+  type PerfilGestion,
   type Resumen,
   type UsuarioListado,
 } from "@/components/admin/usuarios";
@@ -31,6 +32,7 @@ const PESTANAS: { rol?: Rol; texto: string; clave: keyof Resumen }[] = [
   { rol: "DOCENTE", texto: "Docentes", clave: "docentes" },
   { rol: "APODERADO", texto: "Apoderados", clave: "apoderados" },
   { rol: "ALUMNO", texto: "Alumnos", clave: "alumnos" },
+  { rol: "COORDINADOR", texto: "Coordinadores", clave: "coordinadores" },
   { rol: "ADMINISTRADOR", texto: "Administradores", clave: "administradores" },
 ];
 
@@ -57,7 +59,7 @@ function Usuarios({ qInicial }: { qInicial: string }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [aSuspender, setASuspender] = useState<UsuarioListado | null>(null);
   const [aReactivar, setAReactivar] = useState<UsuarioListado | null>(null);
-  const [registrando, setRegistrando] = useState(false);
+  const [registrando, setRegistrando] = useState<PerfilGestion | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<{
     personaId: string;
     usuarioId: string | null;
@@ -149,8 +151,11 @@ function Usuarios({ qInicial }: { qInicial: string }) {
             Registra docentes y apoderados, revisa sus vínculos y controla el acceso de cada perfil al sistema.
           </p>
         </div>
-        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando(true)}>
+        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando("ADMINISTRADOR")}>
           Registrar administrador
+        </Boton>
+        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando("COORDINADOR")}>
+          Registrar coordinador
         </Boton>
         <Boton
           variante="secundario"
@@ -386,8 +391,10 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         />
       )}
       <ModalRegistrarAdministrador
-        abierto={registrando}
-        onCerrar={() => setRegistrando(false)}
+        key={registrando ?? "cerrado"}
+        perfil={registrando ?? "ADMINISTRADOR"}
+        abierto={registrando !== null}
+        onCerrar={() => setRegistrando(null)}
         onListo={alTerminarAccion}
       />
     </>
