@@ -1,22 +1,25 @@
 # API · Comunidad: usuarios, administradores, docentes, apoderados, estudiantes, personas por DNI y edición de personas (Fase 1, US13, US15, US17, D-07, US69)
 
+> **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
+
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
 El `message` de los errores ya está redactado para mostrarse al usuario (RNF09).
 
-Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md). Suspender y reactivar una cuenta también son de identidad.
+Las rutas de usuarios, docentes, administradores, coordinadores y bajas exigen el rol `ADMINISTRADOR`; las de alumnos, apoderados, vínculos y la edición de alumnos y apoderados, `ADMINISTRADOR` o `COORDINADOR`; «Mi perfil», cualquier sesión (ver [ACCESOS.md](../ACCESOS.md)). La sesión, las cookies y qué hacer ante un `401` o un `403` están en [identidad.md](identidad.md). Suspender y reactivar una cuenta también son de identidad.
 
 ## Endpoints
 
-### Administración de usuarios · solo `ADMINISTRADOR`
+### Administración de usuarios
 
 | Método y ruta | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|
 | `GET /comunidad/usuarios` | `?q=&rol=&estado=&pagina=1&tamano=20` | `{ items: UsuarioListado[], paginacion: { pagina, tamano, total, paginas } }` |
-| `GET /comunidad/usuarios/resumen` | — | `{ todos, administradores, docentes, apoderados, alumnos, suspendidos }` |
+| `GET /comunidad/usuarios/resumen` | — | `{ todos, administradores, coordinadores, docentes, apoderados, alumnos, suspendidos }` |
 | `GET /comunidad/docentes` | — | `{ id, nombreCompleto, nombreCorto, activo }[]`: docentes activos, para elegir tutor de sección (US08) o asignar cursos (US14) |
 | `POST /comunidad/docentes` | `{ dni, nombres, apellidos, email, especialidad, telefono?, fechaNacimiento?, sexo?, enviarCorreo? }` | `201 { personaId, docenteId, usuarioId, nombreCompleto, email, especialidad, personaExistia, cuentaCreada, correoEnviado, passwordTemporal }` |
 | `GET /comunidad/personas` | `?dni=` (8 dígitos) | `PersonaEncontrada` o `null` si el DNI no está registrado (D-07) |
 | `POST /comunidad/administradores` | `{ dni, nombres, apellidos, email, telefono?, cargo? }` | `201 { personaId, usuarioId, nombreCompleto, email, personaExistia, cuentaCreada, correoEnviado, passwordTemporal }` |
+| `POST /comunidad/coordinadores` | `{ dni, nombres, apellidos, email, telefono?, cargo? }` | `201` igual que administradores (bloque M1) |
 | `GET /comunidad/apoderados` | `?q=&pagina=1&tamano=10` | `{ items: ApoderadoListado[], paginacion }`: apoderados activos por DNI o nombre (US15, AD-08 y AD-09) |
 | `POST /comunidad/apoderados` | `{ dni, nombres, apellidos, fechaNacimiento, email, telefono, direccion, ocupacion, sexo?, vinculos?, enviarCorreo? }` | `201 { personaId, apoderadoId, usuarioId, nombreCompleto, email, personaExistia, cuentaCreada, correoEnviado, estudiantesVinculados, passwordTemporal }` |
 | `GET /comunidad/estudiantes` | `?q=&pagina=1&tamano=10` | `{ items: EstudianteListado[], paginacion }`: estudiantes activos por DNI o nombre (para vincular en AD-08) |
@@ -24,10 +27,17 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 | `POST /comunidad/vinculos` | `{ estudianteId, apoderadoId, parentesco, esPrincipal?, autorizado? }` | `201 { vinculoId, esPrincipal, cambioPrincipal }` |
 
 - `q` busca por nombre, apellido, DNI (desde el inicio) o correo; varias palabras se combinan.
-- `rol`: `ADMINISTRADOR` · `DOCENTE` · `APODERADO` · `ALUMNO`. `estado`: `ACTIVO` · `PENDIENTE_ACTIVACION` · `SUSPENDIDO` · `SIN_CUENTA`.
-- `UsuarioListado`: `{ personaId, usuarioId, nombreCompleto, iniciales, email, dni, roles, detalle, estado, ultimoAccesoEn }`.
+- `rol`: `ADMINISTRADOR` · `COORDINADOR` · `DOCENTE` · `APODERADO` · `ALUMNO`. `estado`: `ACTIVO` · `PENDIENTE_ACTIVACION` · `SUSPENDIDO` · `SIN_CUENTA`.
+- `UsuarioListado`: `{ personaId, usuarioId, nombreCompleto, iniciales, email, dni, roles, detalle, estado, ultimoAccesoEn, bloqueadaPorIntentos }`. `bloqueadaPorIntentos` es `true` mientras `bloqueado_hasta` sea posterior a ahora: AD-06 muestra «Bloqueada por intentos» y la acción «Desbloquear» ([identidad.md](identidad.md#acceso-de-las-cuentas--solo-administrador)).
 - `passwordTemporal` solo se devuelve en esa respuesta (para entregarla si el correo no llega). No se guarda en ningún lugar.
 - Si el DNI ya existe, se reutiliza la persona (RF46) y solo se agrega el perfil.
+
+### Registro de coordinadores académicos (bloque M1, pantalla AD-06)
+
+- Mismos datos y reglas que un administrador: si el DNI existe se reutiliza la persona y se agrega (o reactiva) el perfil; si no tiene cuenta, se crea con contraseña temporal (`PENDIENTE_ACTIVACION`, cambio obligatorio en el primer ingreso) y se envía el correo de bienvenida después de confirmar.
+- `409 YA_ES_COORDINADOR` «Esta persona ya tiene el perfil de Coordinador académico.» · `409 EMAIL_EN_USO`.
+- Auditoría `REGISTRAR_COORDINADOR` (o `REACTIVAR_PERFIL_COORDINADOR`). Tabla `coordinador` (`persona_id` único).
+- Al iniciar sesión el coordinador entra a `/coordinador`. Con más de un perfil elige en AC-08.
 
 ### Registro de docentes (US13, RF11, pantalla AD-07)
 
@@ -84,6 +94,7 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 | `GET /comunidad/personas/{id}/historial` | — | `{ items: EventoHistorial[] }`: los 50 cambios más recientes |
 | `DELETE /comunidad/personas/{id}` | `?perfil=` (opcional) | `{ resultado, nombreCompleto, perfiles, motivos }` |
 
+- **Alcance (bloque M1):** el administrador modifica a cualquier persona; el coordinador académico solo a quien tiene únicamente perfiles de alumno o apoderado. Si no, `403 PERSONA_FUERA_DE_ALCANCE` «Solo el administrador puede modificar los datos de docentes, administradores y coordinadores.». Dar de baja (`DELETE`) es solo del administrador.
 - `DetallePersona`: `{ personaId, nombreCompleto, dni, nombres, apellidos, email, telefono, direccion, fechaNacimiento, sexo, ocupacion, especialidad, colegioProcedencia, perfiles, perfilesRegistrados, estudianteId, cuenta }`. `estudianteId` es el id de su perfil de estudiante (o `null`): con él se crea su acceso al portal (US49). `email` es el correo de la cuenta o, sin cuenta, el de la persona. `perfiles` son los activos y `perfilesRegistrados`, todos los que tiene. `cuenta`: `{ usuarioId, estado, usada }` o `null`.
 - **PATCH.** Lo que no se envía no cambia; `null` deja vacío un dato opcional. Solo se guardan los campos con un valor distinto del registrado: sin cambios responde `200` con `cambios: []` y no escribe en la auditoría.
   - `ocupacion` exige perfil de apoderado; `especialidad`, de docente; `colegioProcedencia`, de estudiante (`422 PERFIL_NO_APLICA`). `sexo` se edita en cualquier persona.
@@ -97,7 +108,7 @@ Todas las rutas de este módulo exigen sesión con el rol `ADMINISTRADOR`. La se
 
 ### Acceso del alumno al portal (US49, pantalla AD-06)
 
-Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desde el detalle del estudiante en AD-06, botón «Crear acceso al portal».
+Los estudiantes se registran sin cuenta (US17). El Administrador o el Coordinador académico se la crea desde el detalle del estudiante en AD-06, botón «Crear acceso al portal».
 
 | Método y ruta | Cuerpo | Respuesta `data` |
 |---|---|---|
@@ -116,9 +127,20 @@ Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desd
 |---|---|
 | `GET /comunidad/personas/{id}/vinculos` | `{ apoderados: VinculoDePersona[], hijos: VinculoDePersona[] }` |
 
-- Solo Administrador. Persona inexistente: `404 NO_ENCONTRADO`.
+- Administrador y Coordinador académico (lectura). Persona inexistente: `404 NO_ENCONTRADO`.
 - `apoderados`: si la persona es estudiante, sus apoderados (el principal primero). `hijos`: si es apoderado, los estudiantes vinculados. Incluye los vínculos de perfiles ya desactivados (`activo: false`).
 - `VinculoDePersona`: `{ vinculoId, personaId, nombreCompleto, activo, parentesco, esPrincipal, autorizado, responsablePago, matricula }`. `personaId` es el de la otra persona: con él se abre su detalle. `responsablePago` indica si ese vínculo es el responsable del pago en la matrícula más reciente del estudiante. `matricula` (solo en `hijos`): `{ anio, estado, seccion }` de su matrícula más reciente (la del último año; una anulada solo si no tiene otra), o `null` sin matrícula. La informa `matricula` por el puerto `RegistrosMatriculaProvider.matriculasRecientes`.
+
+### Mi perfil (bloque M1, todos los roles)
+
+| Método y ruta | Cuerpo | Respuesta `data` |
+|---|---|---|
+| `GET /comunidad/mi-perfil` | — | `MiPerfil` |
+| `PATCH /comunidad/mi-perfil` | `{ telefono?, direccion? }` | `MiPerfil` actualizado |
+
+- `MiPerfil`: `{ nombres, apellidos, nombreCompleto, dni, email, telefono, direccion, roles, rolActivo, ultimoAccesoEn }`. `dni` llega enmascarado (`******78`); `email` es el de la cuenta; `roles`, los perfiles activos.
+- El cuerpo es estricto: solo `telefono` (9 dígitos; se aceptan espacios o guiones) y `direccion` (5 a 200 caracteres); `null` o vacío borra el dato. Cualquier otro campo (`email`, `dni`, `nombres`…) responde `400 DATOS_INVALIDOS` con el detalle «Solo puedes cambiar tu teléfono y tu dirección. El correo y el DNI los cambia el administrador.».
+- Solo se guardan los campos que cambian, con auditoría `ACTUALIZAR_PERFIL` (valor anterior y nuevo) en la misma transacción. Sin cambios no escribe ni audita.
 
 ## Códigos de error
 
@@ -126,8 +148,9 @@ Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desd
 |---|---|---|
 | `DATOS_INVALIDOS` | 400 | Falta un campo o tiene formato incorrecto (`details` = mensaje por campo) |
 | `NO_AUTENTICADO` · `SESION_INVALIDA` | 401 | Sin sesión o sesión vencida (ver [identidad.md](identidad.md)) |
-| `CAMBIO_PASSWORD_REQUERIDO` · `ACCESO_DENEGADO` | 403 | Debe cambiar su contraseña, o el rol activo no es `ADMINISTRADOR` |
-| `YA_ES_ADMINISTRADOR` · `EMAIL_EN_USO` | 409 | La persona ya tiene el perfil, o el correo pertenece a otra cuenta |
+| `CAMBIO_PASSWORD_REQUERIDO` · `ACCESO_DENEGADO` | 403 | Debe cambiar su contraseña, o el rol activo no es el del endpoint ([ACCESOS.md](../ACCESOS.md)) |
+| `PERSONA_FUERA_DE_ALCANCE` | 403 | El coordinador intenta modificar a un docente, administrador o coordinador (bloque M1) |
+| `YA_ES_ADMINISTRADOR` · `YA_ES_COORDINADOR` · `EMAIL_EN_USO` | 409 | La persona ya tiene el perfil, o el correo pertenece a otra cuenta |
 | `DOCENTE_EXISTENTE` | 409 | «Ya existe un usuario registrado con este DNI»: el DNI ya tiene perfil Docente activo |
 | `PERSONA_NO_COINCIDE` | 409 | «El DNI ya pertenece a otra persona (Nombre Apellido). Verifica el DNI.» |
 | `DNI_EN_USO` | 409 | Otra operación registró el mismo DNI al mismo tiempo; volver a validar el DNI |
@@ -150,7 +173,7 @@ Los estudiantes se registran sin cuenta (US17). El Administrador se la crea desd
 
 ## Auditoría (RF03)
 
-Se registran en `registro_auditoria`: `REGISTRAR_ADMINISTRADOR`, `REACTIVAR_PERFIL_ADMINISTRADOR`, `REGISTRAR_DOCENTE`, `REACTIVAR_PERFIL_DOCENTE`, `REGISTRAR_APODERADO` (con `personaExistia` y `perfilReactivado`), `VINCULAR_APODERADO` (uno por vínculo; si cambia el principal, el valor anterior guarda el vínculo que dejó de serlo) y `REGISTRAR_ESTUDIANTE` (con `matriculaEnProcesoId` si se guardó como borrador), con el administrador responsable, valor anterior y nuevo, IP y requestId. El DNI no se escribe en la auditoría ni en los logs (el logger además oculta `dni`, `telefono`, `direccion` y `fechaNacimiento`).
+Se registran en `registro_auditoria`: `REGISTRAR_ADMINISTRADOR`, `REACTIVAR_PERFIL_ADMINISTRADOR`, `REGISTRAR_COORDINADOR`, `REACTIVAR_PERFIL_COORDINADOR`, `ACTUALIZAR_PERFIL` (Mi perfil, sobre `persona`), `REGISTRAR_DOCENTE`, `REACTIVAR_PERFIL_DOCENTE`, `REGISTRAR_APODERADO` (con `personaExistia` y `perfilReactivado`), `VINCULAR_APODERADO` (uno por vínculo; si cambia el principal, el valor anterior guarda el vínculo que dejó de serlo) y `REGISTRAR_ESTUDIANTE` (con `matriculaEnProcesoId` si se guardó como borrador), con el administrador responsable, valor anterior y nuevo, IP y requestId. El DNI no se escribe en la auditoría ni en los logs (el logger además oculta `dni`, `telefono`, `direccion` y `fechaNacimiento`).
 
 La edición y la baja de personas (US69) se registran sobre la entidad `persona`: `EDITAR_PERSONA` (una fila por edición, con `valor_anterior` y `valor_nuevo` de cada campo cambiado y el `motivo` si cambió el DNI, los nombres o los apellidos), `DESACTIVAR_PERFIL` (una fila por perfil, con los registros que impidieron eliminar) y `ELIMINAR_PERSONA` (con nombres, perfiles y si se eliminó su cuenta). En estas filas el DNI solo deja ver sus 2 últimos dígitos (`******78`); los demás datos se guardan completos, como exige la historia. El historial de la persona se lee de estas filas. La bitácora es inmutable (`tg_auditoria_inmutable`): no hay ruta ni consulta que la modifique.
 

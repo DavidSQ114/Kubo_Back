@@ -3,10 +3,10 @@
 import "@/server/wiring";
 import { leerCuerpo, ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { esquemasHorarios, justificarFalta } from "@/modules/horarios";
+import { esquemasHorarios, justificarFalta, ROLES_HORARIOS } from "@/modules/horarios";
 
 export const POST = ruta(async (req, { meta, params }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_HORARIOS.ASISTENCIA_DOCENTE });
   const registroId = esquemasHorarios.IdSchema.parse(params.id);
   const datos = await leerCuerpo(req, esquemasHorarios.JustificacionDocenteSchema);
   return ok(await justificarFalta(admin, registroId, datos, meta));

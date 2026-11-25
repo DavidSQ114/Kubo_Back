@@ -245,3 +245,16 @@ export const MontosSchema = z.object({
   montoMatricula: monto("el monto de matrícula"),
   montoPension: monto("el monto de la pensión mensual"),
 });
+
+// ---------- Parámetros del sistema (bloque M1) ----------
+
+/** Clave de parametro_institucion en la URL («MAX_INTENTOS_LOGIN»). */
+export const ClaveParametroSchema = z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/, "Clave de parámetro no válida");
+
+/** El valor llega como texto («07:30», «5», «0.15», «350.00») y el dominio lo valida según el tipo del parámetro. */
+export const ActualizarParametroSchema = z.object({
+  valor: z
+    .union([z.string(), z.number()], { message: "Ingresa el valor" })
+    .transform((v) => String(v).trim())
+    .pipe(z.string().min(1, "Ingresa el valor").max(20, "Valor demasiado largo")),
+});

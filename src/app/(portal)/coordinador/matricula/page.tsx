@@ -276,7 +276,7 @@ function PaginaMatricula() {
         <Boton
           variante="secundario"
           icono="icon-userplus"
-          onClick={() => router.push("/admin/usuarios/registrar-estudiante")}
+          onClick={() => router.push("/coordinador/matricula/registrar-estudiante")}
         >
           Registrar estudiante
         </Boton>
@@ -310,7 +310,7 @@ function PaginaMatricula() {
               vacio={
                 <>
                   No hay estudiantes con ese DNI o nombre.{" "}
-                  <Link href="/admin/usuarios/registrar-estudiante" className="font-semibold text-kubo-azul">
+                  <Link href="/coordinador/matricula/registrar-estudiante" className="font-semibold text-kubo-azul">
                     Regístralo primero
                   </Link>
                   .
@@ -719,7 +719,7 @@ function PaginaMatricula() {
             <>
               {d.cronograma.cuotas.length > 0 && d.estudiante && (
                 <Link
-                  href={`/admin/pagos?estudiante=${d.estudiante.estudianteId}&anio=${d.anio.id}`}
+                  href={`/coordinador/pagos?estudiante=${d.estudiante.estudianteId}&anio=${d.anio.id}`}
                   className="text-[14px] font-semibold text-kubo-azul hover:underline"
                 >
                   Ir a Pensiones y pagos

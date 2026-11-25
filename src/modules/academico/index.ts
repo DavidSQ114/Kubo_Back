@@ -122,3 +122,6 @@ export {
   type VersionRegla,
 } from "./application/reglasConsolidacion";
 export * as esquemasAcademico from "./schemas";
+export { ROLES_ACADEMICO } from "./accesos";
+export { listarParametrosSistema, actualizarParametroSistema, type ParametroSistema } from "./application/parametros";
+export { PARAMETROS_SISTEMA, TIPOS_PARAMETRO, type TipoParametro } from "./domain/parametros";

@@ -132,7 +132,8 @@ describe.skipIf(!ACTIVA)(
         sesionId: "prueba",
         personaId: u.personaId,
         email: u.email,
-        rol: "ADMINISTRADOR",
+        // bloque M1: la vista de todas las sesiones y la corrección son del coordinador académico
+        rol: "COORDINADOR",
         debeCambiarPassword: false,
       };
       const passwordHash = await hashPassword(CLAVE);

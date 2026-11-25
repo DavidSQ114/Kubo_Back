@@ -1,6 +1,6 @@
 // identidad/domain: reglas puras (sin Prisma ni Next.js), fáciles de probar.
 
-export const ROLES = ["ADMINISTRADOR", "DOCENTE", "APODERADO", "ALUMNO"] as const;
+export const ROLES = ["ADMINISTRADOR", "COORDINADOR", "DOCENTE", "APODERADO", "ALUMNO"] as const;
 export type Rol = (typeof ROLES)[number];
 
 export const ESTADOS_USUARIO = ["PENDIENTE_ACTIVACION", "ACTIVO", "SUSPENDIDO", "DADO_DE_BAJA"] as const;
@@ -40,6 +40,10 @@ export function generarPasswordTemporal(aleatorio: (max: number) => number): str
 }
 
 // ---------- Bloqueo por intentos fallidos (RF01) ----------
+
+/** La cuenta está bloqueada por intentos fallidos mientras `bloqueadoHasta` sea posterior a ahora (AD-06, bloque M1). */
+export const estaBloqueada = (bloqueadoHasta: Date | null, ahora: Date) =>
+  bloqueadoHasta !== null && bloqueadoHasta.getTime() > ahora.getTime();
 export interface ResultadoIntentoFallido {
   intentosFallidos: number;
   bloqueadoHasta: Date | null;

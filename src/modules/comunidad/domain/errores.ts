@@ -3,6 +3,14 @@
 import { ErrorApp } from "@/platform/http/errores";
 
 export const erroresComunidad = {
+  // ---------- Separación de accesos (bloque M1) ----------
+  personaFueraDeAlcance: () =>
+    new ErrorApp(
+      "PERSONA_FUERA_DE_ALCANCE",
+      "Solo el administrador puede modificar los datos de docentes, administradores y coordinadores.",
+      403,
+    ),
+
   docenteExistente: () => new ErrorApp("DOCENTE_EXISTENTE", "Ya existe un usuario registrado con este DNI", 409),
   personaNoCoincide: (nombre: string) =>
     new ErrorApp("PERSONA_NO_COINCIDE", `El DNI ya pertenece a otra persona (${nombre}). Verifica el DNI.`, 409),

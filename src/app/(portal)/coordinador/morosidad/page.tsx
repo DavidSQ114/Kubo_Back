@@ -417,7 +417,7 @@ export default function MorosidadPage() {
                     <td className="px-3 py-2 text-right">
                       <span className="inline-flex items-center gap-1">
                         <Link
-                          href={`/admin/pagos?estudiante=${f.estudianteId}&anio=${panel.anio.id}`}
+                          href={`/coordinador/pagos?estudiante=${f.estudianteId}&anio=${panel.anio.id}`}
                           aria-label={`Ver pensiones y pagos de ${f.nombreCompleto}`}
                           className="inline-flex rounded p-1 hover:bg-fondo"
                         >

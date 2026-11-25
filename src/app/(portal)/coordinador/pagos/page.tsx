@@ -93,7 +93,7 @@ function PaginaPagos() {
     setExito(null);
     setAviso(null);
     setErrorAccion(null);
-    router.replace(`/admin/pagos${q.size ? `?${q}` : ""}`);
+    router.replace(`/coordinador/pagos${q.size ? `?${q}` : ""}`);
   }
 
   function alRegistrar(r: ResultadoPago) {
@@ -288,7 +288,7 @@ function PaginaPagos() {
         <Alerta tipo="info" titulo="El estudiante no tiene una matrícula con cronograma">
           Matricúlalo en una sección para generar su cronograma de pensiones.{" "}
           <Link
-            href={`/admin/matricula?estudiante=${actual.estudiante.estudianteId}`}
+            href={`/coordinador/matricula?estudiante=${actual.estudiante.estudianteId}`}
             className="font-semibold text-kubo-azul"
           >
             Ir a Matrícula

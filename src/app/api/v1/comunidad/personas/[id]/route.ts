@@ -5,23 +5,29 @@
 import "@/server/wiring";
 import { ok, leerCuerpo, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { detallePersona, editarPersona, eliminarPersona, esquemasComunidad } from "@/modules/comunidad";
+import {
+  detallePersona,
+  editarPersona,
+  eliminarPersona,
+  esquemasComunidad,
+  ROLES_COMUNIDAD,
+} from "@/modules/comunidad";
 
 export const GET = ruta(async (req, { params }) => {
-  await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  await requerirSesion(req, { roles: ROLES_COMUNIDAD.CONSULTA });
   const personaId = esquemasComunidad.IdPersonaSchema.parse(params.id);
   return ok(await detallePersona(personaId));
 });
 
 export const PATCH = ruta(async (req, { meta, params }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_COMUNIDAD.ALUMNOS_Y_APODERADOS });
   const personaId = esquemasComunidad.IdPersonaSchema.parse(params.id);
   const datos = await leerCuerpo(req, esquemasComunidad.EditarPersonaSchema);
   return ok(await editarPersona(admin, personaId, datos, meta));
 });
 
 export const DELETE = ruta(async (req, { meta, params }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_COMUNIDAD.USUARIOS });
   const personaId = esquemasComunidad.IdPersonaSchema.parse(params.id);
   const opciones = esquemasComunidad.BajaPersonaSchema.parse(Object.fromEntries(new URL(req.url).searchParams));
   return ok(await eliminarPersona(admin, personaId, opciones, meta));

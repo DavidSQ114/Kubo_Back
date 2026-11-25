@@ -7,11 +7,13 @@ import { alertaError, useSesion } from "@/components/admin/PortalAdmin";
 import { ModalPersona, type ModoPersona } from "@/components/admin/personas";
 import {
   Avatar,
+  BadgeBloqueada,
   BadgeEstado,
   BadgeRol,
   ModalReactivar,
   ModalRegistrarAdministrador,
   ModalSuspender,
+  type PerfilGestion,
   type Resumen,
   type UsuarioListado,
 } from "@/components/admin/usuarios";
@@ -31,6 +33,7 @@ const PESTANAS: { rol?: Rol; texto: string; clave: keyof Resumen }[] = [
   { rol: "DOCENTE", texto: "Docentes", clave: "docentes" },
   { rol: "APODERADO", texto: "Apoderados", clave: "apoderados" },
   { rol: "ALUMNO", texto: "Alumnos", clave: "alumnos" },
+  { rol: "COORDINADOR", texto: "Coordinadores", clave: "coordinadores" },
   { rol: "ADMINISTRADOR", texto: "Administradores", clave: "administradores" },
 ];
 
@@ -57,7 +60,8 @@ function Usuarios({ qInicial }: { qInicial: string }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [aSuspender, setASuspender] = useState<UsuarioListado | null>(null);
   const [aReactivar, setAReactivar] = useState<UsuarioListado | null>(null);
-  const [registrando, setRegistrando] = useState(false);
+  const [aDesbloquear, setADesbloquear] = useState<UsuarioListado | null>(null);
+  const [registrando, setRegistrando] = useState<PerfilGestion | null>(null);
   const [personaAbierta, setPersonaAbierta] = useState<{
     personaId: string;
     usuarioId: string | null;
@@ -149,8 +153,11 @@ function Usuarios({ qInicial }: { qInicial: string }) {
             Registra docentes y apoderados, revisa sus vínculos y controla el acceso de cada perfil al sistema.
           </p>
         </div>
-        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando(true)}>
+        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando("ADMINISTRADOR")}>
           Registrar administrador
+        </Boton>
+        <Boton variante="secundario" icono="icon-userplus" onClick={() => setRegistrando("COORDINADOR")}>
+          Registrar coordinador
         </Boton>
         <Boton
           variante="secundario"
@@ -311,7 +318,10 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                     <td className="px-4 py-3">{u.detalle ?? <span className="text-texto-3">—</span>}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{ultimoAcceso(u.ultimoAccesoEn)}</td>
                     <td className="px-4 py-3">
-                      <BadgeEstado estado={u.estado} />
+                      <div className="flex flex-wrap gap-1">
+                        <BadgeEstado estado={u.estado} />
+                        {u.bloqueadaPorIntentos && <BadgeBloqueada />}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-0.5">
@@ -330,6 +340,9 @@ function Usuarios({ qInicial }: { qInicial: string }) {
                               setPersonaAbierta({ personaId: u.personaId, usuarioId: u.usuarioId, modo: "editar" })
                             }
                           />
+                        )}
+                        {u.usuarioId && u.bloqueadaPorIntentos && (
+                          <Accion icono="icon-key" texto="Desbloquear" onClick={() => setADesbloquear(u)} />
                         )}
                         {u.usuarioId && u.estado === "SUSPENDIDO" && (
                           <Accion icono="act-refresh" texto="Reactivar acceso" onClick={() => setAReactivar(u)} />
@@ -371,6 +384,12 @@ function Usuarios({ qInicial }: { qInicial: string }) {
 
       <ModalSuspender usuario={aSuspender} onCerrar={() => setASuspender(null)} onListo={alTerminarAccion} />
       <ModalReactivar usuario={aReactivar} onCerrar={() => setAReactivar(null)} onListo={alTerminarAccion} />
+      <ModalReactivar
+        usuario={aDesbloquear}
+        accion="desbloquear"
+        onCerrar={() => setADesbloquear(null)}
+        onListo={alTerminarAccion}
+      />
       {personaAbierta && (
         <ModalPersona
           key={`${personaAbierta.personaId}-${personaAbierta.modo}`}
@@ -386,8 +405,10 @@ function Usuarios({ qInicial }: { qInicial: string }) {
         />
       )}
       <ModalRegistrarAdministrador
-        abierto={registrando}
-        onCerrar={() => setRegistrando(false)}
+        key={registrando ?? "cerrado"}
+        perfil={registrando ?? "ADMINISTRADOR"}
+        abierto={registrando !== null}
+        onCerrar={() => setRegistrando(null)}
         onListo={alTerminarAccion}
       />
     </>

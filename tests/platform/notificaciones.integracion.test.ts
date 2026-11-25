@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { hashPassword } from "@/platform/auth/tokens";
 import { enviarCorreo } from "@/platform/correo";
 import { prisma } from "@/platform/db/prisma";
+import { hoyEnLima } from "@/lib/formato";
 import { procesarBandeja } from "@/platform/notificaciones";
 import { POST as recordatoriosRuta } from "@/app/api/v1/matricula/morosidad/recordatorios/route";
 import { POST as marcarRuta } from "@/app/api/v1/notificaciones/marcar-leidas/route";
@@ -62,8 +63,8 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
   let admin: Autenticado;
   const personas: string[] = [];
   const matriculas: Record<"valeria" | "diego" | "bruno", string> = { valeria: "", diego: "", bruno: "" };
-  const token: Record<"admin" | "apoderada" | "docente" | "valeria", string> = {
-    admin: "",
+  const token: Record<"coordinador" | "apoderada" | "docente" | "valeria", string> = {
+    coordinador: "",
     apoderada: "",
     docente: "",
     valeria: "",
@@ -152,7 +153,7 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
         nombres: "Inés",
         apellidos: "Tesorería Prueba",
         email: emails.adminPrueba,
-        administrador: { create: {} },
+        coordinador: { create: {} },
       },
     });
     personas.push(pAdmin.id);
@@ -217,7 +218,7 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
       data: { fechaVencimiento: new Date(`${ANIO}-12-31T00:00:00Z`) },
     });
 
-    token.admin = await ingresar(emails.adminPrueba);
+    token.coordinador = await ingresar(emails.adminPrueba);
     token.apoderada = await ingresar(emails.apoderada);
     token.docente = await ingresar(emails.docente);
     token.valeria = await ingresar(emails.valeria);
@@ -244,7 +245,7 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
     await prisma.estudiante.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.apoderado.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.docente.deleteMany({ where: { personaId: { in: personas } } });
-    await prisma.administrador.deleteMany({ where: { personaId: { in: personas } } });
+    await prisma.coordinador.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.persona.deleteMany({ where: { id: { in: personas } } });
     await prisma.seccion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.parametroInstitucion.deleteMany({ where: { anioAcademicoId: anioId } });
@@ -281,13 +282,13 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
 
   it("valida la selección: vacía (400) o con una matrícula inexistente (404), sin enviar nada", async () => {
     const vacia = await pedir(recordatoriosRuta, "/matricula/morosidad/recordatorios", {
-      token: token.admin,
+      token: token.coordinador,
       metodo: "POST",
       cuerpo: { matriculaIds: [] },
     });
     expect(vacia.estado).toBe(400);
     const ajena = await pedir(recordatoriosRuta, "/matricula/morosidad/recordatorios", {
-      token: token.admin,
+      token: token.coordinador,
       metodo: "POST",
       cuerpo: { matriculaIds: [matriculas.valeria, ID_INEXISTENTE] },
     });
@@ -350,7 +351,7 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
   it("por la API, el administrador recibe cuántos se enviaron y cuántos se omitieron", async () => {
     // sin nadie a quien enviar: no se audita nada a nombre de la administradora de prueba
     const r = await pedir(recordatoriosRuta, "/matricula/morosidad/recordatorios", {
-      token: token.admin,
+      token: token.coordinador,
       metodo: "POST",
       cuerpo: { matriculaIds: [matriculas.diego, matriculas.bruno] },
     });
@@ -373,7 +374,8 @@ describe.skipIf(!ACTIVA)("notificaciones, bandeja de salida y recordatorios de p
         monto: "300.00",
         medioPago: "TRANSFERENCIA",
         numeroOperacion: `NOTIF-${Date.now()}`,
-        fechaPago: new Date().toISOString().slice(0, 10),
+        // la fecha de hoy en Lima: después de las 19:00 la fecha UTC ya es mañana y el pago sería «futuro»
+        fechaPago: hoyEnLima(),
       },
       meta,
     );

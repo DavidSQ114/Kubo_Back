@@ -233,8 +233,8 @@ export function ListaAsistencia({
       {!editable && sesion.motivoSoloLectura && (
         <Alerta tipo="aviso" titulo={sesion.motivoSoloLectura}>
           {sesion.registrada
-            ? "Si necesitas corregirla, solicítalo a la administración; el cambio quedará en la bitácora de auditoría."
-            : "Si la clase quedó sin registro, comunícalo a la administración."}
+            ? "Si necesitas corregirla, solicítalo a la coordinación académica; el cambio quedará en la bitácora de auditoría."
+            : "Si la clase quedó sin registro, comunícalo a la coordinación académica."}
         </Alerta>
       )}
       {sinMarcar && pendientes.length > 0 && (

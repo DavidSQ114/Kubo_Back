@@ -79,3 +79,12 @@ POST {{base}}/identidad/login
 Content-Type: application/json
 
 { "email": "rosa.huaman@kubo.edu.pe", "password": "Equivocada1" }
+
+### Bloque M1 · Desbloquear una cuenta bloqueada por intentos (solo Administrador)
+POST {{base}}/identidad/usuarios/{{usuarioRosa}}/desbloquear
+Content-Type: application/json
+
+{ "motivo": "Verificó su identidad por teléfono" }
+
+### Bloque M1 · Operaciones auditadas (solo Administrador)
+GET {{base}}/identidad/auditoria?accion=DESBLOQUEAR_USUARIO&pagina=1&tamano=20

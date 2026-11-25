@@ -4,10 +4,10 @@
 import "@/server/wiring";
 import { leerCuerpo, ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { esquemasHorarios, registrarIngreso } from "@/modules/horarios";
+import { esquemasHorarios, registrarIngreso, ROLES_HORARIOS } from "@/modules/horarios";
 
 export const POST = ruta(async (req, { meta }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_HORARIOS.ASISTENCIA_DOCENTE });
   const datos = await leerCuerpo(req, esquemasHorarios.MarcacionDocenteSchema);
   return ok(await registrarIngreso(admin, datos, meta), 201);
 });

@@ -102,18 +102,18 @@ describe.skipIf(!ACTIVA)("catálogo oficial de competencias (US56)", () => {
     });
     personas.push(docente.id);
     token.docente = await ingresar(docente.id, "90002001@prueba.kubo.test");
-    // administradora propia para llamar a la API: solo en lecturas y rechazos, que no auditan
+    // coordinadora propia para llamar a la API (bloque M1): solo en lecturas y rechazos, que no auditan
     const a = await prisma.persona.create({
       data: {
         dni: "90002010",
         nombres: "Rosa",
         apellidos: "Admin Prueba",
         email: "90002010@prueba.kubo.test",
-        administrador: { create: {} },
+        coordinador: { create: {} },
       },
     });
     personas.push(a.id);
-    token.admin = await ingresar(a.id, "90002010@prueba.kubo.test");
+    token.coordinador = await ingresar(a.id, "90002010@prueba.kubo.test");
 
     // año con un plan de Matemática de 1.° grado: después se le asocia la competencia nueva y se califica con ella
     const grado = await prisma.grado.findFirstOrThrow({ where: { numero: 1 } });
@@ -144,7 +144,7 @@ describe.skipIf(!ACTIVA)("catálogo oficial de competencias (US56)", () => {
     await prisma.usuario.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.estudiante.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.docente.deleteMany({ where: { personaId: { in: personas } } });
-    await prisma.administrador.deleteMany({ where: { personaId: { in: personas } } });
+    await prisma.coordinador.deleteMany({ where: { personaId: { in: personas } } });
     await prisma.persona.deleteMany({ where: { id: { in: personas } } });
     await prisma.seccion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.periodoEvaluacion.deleteMany({ where: { anioAcademicoId: anioId } });
@@ -161,7 +161,7 @@ describe.skipIf(!ACTIVA)("catálogo oficial de competencias (US56)", () => {
       cuerpo: { areaCurricularId: areaMat, codigo: "MAT-X1", nombre: "No debería crearse" },
     });
     expect(alta.estado).toBe(403);
-    expect((await pedir(catalogoRuta, "/academico/competencias", { token: token.admin })).estado).toBe(200);
+    expect((await pedir(catalogoRuta, "/academico/competencias", { token: token.coordinador })).estado).toBe(200);
   });
 
   it("registra una competencia nueva en su área, disponible para los cursos de esa área (criterio 1)", async () => {
@@ -266,7 +266,7 @@ describe.skipIf(!ACTIVA)("catálogo oficial de competencias (US56)", () => {
     });
 
     const r = await pedir(eliminarRuta, `/academico/competencias/${competenciaId}`, {
-      token: token.admin,
+      token: token.coordinador,
       metodo: "DELETE",
       params: { id: competenciaId },
     });

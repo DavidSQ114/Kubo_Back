@@ -2,10 +2,10 @@
 import "@/server/wiring";
 import { ok, leerCuerpo, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { cambiarEstadoAula, esquemasAcademico } from "@/modules/academico";
+import { cambiarEstadoAula, esquemasAcademico, ROLES_ACADEMICO } from "@/modules/academico";
 
 export const POST = ruta(async (req, { meta, params }) => {
-  const admin = await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  const admin = await requerirSesion(req, { roles: ROLES_ACADEMICO.ESPACIOS });
   const aulaId = esquemasAcademico.IdSchema.parse(params.id);
   const { activo } = await leerCuerpo(req, esquemasAcademico.EstadoAulaSchema);
   return ok(await cambiarEstadoAula(admin, aulaId, activo, meta));

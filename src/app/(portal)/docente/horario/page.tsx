@@ -56,7 +56,7 @@ export default function MiHorarioDocentePage() {
     <>
       <EncabezadoPagina
         titulo="Mi horario"
-        descripcion="Horario semanal consolidado de tus clases publicadas. Se actualiza automáticamente cuando la administración realiza cambios."
+        descripcion="Horario semanal consolidado de tus clases publicadas. Se actualiza automáticamente cuando la coordinación académica realiza cambios."
       >
         {carga.fase === "listo" && carga.datos.anio && (
           <Badge tono="verde" punto>
@@ -69,7 +69,7 @@ export default function MiHorarioDocentePage() {
       {carga.fase === "error" && <ErrorHorario mensaje={carga.mensaje} onReintentar={reintentar} />}
       {carga.fase === "listo" && carga.datos.clases.length === 0 && (
         <HorarioVacio titulo="Aún no tienes cursos asignados para este periodo">
-          Cuando la administración te asigne cursos y publique los horarios, aparecerán aquí.
+          Cuando la coordinación académica te asigne cursos y publique los horarios, aparecerán aquí.
         </HorarioVacio>
       )}
       {carga.fase === "listo" && carga.datos.clases.length > 0 && (

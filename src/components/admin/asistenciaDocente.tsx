@@ -2,7 +2,6 @@
 // acciones de cada docente («Asistió», salida, justificar) y el modal para justificar una inasistencia.
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "@/components/admin/apoderados";
 import { alertaError } from "@/components/admin/PortalAdmin";
@@ -63,32 +62,6 @@ export const OPCIONES_ESTADO: [FiltroEstado, string][] = [
 
 const LARGO_MINIMO_MOTIVO = 5;
 const LARGO_MAXIMO_MOTIVO = 300;
-
-/** «Asistencia docente | Asistencia de alumnos» (AD-14): cada pestaña es su propia pantalla. */
-export function PestanasAsistencia({ activa }: { activa: "docente" | "alumnos" }) {
-  const pestanas = [
-    ["docente", "Asistencia docente", "/admin/asistencia-docente"],
-    ["alumnos", "Asistencia de alumnos", "/admin/asistencia"],
-  ] as const;
-  return (
-    <nav aria-label="Asistencia" className="flex gap-6 border-b border-borde">
-      {pestanas.map(([clave, texto, href]) => (
-        <Link
-          key={clave}
-          href={href}
-          aria-current={activa === clave ? "page" : undefined}
-          className={`-mb-px border-b-2 px-0.5 py-2.5 text-[14px] leading-[1.4] whitespace-nowrap ${
-            activa === clave
-              ? "border-kubo-azul font-semibold text-kubo-azul"
-              : "border-transparent font-medium text-texto-2 hover:text-texto"
-          }`}
-        >
-          {texto}
-        </Link>
-      ))}
-    </nav>
-  );
-}
 
 export function BadgeEstadoDocente({ estado }: { estado: EstadoAsistenciaDocente | null }) {
   if (estado === "PUNTUAL")

@@ -14,6 +14,7 @@ type RespuestaLogin =
 
 const ICONO_PERFIL: Record<Rol, string> = {
   ADMINISTRADOR: "perfil-shield",
+  COORDINADOR: "perfil-book",
   DOCENTE: "perfil-book",
   APODERADO: "perfil-users",
   ALUMNO: "perfil-user",

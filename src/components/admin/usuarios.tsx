@@ -1,4 +1,4 @@
-// Piezas de AD-06 Usuarios: tipos, badges, avatar y los modales M-04 (suspender), reactivar y registrar administrador.
+// Piezas de AD-06 Usuarios: tipos, badges, avatar y los modales M-04 (suspender), reactivar y registrar administrador o coordinador académico.
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -19,11 +19,13 @@ export interface UsuarioListado {
   detalle: string | null;
   estado: EstadoCuenta;
   ultimoAccesoEn: string | null;
+  bloqueadaPorIntentos: boolean;
 }
 
 export interface Resumen {
   todos: number;
   administradores: number;
+  coordinadores: number;
   docentes: number;
   apoderados: number;
   alumnos: number;
@@ -35,11 +37,13 @@ const TONO_ROL: Record<Rol, "azul" | "verde" | "celeste" | "gris"> = {
   APODERADO: "verde",
   ALUMNO: "celeste",
   ADMINISTRADOR: "gris",
+  COORDINADOR: "gris",
 };
 
 const COLOR_AVATAR: Record<Rol, string> = {
   DOCENTE: "bg-kubo-azul",
   ADMINISTRADOR: "bg-kubo-azul",
+  COORDINADOR: "bg-kubo-azul",
   APODERADO: "bg-verde-oscuro",
   ALUMNO: "bg-celeste",
 };
@@ -242,15 +246,43 @@ export function ModalSuspender({
 
 // ---------- Reactivar acceso ----------
 
+/** Insignia de una cuenta bloqueada por intentos fallidos (bloque M1): se muestra junto al estado. */
+export function BadgeBloqueada() {
+  return <Badge tono="ambar">Bloqueada por intentos</Badge>;
+}
+
+/** Textos de las dos acciones que devuelven el acceso: reactivar (RF05) y desbloquear (RF01, bloque M1). */
+const ACCION_ACCESO = {
+  reactivar: {
+    ruta: "reactivar",
+    titulo: "Reactivar acceso",
+    subtitulo: "El usuario podrá volver a ingresar con sus credenciales.",
+    boton: "Reactivar acceso",
+    ejemplo: "Ej.: Retorno de licencia",
+    listo: (nombre: string) => `Se reactivó el acceso de ${nombre}.`,
+  },
+  desbloquear: {
+    ruta: "desbloquear",
+    titulo: "Desbloquear cuenta",
+    subtitulo: "Se reinician los intentos fallidos y el usuario podrá volver a ingresar de inmediato.",
+    boton: "Desbloquear",
+    ejemplo: "Ej.: Verificó su identidad por teléfono",
+    listo: (nombre: string) => `Se desbloqueó la cuenta de ${nombre}.`,
+  },
+} as const;
+
 export function ModalReactivar({
   usuario,
+  accion = "reactivar",
   onCerrar,
   onListo,
 }: {
   usuario: UsuarioListado | null;
+  accion?: keyof typeof ACCION_ACCESO;
   onCerrar: () => void;
   onListo: (mensaje: string) => void;
 }) {
+  const textos = ACCION_ACCESO[accion];
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,11 +298,11 @@ export function ModalReactivar({
     setEnviando(true);
     setError(null);
     try {
-      await api(`/identidad/usuarios/${usuario.usuarioId}/reactivar`, {
+      await api(`/identidad/usuarios/${usuario.usuarioId}/${textos.ruta}`, {
         method: "POST",
         body: { motivo: motivo.trim() || null },
       });
-      onListo(`Se reactivó el acceso de ${usuario.nombreCompleto}.`);
+      onListo(textos.listo(usuario.nombreCompleto));
       cerrar();
     } catch (e) {
       setError(alertaError(e));
@@ -285,15 +317,15 @@ export function ModalReactivar({
       onCerrar={cerrar}
       icono="act-refresh"
       tonoIcono="azul"
-      titulo="Reactivar acceso"
-      subtitulo="El usuario podrá volver a ingresar con sus credenciales."
+      titulo={textos.titulo}
+      subtitulo={textos.subtitulo}
       pie={
         <>
           <Boton variante="secundario" onClick={cerrar} disabled={enviando}>
             Cancelar
           </Boton>
           <Boton icono="icon-refresh-blanco" onClick={confirmar} cargando={enviando}>
-            Reactivar acceso
+            {textos.boton}
           </Boton>
         </>
       }
@@ -309,7 +341,7 @@ export function ModalReactivar({
           onChange={(e) => setMotivo(e.target.value)}
           maxLength={500}
           rows={2}
-          placeholder="Ej.: Retorno de licencia"
+          placeholder={textos.ejemplo}
           className="h-[72px] w-full resize-none rounded-lg border border-borde bg-white px-4 py-3 text-[16px] leading-[1.5] text-texto outline-none placeholder:text-texto-3 focus:border-kubo-azul focus:ring-1 focus:ring-kubo-azul"
         />
       </div>
@@ -318,7 +350,23 @@ export function ModalReactivar({
   );
 }
 
-// ---------- Registrar administrador (pantalla no diseñada en el Figma: usa el estilo de M-04) ----------
+// ---------- Registrar administrador o coordinador (pantalla no diseñada en el Figma: usa el estilo de M-04) ----------
+
+/** Perfiles de gestión que se registran con este modal: misma ficha, distinto endpoint y textos (bloque M1). */
+export type PerfilGestion = "ADMINISTRADOR" | "COORDINADOR";
+
+const REGISTRO_GESTION: Record<PerfilGestion, { ruta: string; nombre: string; ejemploCargo: string }> = {
+  ADMINISTRADOR: {
+    ruta: "/comunidad/administradores",
+    nombre: "administrador",
+    ejemploCargo: "Ej.: Secretaria académica",
+  },
+  COORDINADOR: {
+    ruta: "/comunidad/coordinadores",
+    nombre: "coordinador académico",
+    ejemploCargo: "Ej.: Coordinación de secundaria",
+  },
+};
 
 interface ResultadoRegistro {
   nombreCompleto: string;
@@ -332,14 +380,17 @@ interface ResultadoRegistro {
 const VACIO = { dni: "", nombres: "", apellidos: "", email: "", telefono: "", cargo: "" };
 
 export function ModalRegistrarAdministrador({
+  perfil = "ADMINISTRADOR",
   abierto,
   onCerrar,
   onListo,
 }: {
+  perfil?: PerfilGestion;
   abierto: boolean;
   onCerrar: () => void;
   onListo: (mensaje: string) => void;
 }) {
+  const textos = REGISTRO_GESTION[perfil];
   const [datos, setDatos] = useState(VACIO);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -365,7 +416,7 @@ export function ModalRegistrarAdministrador({
     setErrores({});
     setError(null);
     try {
-      const r = await api<ResultadoRegistro>("/comunidad/administradores", {
+      const r = await api<ResultadoRegistro>(textos.ruta, {
         method: "POST",
         body: {
           dni: datos.dni,
@@ -377,7 +428,7 @@ export function ModalRegistrarAdministrador({
         },
       });
       setResultado(r);
-      onListo(`Se registró a ${r.nombreCompleto} como administrador.`);
+      onListo(`Se registró a ${r.nombreCompleto} como ${textos.nombre}.`);
     } catch (err) {
       if (err instanceof ApiError && err.codigo === "DATOS_INVALIDOS")
         setErrores(err.detalles as Record<string, string>);
@@ -393,7 +444,7 @@ export function ModalRegistrarAdministrador({
       onCerrar={cerrar}
       icono="icon-userplus"
       tonoIcono="azul"
-      titulo={resultado ? "Administrador registrado" : "Registrar administrador"}
+      titulo={resultado ? `Registro de ${textos.nombre} completo` : `Registrar ${textos.nombre}`}
       subtitulo={
         resultado ? undefined : "Se creará su cuenta con una contraseña temporal que deberá cambiar al ingresar."
       }
@@ -414,7 +465,7 @@ export function ModalRegistrarAdministrador({
     >
       {resultado ? (
         <>
-          <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es administrador`}>
+          <Alerta tipo="exito" titulo={`${resultado.nombreCompleto} ya es ${textos.nombre}`}>
             {resultado.personaExistia
               ? "La persona ya estaba registrada: se le agregó el perfil sin duplicar sus datos. "
               : ""}
@@ -488,7 +539,7 @@ export function ModalRegistrarAdministrador({
           />
           <Campo
             etiqueta="Cargo (opcional)"
-            placeholder="Ej.: Secretaria académica"
+            placeholder={textos.ejemploCargo}
             value={datos.cargo}
             onChange={cambiar("cargo")}
             error={errores.cargo}

@@ -51,7 +51,7 @@ Content-Type: application/json
 POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/cerrar
 
 ### 7. (Completa todas las notas desde la pantalla o con el bloque 3) Cerrar → 200: estado CERRADO, consolidado por
-### alumno, regla { version } y aviso { administradores, enviados }
+### alumno, regla { version } y aviso { coordinadores, enviados }
 POST {{base}}/evaluacion/registros/{{asignacion}}/bimestres/{{bimestre}}/cerrar
 
 ### 8. Escribir en el registro cerrado → 409 REGISTRO_CERRADO «Este registro está cerrado y no puede modificarse directamente.»

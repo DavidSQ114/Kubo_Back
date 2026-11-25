@@ -568,7 +568,7 @@ export function ModalAnular({
           {`Primero anula los pagos confirmados de esta matrícula (${detalle.pagos}). `}
           {detalle.estudiante && (
             <Link
-              href={`/admin/pagos?estudiante=${detalle.estudiante.estudianteId}&anio=${detalle.anio.id}`}
+              href={`/coordinador/pagos?estudiante=${detalle.estudiante.estudianteId}&anio=${detalle.anio.id}`}
               className="font-semibold text-kubo-azul"
             >
               Ir a Pensiones y pagos

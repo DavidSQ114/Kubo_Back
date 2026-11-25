@@ -3,7 +3,7 @@
 // rectificaciones» (AD-15). Al aprobar, en una sola transacción: la nota cambia al valor pedido (el único camino que
 // deja pasar tg_nota_registro_cerrado), se recalcula el consolidado del curso del alumno con la versión de la regla
 // usada al cerrar y se registra en la bitácora de notas (US03) y en la auditoría general (RF03). La solicitud nueva
-// notifica a los administradores y su resolución, al docente, en la misma transacción (US55); el correo sale después.
+// notifica a los coordinadores académicos y su resolución, al docente, en la misma transacción (US55); el correo sale después.
 import { prisma } from "@/platform/db/prisma";
 import { esDuplicado, type Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
@@ -21,7 +21,7 @@ import {
 import { docentesProviderComunidad, nombresDeUsuarios, resumenEstudiantes } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
 import { datosDeMatriculas } from "@/modules/matricula";
-import { administradoresDestinatarios, avisosPara, docenteDestinatario, type Destinatarios } from "./avisos";
+import { coordinadoresDestinatarios, avisosPara, docenteDestinatario, type Destinatarios } from "./avisos";
 import { erroresEvaluacion as E } from "../domain/errores";
 import type { EstadoRegistro, LogroNota } from "../domain/notas";
 import {
@@ -194,13 +194,13 @@ export interface AvisoRectificacion {
   enviados: number;
 }
 
-/** Notificación y correo a los administradores: hay una solicitud nueva (US41, criterio 1; US55). */
-function avisoDeSolicitud(s: SolicitudVista, administradores: Destinatarios) {
-  return avisosPara(administradores, {
+/** Notificación y correo a los coordinadores académicos: hay una solicitud nueva (US41, criterio 1; US55). */
+function avisoDeSolicitud(s: SolicitudVista, coordinadores: Destinatarios) {
+  return avisosPara(coordinadores, {
     tipo: "RECTIFICACION",
     titulo: "Nueva solicitud de rectificación",
     mensaje: `${s.docente.nombreCorto} · ${s.curso.nombre} ${s.seccion} · ${s.competencia.columna}`,
-    enlace: "/admin/notas",
+    enlace: "/coordinador/notas",
     asunto: `Kubo · Solicitud de rectificación de nota (${s.curso.nombre} ${s.seccion})`,
     cuerpo:
       `${s.solicitadoPor} solicitó rectificar una nota del registro cerrado de ${s.curso.nombre} ${s.seccion} ` +
@@ -260,7 +260,7 @@ export interface SolicitudCreada {
 /**
  * Solicitud de rectificación de una nota de un registro CERRADO o PUBLICADO del docente en sesión (US41, criterio 1).
  * Un curso o una sección de otro docente responde 403 (como el registro de notas). Queda «Pendiente de aprobación» y,
- * en la misma transacción, se notifica a los administradores (US55); si el correo falla, la solicitud se conserva.
+ * en la misma transacción, se notifica a los coordinadores académicos (US55); si el correo falla, la solicitud se conserva.
  */
 export async function solicitarRectificacion(
   auth: Autenticado,
@@ -280,7 +280,7 @@ export async function solicitarRectificacion(
     valorCorrecto: datos.valorCorrecto,
     hayPendiente: nota ? await solicitudes.hayPendiente(nota.id) : false,
   });
-  const administradores = await administradoresDestinatarios(meta);
+  const coordinadores = await coordinadoresDestinatarios(meta);
   const creada = await prisma.$transaction(async (tx) => {
     let fila: SolicitudFila;
     try {
@@ -301,13 +301,13 @@ export async function solicitarRectificacion(
     }
     const [vista] = await vistas([fila], auth.usuarioId);
     const correoIds = await registrarAvisos(tx, {
-      ...avisoDeSolicitud(vista, administradores),
+      ...avisoDeSolicitud(vista, coordinadores),
       origen: { entidad: "solicitud_rectificacion", id: fila.id },
     });
     return { solicitud: vista, correoIds };
   });
   const enviados = await despacharCorreos(creada.correoIds, meta.requestId);
-  return { solicitud: creada.solicitud, aviso: { destinatarios: administradores.contactos.length, enviados } };
+  return { solicitud: creada.solicitud, aviso: { destinatarios: coordinadores.contactos.length, enviados } };
 }
 
 /** Solicitudes que pidió el docente en sesión con su estado (DO-04), de la más reciente a la más antigua. */

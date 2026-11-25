@@ -466,3 +466,18 @@ Content-Type: application/json
 
 ### 72. Eliminar: sin uso → 200; en un plan → 409 COMPETENCIA_EN_PLAN; con notas → 409 COMPETENCIA_CON_CALIFICACIONES
 DELETE {{base}}/academico/competencias/{{competencia}}
+
+### Bloque M1 · Parámetros del sistema (solo Administrador)
+GET {{base}}/academico/parametros
+
+### Bloque M1 · Cambiar un parámetro
+PUT {{base}}/academico/parametros/MAX_INTENTOS_LOGIN
+Content-Type: application/json
+
+{ "valor": "4" }
+
+### Bloque M1 · Valor inválido → 400 PARAMETRO_INVALIDO
+PUT {{base}}/academico/parametros/HORA_LIMITE_ASISTENCIA_DOCENTE
+Content-Type: application/json
+
+{ "valor": "8 am" }

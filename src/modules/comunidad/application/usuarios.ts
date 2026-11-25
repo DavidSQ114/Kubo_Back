@@ -1,12 +1,21 @@
-// comunidad/application: administración de usuarios (RF46, pantalla AD-06) y registro de administradores.
+// comunidad/application: administración de usuarios (RF46, pantalla AD-06) y registro de administradores y
+// coordinadores académicos (bloque M1).
 import { prisma } from "@/platform/db/prisma";
 import { esDuplicado } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { ErrorApp } from "@/platform/http/errores";
 import type { MetaSolicitud } from "@/platform/http/ruta";
-import { asegurarCuenta, enviarBienvenida, type Autenticado, type EstadoUsuario, type Rol } from "@/modules/identidad";
+import {
+  asegurarCuenta,
+  enviarBienvenida,
+  estaBloqueada,
+  type Autenticado,
+  type EstadoUsuario,
+  type Rol,
+} from "@/modules/identidad";
 import {
   administradores,
+  coordinadores,
   buscarUsuarios,
   contarUsuarios,
   personas,
@@ -25,9 +34,11 @@ export interface UsuarioListado {
   detalle: string | null;
   estado: EstadoUsuario | "SIN_CUENTA";
   ultimoAccesoEn: Date | null;
+  /** Bloqueada por intentos fallidos (RF01): AD-06 muestra «Bloqueada por intentos» y «Desbloquear». */
+  bloqueadaPorIntentos: boolean;
 }
 
-export async function listarUsuarios(filtro: FiltroUsuarios) {
+export async function listarUsuarios(filtro: FiltroUsuarios, ahora: Date = new Date()) {
   const { total, filas } = await buscarUsuarios(filtro);
   const items: UsuarioListado[] = filas.map((p) => ({
     personaId: p.id,
@@ -39,11 +50,14 @@ export async function listarUsuarios(filtro: FiltroUsuarios) {
     roles: rolesActivos(p),
     detalle: p.administrador?.activo
       ? (p.administrador.cargo ?? null)
-      : p.docente?.activo
-        ? (p.docente.especialidad ?? null)
-        : null,
+      : p.coordinador?.activo
+        ? (p.coordinador.cargo ?? null)
+        : p.docente?.activo
+          ? (p.docente.especialidad ?? null)
+          : null,
     estado: (p.usuario?.estado as EstadoUsuario | undefined) ?? "SIN_CUENTA",
     ultimoAccesoEn: p.usuario?.ultimoAccesoEn ?? null,
+    bloqueadaPorIntentos: estaBloqueada(p.usuario?.bloqueadoHasta ?? null, ahora),
   }));
   return {
     items,
@@ -58,23 +72,67 @@ export async function listarUsuarios(filtro: FiltroUsuarios) {
 
 export const resumenUsuarios = () => contarUsuarios();
 
+export interface DatosPerfilGestion {
+  dni: string;
+  nombres: string;
+  apellidos: string;
+  email: string;
+  telefono?: string | null;
+  cargo?: string | null;
+}
+
+type PerfilGestion = "ADMINISTRADOR" | "COORDINADOR";
+
+/** Cómo se lee, crea y reactiva cada perfil de gestión, y con qué acción de auditoría se registra. */
+const PERFILES_GESTION = {
+  ADMINISTRADOR: {
+    entidad: "administrador",
+    de: personas.administradorDe,
+    crear: personas.crearAdministrador,
+    reactivar: personas.reactivarAdministrador,
+    yaTiene: () => new ErrorApp("YA_ES_ADMINISTRADOR", "Esta persona ya tiene el perfil de Administrador.", 409),
+    acciones: { nuevo: "REGISTRAR_ADMINISTRADOR", reactivado: "REACTIVAR_PERFIL_ADMINISTRADOR" },
+  },
+  COORDINADOR: {
+    entidad: "coordinador",
+    de: personas.coordinadorDe,
+    crear: personas.crearCoordinador,
+    reactivar: personas.reactivarCoordinador,
+    yaTiene: () => new ErrorApp("YA_ES_COORDINADOR", "Esta persona ya tiene el perfil de Coordinador académico.", 409),
+    acciones: { nuevo: "REGISTRAR_COORDINADOR", reactivado: "REACTIVAR_PERFIL_COORDINADOR" },
+  },
+} as const;
+
 /**
  * Registra un Administrador: reutiliza la persona si el DNI ya existe (RF46), agrega el perfil
  * y crea la cuenta con contraseña temporal si aún no tiene (RF43). Todo en una transacción.
  */
-export async function registrarAdministrador(
+export const registrarAdministrador = (
   admin: Autenticado,
-  datos: {
-    dni: string;
-    nombres: string;
-    apellidos: string;
-    email: string;
-    telefono?: string | null;
-    cargo?: string | null;
-  },
+  datos: DatosPerfilGestion,
+  urlBase: string,
+  meta: MetaSolicitud,
+) => registrarPerfilGestion("ADMINISTRADOR", admin, datos, urlBase, meta);
+
+/**
+ * Registra un Coordinador académico (bloque M1) igual que un Administrador: persona reutilizada por DNI, perfil
+ * nuevo o reactivado, cuenta con contraseña temporal y correo de activación. Auditoría REGISTRAR_COORDINADOR.
+ */
+export const registrarCoordinador = (
+  admin: Autenticado,
+  datos: DatosPerfilGestion,
+  urlBase: string,
+  meta: MetaSolicitud,
+) => registrarPerfilGestion("COORDINADOR", admin, datos, urlBase, meta);
+
+async function registrarPerfilGestion(
+  tipo: PerfilGestion,
+  admin: Autenticado,
+  datos: DatosPerfilGestion,
   urlBase: string,
   meta: MetaSolicitud,
 ) {
+  const config = PERFILES_GESTION[tipo];
   let resultado;
   try {
     resultado = await prisma.$transaction(async (tx) => {
@@ -92,12 +150,10 @@ export async function registrarAdministrador(
           tx,
         ));
 
-      const perfil = await personas.administradorDe(persona.id, tx);
-      if (perfil?.activo) {
-        throw new ErrorApp("YA_ES_ADMINISTRADOR", "Esta persona ya tiene el perfil de Administrador.", 409);
-      }
-      if (perfil) await personas.reactivarAdministrador(perfil.id, datos.cargo, tx);
-      else await personas.crearAdministrador({ personaId: persona.id, cargo: datos.cargo ?? null }, tx);
+      const perfil = await config.de(persona.id, tx);
+      if (perfil?.activo) throw config.yaTiene();
+      if (perfil) await config.reactivar(perfil.id, datos.cargo, tx);
+      else await config.crear({ personaId: persona.id, cargo: datos.cargo ?? null }, tx);
 
       const cuenta = await asegurarCuenta(tx, { personaId: persona.id, email: datos.email });
 
@@ -105,9 +161,9 @@ export async function registrarAdministrador(
         tx,
         {
           usuarioId: admin.usuarioId,
-          entidad: "administrador",
+          entidad: config.entidad,
           entidadId: persona.id,
-          accion: perfil ? "REACTIVAR_PERFIL_ADMINISTRADOR" : "REGISTRAR_ADMINISTRADOR",
+          accion: perfil ? config.acciones.reactivado : config.acciones.nuevo,
           nuevo: { personaId: persona.id, cargo: datos.cargo ?? null, cuentaCreada: cuenta.creada },
         },
         meta,
@@ -150,15 +206,34 @@ export interface ContactoAdministrador {
   email: string;
 }
 
-/** Administradores activos con correo: a quién avisar que un registro de notas está consolidado (US39). */
 /** Personas de los administradores activos: destinatarios de las notificaciones internas (US55). */
 export async function personasDeAdministradores(): Promise<string[]> {
   return (await administradores.personas()).map((a) => a.personaId);
 }
 
+/** Administradores activos con correo. */
 export async function contactosDeAdministradores(): Promise<ContactoAdministrador[]> {
   const filas = await administradores.contactos();
   return filas.flatMap((a) =>
     a.persona.email ? [{ administradorId: a.id, nombres: a.persona.nombres, email: a.persona.email }] : [],
+  );
+}
+
+export interface ContactoCoordinador {
+  coordinadorId: string;
+  nombres: string;
+  email: string;
+}
+
+/** Personas de los coordinadores activos: reciben las notificaciones internas académicas (US55, bloque M1). */
+export async function personasDeCoordinadores(): Promise<string[]> {
+  return (await coordinadores.personas()).map((c) => c.personaId);
+}
+
+/** Coordinadores activos con correo: a quién avisar de un registro consolidado (US39) o una rectificación (US41). */
+export async function contactosDeCoordinadores(): Promise<ContactoCoordinador[]> {
+  const filas = await coordinadores.contactos();
+  return filas.flatMap((c) =>
+    c.persona.email ? [{ coordinadorId: c.id, nombres: c.persona.nombres, email: c.persona.email }] : [],
   );
 }

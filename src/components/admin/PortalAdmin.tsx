@@ -1,6 +1,8 @@
-// Estructura del portal del Administrador: barra lateral (Sidebar / admin) + barra superior con la campana de
-// notificaciones (US55, M-11), según AD-06.
-// También es la guardia de las páginas /admin: exige sesión válida con perfil ADMINISTRADOR (RF04).
+// Estructura de los portales de gestión, según AD-06: barra lateral (Sidebar / admin) + barra superior con la campana
+// de notificaciones (US55, M-11). La usan el portal del Administrador (/admin) y el del Coordinador académico
+// (/coordinador, bloque M1), cada uno con su menú y sus destinos.
+// También es la guardia de esas páginas (RF04): exige sesión válida con el perfil del portal; otro perfil vuelve al
+// inicio de su propio portal.
 "use client";
 
 import Link from "next/link";
@@ -27,50 +29,89 @@ export function useSesion(): Sesion {
   return s;
 }
 
-interface ItemNav {
-  texto: string;
-  icono: string;
-  href?: string; // sin href = módulo aún no disponible
+/**
+ * Pantallas a las que enlazan las piezas compartidas por los dos portales de gestión (registro de estudiantes y
+ * apoderados, matrícula, pagos…). Un destino ausente no existe en ese portal y su enlace no se muestra.
+ */
+export interface DestinosPortal {
+  inicio: string;
+  /** A dónde vuelve un registro de estudiante o apoderado al terminar o cancelar. */
+  volverDeRegistro: string;
+  /** Nombre de esa pantalla en «Volver a …». */
+  nombreVolverDeRegistro: string;
+  registrarEstudiante: string;
+  registrarApoderado: string;
+  matricula?: string;
+  pagos?: string;
+  cursos?: string;
 }
 
-const NAVEGACION: { grupo?: string; items: ItemNav[] }[] = [
+const DestinosContext = createContext<DestinosPortal | null>(null);
+
+export function useDestinos(): DestinosPortal {
+  const d = useContext(DestinosContext);
+  if (!d) throw new Error("useDestinos debe usarse dentro de un portal de gestión");
+  return d;
+}
+
+export interface ItemNav {
+  texto: string;
+  icono: string;
+  href: string;
+}
+
+export type NavegacionGestion = { grupo?: string; items: ItemNav[] }[];
+
+const NAVEGACION_ADMIN: NavegacionGestion = [
   { items: [{ texto: "Inicio", icono: "nav-home", href: "/admin" }] },
+  { grupo: "COMUNIDAD", items: [{ texto: "Usuarios", icono: "nav-users", href: "/admin/usuarios" }] },
   {
-    grupo: "CONFIGURACIÓN",
+    grupo: "INSTITUCIÓN",
     items: [
-      { texto: "Año y bimestres", icono: "nav-calendar", href: "/admin/anio" },
-      { texto: "Grados, secciones y aulas", icono: "nav-layers", href: "/admin/grados" },
-      { texto: "Cursos y competencias", icono: "nav-book", href: "/admin/cursos" },
-      { texto: "Reglas de evaluación", icono: "nav-sliders", href: "/admin/reglas" },
+      { texto: "Espacios", icono: "nav-layers", href: "/admin/espacios" },
+      { texto: "Parámetros del sistema", icono: "nav-sliders", href: "/admin/parametros" },
     ],
   },
   {
-    grupo: "COMUNIDAD",
-    items: [
-      { texto: "Usuarios", icono: "nav-users", href: "/admin/usuarios" },
-      { texto: "Matrícula", icono: "nav-clipboard", href: "/admin/matricula" },
-    ],
+    grupo: "PERSONAL",
+    items: [{ texto: "Asistencia docente", icono: "nav-usercheck", href: "/admin/asistencia-docente" }],
   },
-  {
-    grupo: "TESORERÍA",
-    items: [
-      { texto: "Pensiones y pagos", icono: "nav-wallet", href: "/admin/pagos" },
-      { texto: "Morosidad", icono: "nav-alert", href: "/admin/morosidad" },
-    ],
-  },
-  {
-    grupo: "ACADÉMICO",
-    items: [
-      { texto: "Horarios", icono: "nav-grid", href: "/admin/horarios" },
-      { texto: "Asistencia de alumnos", icono: "nav-usercheck", href: "/admin/asistencia" },
-      { texto: "Asistencia docente", icono: "nav-usercheck", href: "/admin/asistencia-docente" },
-      { texto: "Notas y rectificaciones", icono: "nav-award", href: "/admin/notas" },
-    ],
-  },
-  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría", icono: "nav-shield", href: "/admin/auditoria" }] },
+  { grupo: "SEGURIDAD", items: [{ texto: "Auditoría y errores", icono: "nav-shield", href: "/admin/auditoria" }] },
 ];
 
+const DESTINOS_ADMIN: DestinosPortal = {
+  inicio: "/admin",
+  volverDeRegistro: "/admin/usuarios",
+  nombreVolverDeRegistro: "Usuarios",
+  registrarEstudiante: "/admin/usuarios/registrar-estudiante",
+  registrarApoderado: "/admin/usuarios/registrar-apoderado",
+};
+
 export function PortalAdmin({ children }: { children: ReactNode }) {
+  return (
+    <PortalGestion rol="ADMINISTRADOR" navegacion={NAVEGACION_ADMIN} destinos={DESTINOS_ADMIN} busquedaUsuarios>
+      {children}
+    </PortalGestion>
+  );
+}
+
+/**
+ * Portal de gestión de un perfil: guardia de sesión, barra lateral con su menú y barra superior. Con
+ * `busquedaUsuarios`, la barra superior busca en «Usuarios» (solo el administrador tiene esa pantalla).
+ */
+export function PortalGestion({
+  rol,
+  navegacion,
+  destinos,
+  busquedaUsuarios = false,
+  children,
+}: {
+  rol: Rol;
+  navegacion: NavegacionGestion;
+  destinos: DestinosPortal;
+  busquedaUsuarios?: boolean;
+  children: ReactNode;
+}) {
   const router = useRouter();
   const [sesion, setSesion] = useState<Sesion | null>(null);
 
@@ -78,12 +119,12 @@ export function PortalAdmin({ children }: { children: ReactNode }) {
     api<Sesion>("/identidad/sesion")
       .then((s) => {
         if (s.debeCambiarPassword) router.replace("/cambiar-password");
-        else if (s.rolActivo !== "ADMINISTRADOR")
-          router.replace(`/acceso-denegado?desde=${encodeURIComponent(window.location.pathname)}`);
+        // un perfil que entra por URL a un portal ajeno vuelve al inicio de su propio portal (bloque M1)
+        else if (s.rolActivo !== rol) router.replace(inicioPorRol(s.rolActivo));
         else setSesion(s);
       })
       .catch((e) => router.replace(destinoPorErrorDeSesion(e) ?? "/login"));
-  }, [router]);
+  }, [router, rol]);
 
   if (!sesion) {
     return (
@@ -95,18 +136,28 @@ export function PortalAdmin({ children }: { children: ReactNode }) {
 
   return (
     <SesionContext.Provider value={sesion}>
-      <div className="flex min-h-screen bg-fondo">
-        <BarraLateral sesion={sesion} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <BarraSuperior />
-          <main className="flex flex-col gap-6 px-10 pt-8 pb-14">{children}</main>
+      <DestinosContext.Provider value={destinos}>
+        <div className="flex min-h-screen bg-fondo">
+          <BarraLateral sesion={sesion} navegacion={navegacion} inicio={destinos.inicio} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <BarraSuperior busquedaUsuarios={busquedaUsuarios} />
+            <main className="flex flex-col gap-6 px-10 pt-8 pb-14">{children}</main>
+          </div>
         </div>
-      </div>
+      </DestinosContext.Provider>
     </SesionContext.Provider>
   );
 }
 
-function BarraLateral({ sesion }: { sesion: Sesion }) {
+function BarraLateral({
+  sesion,
+  navegacion,
+  inicio,
+}: {
+  sesion: Sesion;
+  navegacion: NavegacionGestion;
+  inicio: string;
+}) {
   const router = useRouter();
   const ruta = usePathname();
   const [minimizada, setMinimizada] = useState(false);
@@ -136,7 +187,7 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
         {minimizada ? (
           <Icono nombre="logo-isotipo-sidebar" size={30} />
         ) : (
-          <Link href="/admin" aria-label="Inicio">
+          <Link href={inicio} aria-label="Inicio">
             <LogoSidebar />
           </Link>
         )}
@@ -153,7 +204,7 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
 
       {/* En pantallas bajas solo se desplaza el menú (sin barra visible): el usuario y «Cerrar sesión» quedan siempre a la vista. */}
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto [scrollbar-width:none]">
-        {NAVEGACION.map((g, i) => (
+        {navegacion.map((g, i) => (
           <nav key={i} className="flex w-full flex-col gap-0.5" aria-label={g.grupo ?? "Principal"}>
             {g.grupo && !minimizada && (
               <p className="px-3 pt-3.5 pb-1.5 text-[11px] font-semibold leading-[1.3] tracking-[1px] text-white/60">
@@ -162,12 +213,11 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
             )}
             {g.grupo && minimizada && <div className="mx-3 my-2 h-px bg-white/15" />}
             {g.items.map((item) => {
-              const activo = item.href
-                ? item.href === "/admin"
-                  ? ruta === "/admin"
+              const activo =
+                item.href === inicio
+                  ? ruta === inicio
                   : // «/admin/asistencia» no debe quedar activo en «/admin/asistencia-docente»
-                    ruta === item.href || ruta.startsWith(`${item.href}/`)
-                : false;
+                    ruta === item.href || ruta.startsWith(`${item.href}/`);
               const clases = `flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[14px] leading-[1.5] ${minimizada ? "justify-center" : ""}`;
               const contenido = (
                 <>
@@ -175,17 +225,6 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
                   {!minimizada && <span className="whitespace-nowrap">{item.texto}</span>}
                 </>
               );
-              if (!item.href) {
-                return (
-                  <span
-                    key={item.texto}
-                    title={`${item.texto} · disponible próximamente`}
-                    className={`${clases} cursor-not-allowed font-medium text-white/82 opacity-45`}
-                  >
-                    {contenido}
-                  </span>
-                );
-              }
               return (
                 <Link
                   key={item.texto}
@@ -224,6 +263,14 @@ function BarraLateral({ sesion }: { sesion: Sesion }) {
               Ingresar como {NOMBRE_ROL[rol]}
             </button>
           ))}
+        {!minimizada && (
+          <Link
+            href="/perfil"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] font-medium text-white/82 hover:bg-white/10"
+          >
+            Mi perfil
+          </Link>
+        )}
         {!minimizada && (
           <Link
             href="/cambiar-password"
@@ -298,7 +345,7 @@ function InsigniaAnio() {
   );
 }
 
-function BarraSuperior() {
+function BarraSuperior({ busquedaUsuarios }: { busquedaUsuarios: boolean }) {
   const router = useRouter();
   const [q, setQ] = useState("");
 
@@ -308,7 +355,26 @@ function BarraSuperior() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-borde bg-white px-10 py-3">
+    <header className="sticky top-0 z-30 flex min-h-[73px] items-center gap-4 border-b border-borde bg-white px-10 py-3">
+      {busquedaUsuarios && <BusquedaUsuarios q={q} setQ={setQ} buscar={buscar} />}
+      <div className="flex-1" />
+      <InsigniaAnio />
+      <CampanaNotificaciones />
+    </header>
+  );
+}
+
+function BusquedaUsuarios({
+  q,
+  setQ,
+  buscar,
+}: {
+  q: string;
+  setQ: (q: string) => void;
+  buscar: (e: FormEvent) => void;
+}) {
+  return (
+    <>
       <form onSubmit={buscar} className="w-full max-w-[400px]" role="search">
         <label className="flex w-full items-center gap-2 rounded-lg border border-borde bg-white px-4 py-3 focus-within:border-kubo-azul focus-within:ring-1 focus-within:ring-kubo-azul">
           <Icono nombre="icon-search" size={18} />
@@ -321,10 +387,7 @@ function BarraSuperior() {
           />
         </label>
       </form>
-      <div className="flex-1" />
-      <InsigniaAnio />
-      <CampanaNotificaciones />
-    </header>
+    </>
   );
 }
 

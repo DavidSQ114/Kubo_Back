@@ -23,7 +23,7 @@ import {
 import { docentesProviderComunidad, nombresDeUsuarios, resumenEstudiantes } from "@/modules/comunidad";
 import type { Autenticado } from "@/modules/identidad";
 import { datosDeMatriculas, matriculasDeSeccionEnFecha } from "@/modules/matricula";
-import { administradoresDestinatarios, avisosPara, type Destinatarios } from "./avisos";
+import { coordinadoresDestinatarios, avisosPara, type Destinatarios } from "./avisos";
 import { erroresEvaluacion as E, type Pendiente } from "../domain/errores";
 import {
   avanceDelRegistro,
@@ -481,7 +481,7 @@ export async function guardarNotas(
 
 export interface AvisoCierre {
   /** Administradores activos con correo. */
-  administradores: number;
+  coordinadores: number;
   /** Correos enviados (un fallo del correo no revierte el cierre). */
   enviados: number;
 }
@@ -499,13 +499,13 @@ interface Cierre {
   estudiantes: number;
 }
 
-/** Notificación y correo a los administradores: el registro está consolidado y listo para publicar (US39, US55). */
+/** Notificación y correo a los coordinadores académicos: el registro está consolidado y listo para publicar (US39, US55). */
 function avisoDeCierre(c: Cierre, destinatarios: Destinatarios) {
   return avisosPara(destinatarios, {
     tipo: "NOTAS",
     titulo: "Registro listo para publicar",
     mensaje: `${c.docente} cerró ${c.curso} ${c.seccion} · ${c.bimestre}`,
-    enlace: "/admin/notas",
+    enlace: "/coordinador/notas",
     asunto: `Kubo · Notas consolidadas de ${c.curso} ${c.seccion} (${c.bimestre})`,
     cuerpo:
       `${c.docente} cerró el registro de notas de ${c.curso} ${c.seccion} del ${c.bimestre} ${c.anio}. ` +
@@ -517,7 +517,7 @@ function avisoDeCierre(c: Cierre, destinatarios: Destinatarios) {
 /**
  * Cierra el registro del bimestre (US39): exige todas las competencias de todos los alumnos; en una transacción
  * calcula el logro consolidado del curso de cada alumno con la versión de la regla que rige en el bimestre (US12),
- * guarda el resultado y la versión usada, y pasa el registro a CERRADO, y notifica a los administradores (US55).
+ * guarda el resultado y la versión usada, y pasa el registro a CERRADO, y notifica a los coordinadores académicos (US55).
  * Luego intenta el correo: si falla, queda en la bandeja de salida sin revertir el cierre.
  */
 export async function cerrarRegistro(
@@ -537,7 +537,7 @@ export async function cerrarRegistro(
   const regla = await reglaDelBimestre(asignacion.anio.id, bimestre.numero);
   if (!regla) throw E.sinReglaConsolidacion();
   const docente = (await nombresDeUsuarios([auth.usuarioId]))[auth.usuarioId]?.nombreCompleto ?? "El docente";
-  const administradores = await administradoresDestinatarios(meta);
+  const coordinadores = await coordinadoresDestinatarios(meta);
 
   const correoIds = await prisma.$transaction(async (tx) => {
     const fila = await cierres.de(asignacion.id, bimestre.id, tx);
@@ -602,12 +602,12 @@ export async function cerrarRegistro(
       estudiantes: calculados.length,
     };
     return registrarAvisos(tx, {
-      ...avisoDeCierre(cierre, administradores),
+      ...avisoDeCierre(cierre, coordinadores),
       origen: { entidad: "cierre_calificacion", id: fila.id },
     });
   });
   const aviso: AvisoCierre = {
-    administradores: administradores.contactos.length,
+    coordinadores: coordinadores.contactos.length,
     enviados: await despacharCorreos(correoIds, meta.requestId),
   };
   return { ...(await armarRegistro(asignacion, bimestre, ahora)), aviso };

@@ -11,7 +11,6 @@ import {
   IndicadoresDelDia,
   ModalJustificar,
   OPCIONES_ESTADO,
-  PestanasAsistencia,
   type AsistenciaDocenteDelDia,
   type DocenteDelDia,
   type FiltroEstado,
@@ -158,8 +157,6 @@ export default function AsistenciaDocentePage() {
           justificación posterior.
         </p>
       </div>
-
-      <PestanasAsistencia activa="docente" />
 
       {carga.fase === "cargando" && <CargandoAsistencia />}
       {carga.fase === "error" && <ErrorAsistencia mensaje={carga.mensaje} onReintentar={reintentar} />}

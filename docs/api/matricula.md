@@ -1,7 +1,9 @@
 # API · Matrícula: matrícula en sección, cronograma, anulación, traslado, retiro y ficha (US18, US21, M-19, US19, US57, US20) pagos (US22, US23, US04, US25), pago anual (US58), morosidad (US24), recordatorios de pago (US59), portal del apoderado (US42, US43, US44) y pago en línea (US70, US71)
 
+> **Bloque M1:** la configuración académica, la matrícula, los pagos, los horarios, las notas y la asistencia de alumnos son del rol `COORDINADOR` (Coordinador académico); usuarios, aulas, parámetros, asistencia docente y auditoría, del `ADMINISTRADOR`. La tabla exacta de cada endpoint está en [ACCESOS.md](../ACCESOS.md).
+
 Base: `/api/v1` · Formato: JSON · Éxito `{ "data": … }` · Error `{ "error": { "code", "message", "details" } }`
-El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `ADMINISTRADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)), y el aviso de la pasarela, que es público y va firmado ([pago en línea](#pago-en-línea-us70-y-devolución-us71)). Ejemplos en [matricula.http](matricula.http).
+El `message` de los errores ya está redactado para mostrarse al usuario (RNF09). Todas las rutas exigen sesión con el rol `COORDINADOR` (ver [identidad.md](identidad.md)), salvo las de `/matricula/apoderado/…`, que exigen el rol `APODERADO` ([portal del apoderado](#portal-del-apoderado-us42-us43-us44)), y el aviso de la pasarela, que es público y va firmado ([pago en línea](#pago-en-línea-us70-y-devolución-us71)). Ejemplos en [matricula.http](matricula.http).
 
 Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/montos` (ver [academico.md](academico.md#montos-del-año-us21)).
 
@@ -357,7 +359,7 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 6. Si una cuota ya está pagada (o anulada) cuando llega la aprobación, la operación queda **Observado** con `motivoObservacion: "Cuota pagada por otro medio"` (o «Cuota anulada») y no toca las cuotas.
 7. Si la order está acreditada pero con otro monto o referencia, no se registra: el intento queda Observado y se deja un aviso en el log.
 
-### Registrar devolución (US71, AD-11) · solo `ADMINISTRADOR`
+### Registrar devolución (US71, AD-11) · solo `COORDINADOR`
 
 `POST /matricula/pagos/{id}/devolver` con `{ "detalle"?: "…" }` (300 caracteres como máximo) → `{ operacion }`.
 - Solo para un pago en línea **Observado**: si no, `409 DEVOLUCION_NO_PERMITIDA`. La operación pasa a **Anulado** con el motivo `DEVUELTO` («Devuelto»), el administrador y la fecha. Sus cuotas no cambian.

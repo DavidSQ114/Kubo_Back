@@ -6,7 +6,6 @@
 
 import { useState } from "react";
 import { ListaDeSesion, ModalCorregirAsistencia } from "@/components/admin/asistencia";
-import { PestanasAsistencia } from "@/components/admin/asistenciaDocente";
 import {
   BadgeRegistro,
   type AlumnoDeSesion,
@@ -100,8 +99,6 @@ export default function AsistenciaAlumnosPage() {
           plazo. Cada corrección exige un motivo y queda en la bitácora de auditoría.
         </p>
       </div>
-
-      <PestanasAsistencia activa="alumnos" />
 
       <Tarjeta className="flex flex-wrap items-end gap-4 p-5">
         <label className="flex w-[200px] flex-col gap-1.5 text-[14px] font-medium text-texto-2">
