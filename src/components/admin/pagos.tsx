@@ -14,6 +14,7 @@ import {
   ordenarParaPago,
   puedeMarcarse,
   seleccionEnOrden,
+  type TipoCuota,
 } from "@/lib/ordenCuotas";
 import { Avatar } from "./apoderados";
 import { Selector, separarErrores } from "./grados";
@@ -28,12 +29,16 @@ export type OrigenPago = "TESORERIA" | "PASARELA";
 
 export interface CuotaCuenta {
   id: string;
-  tipo: "MATRICULA" | "PENSION";
+  tipo: TipoCuota;
   mes: number | null;
   concepto: string;
   monto: string;
   fechaVencimiento: string;
   estado: "PENDIENTE" | "PAGADO" | "ANULADO";
+  /** Bloque M4: la pensión que originó la mora. */
+  cuotaOrigenId: string | null;
+  /** Bloque M4: motivo de la condonación o anulación. */
+  motivoAnulacion: string | null;
   vencida: boolean;
   observada: boolean;
   pago: {
@@ -750,15 +755,100 @@ export function ModalDevolucion({
   );
 }
 
+// ---------- Bloque M4 · Condonar una mora o anular una cuota extraordinaria ----------
+
+export function ModalAnularCuota({
+  cuota,
+  estudiante,
+  onCerrar,
+  onAnulada,
+}: {
+  cuota: CuotaCuenta;
+  estudiante: string;
+  onCerrar: () => void;
+  onAnulada: () => void;
+}) {
+  const esMora = cuota.tipo === "MORA";
+  const [motivo, setMotivo] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [general, setGeneral] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar() {
+    if (!motivo.trim()) {
+      setError("Escribe el motivo");
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    setGeneral(null);
+    try {
+      await api(`/matricula/cuotas/${cuota.id}/${esMora ? "condonar" : "anular"}`, {
+        method: "POST",
+        body: { motivo: motivo.trim() },
+      });
+      onAnulada();
+    } catch (e) {
+      setGeneral(alertaError(e));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      icono="alerta-warn"
+      tonoIcono="rojo"
+      titulo={esMora ? "Condonar mora" : "Anular cuota extraordinaria"}
+      subtitulo={estudiante}
+      pie={
+        <>
+          <Boton variante="secundario" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Boton>
+          <Boton onClick={enviar} cargando={enviando} icono="check-blanco">
+            {esMora ? "Condonar mora" : "Anular cuota"}
+          </Boton>
+        </>
+      }
+    >
+      <div className="flex items-center justify-between rounded-lg bg-fondo px-4 py-3 text-[14px]">
+        <span className="font-semibold text-texto">{cuota.concepto}</span>
+        <span className="font-semibold text-texto">{soles(cuota.monto)}</span>
+      </div>
+      <Campo
+        etiqueta="Motivo"
+        obligatorio
+        maxLength={200}
+        placeholder={esMora ? "Por ejemplo, acuerdo con la familia" : "Por ejemplo, actividad cancelada"}
+        value={motivo}
+        error={error ?? undefined}
+        onChange={(e) => setMotivo(e.target.value)}
+      />
+      <p className="text-[13px] text-texto-3">
+        {esMora
+          ? "La mora pasa a «Anulado» y sale de la deuda. Su pensión no vuelve a generar mora."
+          : "La cuota pasa a «Anulado» y sale de la deuda. Las cuotas ya pagadas no se anulan."}
+      </p>
+      {general && <Alerta tipo="error" titulo={general} />}
+    </Modal>
+  );
+}
+
 // ---------- Tablas de AD-11 ----------
 
 export function TablaCronogramaPagos({
   cuenta,
   onRegistrar,
+  onAnularCuota,
   onError,
 }: {
   cuenta: EstadoCuenta;
   onRegistrar: (cuotaId: string) => void;
+  /** Bloque M4: condonar una mora o anular una cuota extraordinaria pendiente. */
+  onAnularCuota?: (cuota: CuotaCuenta) => void;
   onError: (mensaje: string | null) => void;
 }) {
   return (
@@ -780,6 +870,9 @@ export function TablaCronogramaPagos({
             <tr key={c.id} className={`border-t border-borde ${c.vencida ? "bg-[rgba(214,69,69,0.06)]" : ""}`}>
               <td className="px-3 py-2">
                 <span className="font-semibold text-texto">{c.concepto}</span>
+                {c.estado === "ANULADO" && c.motivoAnulacion && (
+                  <span className="block text-[12px] text-texto-3">{`${c.tipo === "MORA" ? "Condonada" : "Anulada"}: ${c.motivoAnulacion}`}</span>
+                )}
                 {c.pago && c.pago.cuotasDeLaOperacion > 1 && (
                   <span className="block text-[12px] text-kubo-azul">
                     {`Operación ${c.pago.numeroOperacion} · ${c.pago.cuotasDeLaOperacion} cuotas`}
@@ -798,11 +891,18 @@ export function TablaCronogramaPagos({
                 {c.pago?.comprobante && (
                   <BotonRecibo operacionId={c.pago.operacionId} comprobante={c.pago.comprobante} onError={onError} />
                 )}
-                {c.estado === "PENDIENTE" && (
-                  <Boton variante="secundario" onClick={() => onRegistrar(c.id)}>
-                    Registrar pago
-                  </Boton>
-                )}
+                <span className="inline-flex flex-wrap justify-end gap-2">
+                  {c.estado === "PENDIENTE" && onAnularCuota && (c.tipo === "MORA" || c.tipo === "EXTRAORDINARIA") && (
+                    <Boton variante="secundario" onClick={() => onAnularCuota(c)}>
+                      {c.tipo === "MORA" ? "Condonar" : "Anular"}
+                    </Boton>
+                  )}
+                  {c.estado === "PENDIENTE" && (
+                    <Boton variante="secundario" onClick={() => onRegistrar(c.id)}>
+                      Registrar pago
+                    </Boton>
+                  )}
+                </span>
               </td>
             </tr>
           ))}

@@ -70,6 +70,16 @@ model ConceptoCobro {
   moneda           String       @default("PEN")
   fechaVencimiento DateTime     @db.Date @map("fecha_vencimiento")
   estado           EstadoCobro  @default(PENDIENTE)
+  /// Bloque M4: la pensión que originó la mora. Única: una sola mora por pensión, así la tarea programada que las
+  /// genera es idempotente (ck_concepto_cobro_mora_origen: solo las MORA la tienen, y todas).
+  cuotaOrigenId    String?        @unique(map: "uq_concepto_cobro_cuota_origen") @db.Uuid @map("cuota_origen_id")
+  cuotaOrigen      ConceptoCobro? @relation("MoraDePension", fields: [cuotaOrigenId], references: [id], onDelete: Cascade)
+  mora             ConceptoCobro? @relation("MoraDePension")
+  /// Bloque M4: quién anuló la cuota (condonar una mora, anular una extraordinaria), cuándo y por qué.
+  anuladoPorId     String?        @db.Uuid @map("anulado_por_id")
+  anuladoPor       Usuario?       @relation("ConceptoCobroAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: SetNull)
+  anuladoEn        DateTime?      @db.Timestamptz(3) @map("anulado_en")
+  motivoAnulacion  String?        @map("motivo_anulacion")
   createdAt        DateTime     @default(now()) @db.Timestamptz(3) @map("created_at")
   updatedAt        DateTime     @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
   pagos            Pago[]

@@ -7,13 +7,15 @@
 //    (máximo 5 intentos).
 // 3. US32 · Asistencia docente: desde la hora límite (HORA_LIMITE_ASISTENCIA_DOCENTE) marca «Inasistencia» a los
 //    docentes activos que nadie marcó hoy. Solo días lectivos; es idempotente.
+// 4. Bloque M4 · Mora: por cada pensión Pendiente vencida sin mora crea una cuota MORA con el monto del año y
+//    vencimiento hoy (nada si el año no cobra mora). Es idempotente.
 // Cada tarea corre aunque otra falle.
 import "@/server/wiring";
 import { prisma } from "@/platform/db/prisma";
 import { logger } from "@/platform/logger";
 import { procesarBandeja } from "@/platform/notificaciones";
 import { marcarFaltasDocentes } from "@/modules/horarios";
-import { conciliarIntentosPendientes } from "@/modules/matricula";
+import { conciliarIntentosPendientes, generarMoras } from "@/modules/matricula";
 
 async function conciliar() {
   try {
@@ -52,9 +54,21 @@ async function faltasDocentes() {
   }
 }
 
+async function moras() {
+  try {
+    // «dia» y no «fecha»: el logger ya usa «fecha» para el instante del registro
+    const { fecha: dia, ...resto } = await generarMoras();
+    logger.info("Generación de moras terminada", { dia, ...resto });
+    return 0;
+  } catch (e) {
+    logger.error("La generación de moras falló", { error: (e as Error)?.message ?? "Error desconocido" });
+    return 1;
+  }
+}
+
 async function main() {
   try {
-    const codigos = [await conciliar(), await reintentarCorreos(), await faltasDocentes()];
+    const codigos = [await conciliar(), await reintentarCorreos(), await faltasDocentes(), await moras()];
     return Math.max(...codigos);
   } finally {
     await prisma.$disconnect();

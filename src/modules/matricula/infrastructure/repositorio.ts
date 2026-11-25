@@ -60,6 +60,10 @@ export interface CuotaFila {
   monto: string;
   fechaVencimiento: string;
   estado: "PENDIENTE" | "PAGADO" | "ANULADO";
+  /** Bloque M4: la pensión que originó la mora (solo en las MORA). */
+  cuotaOrigenId: string | null;
+  /** Bloque M4: por qué se condonó o anuló (null si no se anuló con motivo). */
+  motivoAnulacion: string | null;
 }
 
 export const matriculas = {
@@ -298,7 +302,17 @@ export const cuotas = {
     const filas = await db.conceptoCobro.findMany({
       where: { matriculaId },
       orderBy: [{ fechaVencimiento: "asc" }, { tipo: "asc" }],
-      select: { id: true, tipo: true, mes: true, concepto: true, monto: true, fechaVencimiento: true, estado: true },
+      select: {
+        id: true,
+        tipo: true,
+        mes: true,
+        concepto: true,
+        monto: true,
+        fechaVencimiento: true,
+        estado: true,
+        cuotaOrigenId: true,
+        motivoAnulacion: true,
+      },
     });
     return filas.map((c) => ({ ...c, monto: c.monto.toFixed(2), fechaVencimiento: aTexto(c.fechaVencimiento) }));
   },

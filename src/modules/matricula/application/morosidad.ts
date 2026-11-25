@@ -8,6 +8,7 @@ import { aCentimos, deCentimos, fechaEnLima, listarSecciones, obtenerAnio } from
 import { resumenEstudiantes, responsablesDeVinculos } from "@/modules/comunidad";
 import {
   conMinimoDeMeses,
+  cuotasVencidasSinMora,
   diasAtraso,
   etiquetasAdeudadas,
   MENSAJE_RESTRICCION_DEUDA,
@@ -56,7 +57,9 @@ export async function panelMorosidad(f: FiltroMorosidad) {
       seccion: seccion ? { id: seccion.id, nombre: `${seccion.grado.numero}° ${seccion.nombre}` } : null,
       adeudado: etiquetasAdeudadas(cuotas),
       mesesAdeudados: mesesAdeudados(cuotas),
-      cuotasVencidas: d.cuotasVencidas,
+      cuotasVencidas: cuotasVencidasSinMora(d.tipos),
+      /** Bloque M4: moras vencidas incluidas en la deuda. */
+      moras: d.tipos.filter((t) => t === "MORA").length,
       deuda: deCentimos(aCentimos(d.deuda)),
       deudaCentimos: aCentimos(d.deuda),
       primerVencimiento: d.primerVencimiento,

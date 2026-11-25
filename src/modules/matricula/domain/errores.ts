@@ -249,4 +249,10 @@ export const erroresMatricula = {
       `La fecha --desde no puede ser posterior a la fecha de matrícula actual (${fechaMatricula}).`,
       422,
     ),
+
+  // ---------- Bloque M4 · Mora ----------
+  cuotaNoEsMora: () => new ErrorApp("CUOTA_NO_ES_MORA", "Solo se puede condonar una cuota de mora.", 422),
+  moraPagada: () => new ErrorApp("MORA_PAGADA", "La mora ya fue pagada: no se puede condonar.", 409),
+  moraYaCondonada: () => new ErrorApp("MORA_YA_CONDONADA", "La mora ya fue condonada o anulada.", 409),
+  motivoRequerido: () => new ErrorApp("MOTIVO_REQUERIDO", "Escribe el motivo.", 400),
 };

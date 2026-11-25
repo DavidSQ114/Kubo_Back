@@ -27,6 +27,7 @@ model Usuario {
   operacionesPagoRegistradoPor       OperacionPago[]          @relation("OperacionPagoRegistradoPor")
   operacionesPagoConfirmadoPor       OperacionPago[]          @relation("OperacionPagoConfirmadoPor")
   operacionesPagoAnuladoPor          OperacionPago[]          @relation("OperacionPagoAnuladoPor")
+  conceptosCobroAnuladoPor           ConceptoCobro[]          @relation("ConceptoCobroAnuladoPor")
   intentosPago                       IntentoPago[]
   horarios                           Horario[]
   asistenciasEstudianteRegistradoPor AsistenciaEstudiante[]   @relation("AsistenciaEstudianteRegistradoPor")

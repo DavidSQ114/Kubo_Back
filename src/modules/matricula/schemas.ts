@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { MOTIVOS_RETIRO } from "./domain/cambios";
 import { FECHA_DEMO_POR_DEFECTO } from "./domain/demoMorosidad";
+import { LARGO_MAXIMO_MOTIVO_CUOTA } from "./domain/mora";
 import { ORDENES_MOROSIDAD } from "./domain/morosidad";
 import { LARGO_MAXIMO_NUMERO_OPERACION, MEDIOS_PAGO, MOTIVOS_ANULACION_PAGO } from "./domain/pagos";
 import { MAXIMO_RECORDATORIOS } from "./domain/recordatorios";
@@ -169,4 +170,14 @@ export const DemoMorosidadSchema = z.object({
     .trim()
     .regex(/^\d{8}$/, "El DNI debe tener 8 dígitos"),
   desde: fecha("La fecha --desde debe tener el formato AAAA-MM-DD").default(FECHA_DEMO_POR_DEFECTO),
+});
+
+// ---------- Bloque M4 · Condonar una mora ----------
+
+export const CondonarMoraSchema = z.object({
+  motivo: z
+    .string({ message: "Escribe el motivo" })
+    .trim()
+    .min(1, "Escribe el motivo")
+    .max(LARGO_MAXIMO_MOTIVO_CUOTA, "Motivo demasiado largo"),
 });
