@@ -18,6 +18,7 @@ import {
   LibretaVacia,
   PestanasBimestre,
   ResumenDelBimestre,
+  TarjetaConducta,
   TablaLibreta,
   TarjetaEscala,
   type Libreta,
@@ -159,6 +160,7 @@ function Bimestre({ libreta, id }: { libreta: Libreta; id: string }) {
       <div className="flex flex-col gap-6">
         <TarjetaEscala />
         <ResumenDelBimestre bimestre={bimestre} />
+        <TarjetaConducta bimestre={bimestre} />
       </div>
       {evidencia && <ModalEvidenciaDocente elegida={evidencia} onCerrar={() => setEvidencia(null)} />}
     </div>

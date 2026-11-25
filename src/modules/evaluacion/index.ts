@@ -3,7 +3,7 @@
 // US66; con la restricción por deuda de US26), solicitud de rectificación de nota (US41), bitácora de notas (US03),
 // evidencias pedagógicas y su archivo (US38, US47) y el puerto que usa académico (cierres del año y notas por
 // competencia), y los ítems de evaluación con pesos de cada competencia y su nota calculada y los reportes del
-// coordinador (bloque M2).
+// coordinador (bloque M2), y la nota de conducta y las notas de la tutoría de sección (bloque M3).
 export { cierresProviderEvaluacion } from "./infrastructure/cierresProvider";
 export { LOGROS_NOTA, ESTADOS_REGISTRO, MENSAJE_CORRECCION, type LogroNota, type EstadoRegistro } from "./domain/notas";
 export {
@@ -98,3 +98,9 @@ export {
 export type { CursoDelReporte, Distribucion } from "./domain/reportes";
 export * as esquemasEvaluacion from "./schemas";
 export { ROLES_EVALUACION } from "./accesos";
+export {
+  conductaDeLaSeccion,
+  guardarConducta,
+  type ConductaDeLaSeccion,
+  type ConductaDeAlumno,
+} from "./application/conducta";

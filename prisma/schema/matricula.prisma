@@ -32,6 +32,7 @@ model Matricula {
   asistenciasEstudiante  AsistenciaEstudiante[]
   avisosAsistencia       AvisoAsistencia[]
   notas                  Nota[]
+  notasConducta          NotaConducta[]
   resultadosConsolidados ResultadoConsolidado[]
   calificacionesItem     CalificacionItem[]
   entregasTrabajo        EntregaTrabajo[]

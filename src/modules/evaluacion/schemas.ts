@@ -1,8 +1,9 @@
 // evaluacion/schemas: validación de las entradas de la API del registro de notas (US37, US39, US40), de la
 // rectificación de nota (US41), de la bitácora de notas (US03), de las evidencias pedagógicas (US38) y de los ítems de
-// evaluación con pesos (bloque M2), RNF16.
+// evaluación con pesos (bloque M2) y de la conducta y las notas de la tutoría (bloque M3), RNF16.
 // Mensajes en español; un logro fuera de la escala responde con el mensaje del backlog (US37, criterio 2).
 import { z } from "zod";
+import { LARGO_MAXIMO_COMENTARIO_CONDUCTA } from "./domain/conducta";
 import { erroresEvaluacion as E, MENSAJE_VALOR_NO_PERMITIDO } from "./domain/errores";
 import { largoEnCaracteres, LARGO_MAXIMO_COMENTARIO_EVIDENCIA } from "./domain/evidencias";
 import { MAXIMO_ITEMS_POR_COMPETENCIA, type CalificacionPedida } from "./domain/items";
@@ -231,4 +232,35 @@ export const ImportarCalificacionesSchema = z.object({
     .string({ message: "Envía el contenido del archivo CSV" })
     .max(LARGO_MAXIMO_CSV, "El archivo es demasiado grande: usa uno de hasta 300 filas"),
   confirmar: z.boolean({ message: "confirmar debe ser verdadero o falso" }).default(false),
+});
+
+// ---------- Tutoría: conducta y notas de la sección (bloque M3) ----------
+
+/** Una sección tiene a lo más unos 40 alumnos: 100 notas de conducta a la vez sobran. */
+const MAXIMO_CONDUCTAS_POR_GUARDADO = 100;
+
+/** ?periodoId=: bimestre de la conducta, del consolidado o de las notas de la tutoría (por defecto, el actual). */
+export const ConsultaTutoriaSchema = z.object({ periodoId: IdSchema.optional() });
+
+/** Conducta de varios alumnos en un bimestre: AD, A, B o C y un comentario opcional de hasta 500 caracteres. */
+export const GuardarConductaSchema = z.object({
+  notas: z
+    .array(
+      z.object({
+        matriculaId: IdSchema,
+        valor: LogroSchema,
+        comentario: z
+          .string()
+          .trim()
+          .max(
+            LARGO_MAXIMO_COMENTARIO_CONDUCTA,
+            `El comentario no puede superar los ${LARGO_MAXIMO_COMENTARIO_CONDUCTA} caracteres`,
+          )
+          .nullish()
+          .transform((texto) => texto || null),
+      }),
+      { message: "Envía la lista de notas de conducta" },
+    )
+    .min(1, "Indica al menos una nota de conducta")
+    .max(MAXIMO_CONDUCTAS_POR_GUARDADO, "Guarda como máximo 100 notas de conducta a la vez"),
 });
