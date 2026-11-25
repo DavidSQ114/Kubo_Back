@@ -1,5 +1,6 @@
 // evaluacion/application: libreta de notas del apoderado (US46, AP-04) y «Mis notas» del alumno (US51, AL-03) con las
-// evidencias del docente (US47), su PDF (US66) y la restricción por deuda del apoderado (US26, AP-06). Regla central: solo se leen notas de registros
+// evidencias del docente (US47), el detalle de los ítems de evaluación de cada competencia (bloque M2), su PDF (US66)
+// y la restricción por deuda del apoderado (US26, AP-06). Regla central: solo se leen notas de registros
 // PUBLICADOS (la consulta lo filtra); los cursos sin publicar salen sin calificación. El estudiante nunca llega del
 // navegador sin verificar: el alumno sale de la sesión y el hijo, del vínculo con el apoderado (403 si no es su hijo).
 import { generarPdf, type BloquePdf } from "@/platform/pdf";
@@ -28,6 +29,7 @@ import {
   type CursoDeLibreta,
   type CursoPublicadoEntrada,
   type EstadoBimestreLibreta,
+  type ItemDeLibreta,
   type ResumenDeLogros,
 } from "../domain/libreta";
 import type { EvidenciaVista } from "../domain/evidencias";
@@ -94,13 +96,21 @@ async function planDeLaSeccion(seccion: { id: string; grado: { id: string } } | 
 /** Arma la libreta de una matrícula con lo publicado y lo que falta publicar de su sección actual. */
 async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta> {
   const hoy = fechaEnLima(ahora);
-  const [anio, resultados, notas, evidencias, secciones] = await Promise.all([
+  const [anio, resultados, notas, evidencias, items, secciones] = await Promise.all([
     obtenerAnio(m.anioAcademicoId),
     publicados.resultadosDeMatricula(m.matriculaId),
     publicados.notasDeMatricula(m.matriculaId),
     publicados.evidenciasDeMatricula(m.matriculaId),
+    publicados.itemsDeMatricula(m.matriculaId),
     listarSecciones(m.anioAcademicoId),
   ]);
+  const itemsDelCierre = (cierreId: string) => {
+    const porCompetencia: Record<string, ItemDeLibreta[]> = {};
+    for (const i of items.filter((x) => x.cierreId === cierreId)) {
+      (porCompetencia[i.competenciaPlanId] ??= []).push({ nombre: i.nombre, peso: i.peso, logro: i.valor });
+    }
+    return porCompetencia;
+  };
   const evidenciasDelCierre = (cierreId: string) => {
     const porCompetencia: Record<string, EvidenciaVista[]> = {};
     for (const e of evidencias.filter((x) => x.cierreId === cierreId)) {
@@ -153,6 +163,7 @@ async function armarLibreta(m: MatriculaDeLibreta, ahora: Date): Promise<Libreta
             competencias: competenciasDe.get(a.planEstudioId) ?? [],
             notas: Object.fromEntries(delCierre.map((n) => [n.competenciaPlanId, n.logro])),
             evidencias: evidenciasDelCierre(r.cierreId),
+            items: itemsDelCierre(r.cierreId),
           },
         ];
       });
@@ -252,6 +263,7 @@ function fechaHoraLima(instante: Date) {
 }
 
 const conNombre = (logro: LogroNota | null) => (logro ? `${logro} · ${NOMBRE_LOGRO[logro]}` : "—");
+const pesoEnTexto = (peso: number) => `${String(peso).replace(".", ",")} %`;
 
 /** Bloques del PDF: datos del estudiante, una tabla por curso publicado y los cursos pendientes (US66, criterio 1). */
 function bloquesDeLibreta(libreta: Libreta, bimestre: BimestreDeLibreta): BloquePdf[] {
@@ -279,7 +291,11 @@ function bloquesDeLibreta(libreta: Libreta, bimestre: BimestreDeLibreta): Bloque
         { titulo: "Logro", ancho: 0.3 },
       ],
       filas: [
-        ...c.competencias.map((k) => [k.nombre, conNombre(k.logro)]),
+        // bloque M2: bajo cada competencia, sus ítems con su peso y el calificativo del alumno
+        ...c.competencias.flatMap((k) => [
+          [k.nombre, conNombre(k.logro)],
+          ...k.items.map((i) => [`      · ${i.nombre} (peso ${pesoEnTexto(i.peso)})`, i.logro ?? "—"]),
+        ]),
         ["Logro consolidado del curso", conNombre(c.consolidado)],
       ],
     })),
@@ -299,7 +315,9 @@ function bloquesDeLibreta(libreta: Libreta, bimestre: BimestreDeLibreta): Bloque
     tipo: "texto",
     texto:
       `Escala de calificación: ${LOGROS_NOTA.map((l) => `${l} ${NOMBRE_LOGRO[l]}`).join(", ")}. ` +
-      "Solo se incluyen los cursos cerrados por el docente y publicados por la administración.",
+      "Solo se incluyen los cursos cerrados por el docente y publicados por la coordinación académica. Una competencia " +
+      "con ítems muestra el calificativo de cada ítem y su peso; su logro es el promedio ponderado de los ítems " +
+      "(AD = 4, A = 3, B = 2, C = 1) o el que resultó de una rectificación aprobada.",
   });
   return bloques;
 }

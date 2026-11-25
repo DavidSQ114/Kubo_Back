@@ -60,6 +60,27 @@ describe("cursos del bimestre en la libreta (US46 criterio 2, US51 criterio 2)",
     ]);
   });
 
+  it("cada competencia publicada trae el detalle de sus ítems; la calificada directo, ninguno (bloque M2)", () => {
+    const conItems = cursosDelBimestre(
+      [
+        {
+          ...MATEMATICA,
+          items: {
+            c1: [
+              { nombre: "Práctica", peso: 40, logro: "AD" },
+              { nombre: "Examen", peso: 60, logro: "AD" },
+            ],
+          },
+        },
+      ],
+      PLAN,
+    ).find((c) => c.cursoId === "mat")!;
+    expect(conItems.competencias.map((c) => [c.codigo, c.items.map((i) => i.nombre)])).toEqual([
+      ["C1", ["Práctica", "Examen"]],
+      ["C2", []],
+    ]);
+  });
+
   it("los cursos del plan sin publicar aparecen sin ninguna calificación", () => {
     const pendientes = cursos.filter((c) => !c.publicado);
     expect(pendientes.map((c) => c.nombre)).toEqual(["Comunicación", "Educación Física"]);

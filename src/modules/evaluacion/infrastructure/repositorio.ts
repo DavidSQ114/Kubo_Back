@@ -319,6 +319,11 @@ export interface ResultadoPublicado {
   logroConsolidado: LogroNota | null;
 }
 
+export interface ItemPublicado extends ItemFila {
+  /** Calificación del alumno en el ítem; null si no la tiene. */
+  valor: LogroNota | null;
+}
+
 export interface NotaPublicada {
   cierreId: string;
   competenciaPlanId: string;
@@ -354,6 +359,22 @@ export const publicados = {
       where: { matriculaId, cierre: { estado: "PUBLICADO" } },
       select: { cierreId: true, competenciaPlanId: true, logro: true },
     }),
+
+  /**
+   * Ítems de los registros PUBLICADOS en los que la matrícula fue consolidada, con su calificación (bloque M2): el
+   * detalle de la libreta. Los de un registro sin publicar nunca salen.
+   */
+  async itemsDeMatricula(matriculaId: string, db: Db = prisma): Promise<ItemPublicado[]> {
+    const filas = await db.itemEvaluacion.findMany({
+      where: { cierre: { estado: "PUBLICADO", resultadosConsolidados: { some: { matriculaId } } } },
+      orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
+      select: { ...selectItem, calificaciones: { where: { matriculaId }, select: { valor: true } } },
+    });
+    return filas.map(({ calificaciones, ...i }) => ({
+      ...filaItem(i),
+      valor: calificaciones[0]?.valor ?? null,
+    }));
+  },
 
   /** Evidencias de las notas publicadas de una matrícula (US47): las de un registro sin publicar nunca salen. */
   async evidenciasDeMatricula(matriculaId: string, db: Db = prisma): Promise<EvidenciaPublicada[]> {

@@ -15,12 +15,21 @@ export function verificarPublicable(estado: EstadoRegistro) {
 
 // ---------- Libreta (US46, US51) ----------
 
+/** Ítem de evaluación de una competencia publicada (bloque M2): nombre, peso y calificativo del alumno. */
+export interface ItemDeLibreta {
+  nombre: string;
+  peso: number;
+  logro: LogroNota | null;
+}
+
 export interface CompetenciaDeLibreta {
   competenciaPlanId: string;
   codigo: string;
   nombre: string;
   /** null solo si la competencia se agregó al plan después del cierre. */
   logro: LogroNota | null;
+  /** Detalle de sus ítems (bloque M2); vacío si se calificó directo. */
+  items: ItemDeLibreta[];
   /** Evidencias del docente (US47); sin evidencias, la calificación no es clicable. */
   evidencias: EvidenciaVista[];
 }
@@ -50,6 +59,8 @@ export interface CursoPublicadoEntrada {
   notas: Record<string, LogroNota>;
   /** Evidencias de cada calificación, por id de competencia del plan (US47). */
   evidencias?: Record<string, EvidenciaVista[]>;
+  /** Ítems de cada competencia, en orden, por id de competencia del plan (bloque M2). */
+  items?: Record<string, ItemDeLibreta[]>;
 }
 
 export interface CursoDelPlanEntrada {
@@ -82,6 +93,7 @@ export function cursosDelBimestre(publicados: CursoPublicadoEntrada[], plan: Cur
         nombre: c.nombre,
         logro: p.notas[c.competenciaPlanId] ?? null,
         evidencias: p.notas[c.competenciaPlanId] ? (p.evidencias?.[c.competenciaPlanId] ?? []) : [],
+        items: p.items?.[c.competenciaPlanId] ?? [],
       })),
   }));
   const yaPublicados = new Set(conNotas.map((c) => c.cursoId));

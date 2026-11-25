@@ -21,6 +21,8 @@ import {
   cerrarRegistro,
   guardarItems,
   guardarNotas,
+  libretaDelHijo,
+  libretaPdfDelHijo,
   publicarNotas,
   registroDeNotas,
   type LogroNota,
@@ -79,6 +81,8 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
   const competencias: string[] = [];
   const personas: string[] = [];
   const alumnos: Record<"ana" | "bruno", string> = { ana: "", bruno: "" };
+  const estudiantes: Record<"ana" | "bruno", string> = { ana: "", bruno: "" };
+  let apoderadoAuth: Autenticado;
   let practica = "";
   let examen = "";
 
@@ -213,6 +217,15 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
       include: { apoderado: true },
     });
     personas.push(apoderado.id);
+    // el apoderado consulta la libreta con su persona: la prueba no necesita su cuenta
+    apoderadoAuth = {
+      usuarioId: u.id,
+      sesionId: "prueba",
+      personaId: apoderado.id,
+      email: "90002411@prueba.kubo.test",
+      rol: "APODERADO",
+      debeCambiarPassword: false,
+    };
     for (const [clave, dni, nombres, apellidos] of [
       ["ana", "90002421", "Ana", "Álvarez Prueba"],
       ["bruno", "90002422", "Bruno", "Castillo Prueba"],
@@ -242,6 +255,7 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
         meta,
       );
       alumnos[clave] = m.matriculaId;
+      estudiantes[clave] = es.estudiante!.id;
     }
   }, ESPERA_PREPARACION);
 
@@ -486,5 +500,41 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
       }),
     ).rejects.toThrow(/REGISTRO_CERRADO/);
     await publicarNotas(admin, [cierreId], meta);
+  });
+
+  // ---------- Libreta (fase 5) ----------
+
+  it("la libreta del apoderado muestra el detalle de ítems de cada competencia publicada, también en el PDF", async () => {
+    const r = await libretaDelHijo(apoderadoAuth, estudiantes.ana, ABRIL);
+    if (r.restringido) throw new Error("Ana no tiene deuda");
+    const curso = r.libreta.bimestres[0].cursos.find((c) => c.codigo === "MAT")!;
+    expect(curso.publicado).toBe(true);
+    expect(curso.competencias[0]).toMatchObject({
+      logro: "AD",
+      items: [{ nombre: "Examen bimestral", peso: 100, logro: "AD" }],
+    });
+    expect(curso.competencias[1]).toMatchObject({ logro: "A", items: [] });
+    const pdf = await libretaPdfDelHijo(apoderadoAuth, estudiantes.ana, bimestre);
+    expect(pdf.bytes.length).toBeGreaterThan(1000);
+  });
+
+  it("con deuda (US26) el apoderado no recibe ninguna nota ni ítem", async () => {
+    const pensiones = await prisma.conceptoCobro.findMany({
+      where: { matriculaId: alumnos.bruno, tipo: "PENSION" },
+      orderBy: { fechaVencimiento: "asc" },
+      take: 2,
+    });
+    // vencidas respecto de hoy: la consulta usa la fecha real, no la del año de prueba
+    for (const [i, p] of pensiones.entries()) {
+      await prisma.conceptoCobro.update({
+        where: { id: p.id },
+        data: { fechaVencimiento: new Date(`2026-0${i + 1}-05T00:00:00Z`) },
+      });
+    }
+    const r = await libretaDelHijo(apoderadoAuth, estudiantes.bruno, ABRIL);
+    expect(r.restringido).toBe(true);
+    expect(JSON.stringify(r)).not.toMatch(/"items|"logro|Examen bimestral/);
+    const e = await codigoDe(libretaPdfDelHijo(apoderadoAuth, estudiantes.bruno, bimestre));
+    expect(e.codigo).toBe("LIBRETA_RESTRINGIDA");
   });
 });

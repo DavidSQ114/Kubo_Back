@@ -2,7 +2,8 @@
 // curso y competencia (AP-04), escala y resumen del bimestre, y estados de carga y error. La usan la libreta del
 // apoderado (US46) y «Mis notas» del alumno (US51). Las notas que llegan son solo de registros publicados: los cursos
 // sin publicar vienen sin calificación y se muestran como pendientes. Cada calificación con evidencia del docente
-// (US47) muestra «Ver evidencia» o «Ver comentario», que abren M-09.
+// (US47) muestra «Ver evidencia» o «Ver comentario», que abren M-09. Una competencia con ítems de evaluación (bloque
+// M2) muestra debajo cada ítem con su peso y su calificativo.
 "use client";
 
 import type { ReactNode } from "react";
@@ -14,11 +15,19 @@ import { cantidad, diaMes, fechaDia } from "@/lib/formato";
 
 // ---------- Tipos de la API ----------
 
+export interface ItemDeLibreta {
+  nombre: string;
+  peso: number;
+  logro: Logro | null;
+}
+
 export interface CompetenciaDeLibreta {
   competenciaPlanId: string;
   codigo: string;
   nombre: string;
   logro: Logro | null;
+  /** Ítems de evaluación de la competencia (bloque M2); vacío si se calificó directo. */
+  items?: ItemDeLibreta[];
   /** Evidencias del docente (US47); vacío si la calificación no tiene. */
   evidencias: EvidenciaVista[];
 }
@@ -76,6 +85,9 @@ export type LibretaDelHijo =
       bimestres: { id: string; numero: number; nombre: string }[];
       deuda: { pensiones: PensionVencida[]; total: string };
     };
+
+/** «40 %», «33,5 %». */
+const porcentajeItem = (peso: number) => `${String(peso).replace(".", ",")} %`;
 
 /** «Bimestre III · pendiente»: el estado que acompaña a cada pestaña. */
 export const SUFIJO_ESTADO: Record<EstadoBimestreLibreta, string> = {
@@ -206,7 +218,7 @@ function FilaCurso({
           {curso.publicado ? "Logro consolidado" : "El registro aún no se publica"}
         </td>
       </tr>
-      {curso.competencias.map((c) => (
+      {curso.competencias.flatMap((c) => [
         <tr key={c.competenciaPlanId} className="border-b border-borde">
           <td className="py-2.5 pl-8 pr-4 text-[14px] leading-[1.4] text-texto">
             <span className="flex items-start gap-2">
@@ -238,8 +250,19 @@ function FilaCurso({
               "—"
             )}
           </td>
-        </tr>
-      ))}
+        </tr>,
+        ...(c.items ?? []).map((it) => (
+          <tr key={`${c.competenciaPlanId}-${it.nombre}`} className="border-b border-borde bg-white">
+            <td className="py-1.5 pr-4 pl-14 text-[13px] leading-[1.4] text-texto-2">
+              {it.nombre} <span className="text-texto-3">· peso {porcentajeItem(it.peso)}</span>
+            </td>
+            <td className="px-4 py-1.5 text-center text-[13px] font-semibold text-texto-2">
+              <span title={it.logro ? NOMBRE_LOGRO[it.logro] : "Sin calificar"}>{it.logro ?? "—"}</span>
+            </td>
+            <td className="hidden px-4 py-1.5 text-[12px] text-texto-3 sm:table-cell">Ítem de evaluación</td>
+          </tr>
+        )),
+      ])}
     </>
   );
 }
