@@ -39,7 +39,7 @@ Modal con el ícono de candado, «Cerrar registro del bimestre» y «Matemática
 
 ## Registro cerrado (US40)
 
-- Insignia «Cerrado» junto al título, celdas de solo lectura y alerta azul «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el 17/11 a las 22:57 por J. Pérez. Si detectas un error, envía una solicitud de rectificación a la administración.» y el botón «Solicitar rectificación» (bloque 8, US41: ver [frontend-rectificacion-notas.md](frontend-rectificacion-notas.md)).
+- Insignia «Cerrado» junto al título, celdas de solo lectura y alerta azul «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el 17/11 a las 22:57 por J. Pérez. Si detectas un error, envía una solicitud de rectificación a la coordinación académica.» y el botón «Solicitar rectificación» (bloque 8, US41: ver [frontend-rectificacion-notas.md](frontend-rectificacion-notas.md)).
 - Si una escritura choca con un cierre hecho en otra pestaña (`409 REGISTRO_CERRADO`), se muestra el mensaje y el registro se vuelve a cargar en solo lectura.
 
 ## Diferencias con el Figma

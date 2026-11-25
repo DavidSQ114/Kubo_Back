@@ -73,7 +73,7 @@ export function ModalCorregirAsistencia({
       subtitulo={
         sesion.editable
           ? "El docente aún puede corregirla; tu cambio queda con motivo y en la bitácora"
-          : `Pasaron más de ${sesion.plazoHoras} horas: solo la administración puede modificarla`
+          : `Pasaron más de ${sesion.plazoHoras} horas: solo la coordinación académica puede modificarla`
       }
       pie={
         <>

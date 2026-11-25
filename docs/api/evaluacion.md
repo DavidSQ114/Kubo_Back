@@ -64,7 +64,7 @@ Todos son **solo del Docente** y solo para sus propios cursos y secciones (asign
 
 **Registro cerrado (US40)**
 
-- Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si detectas un error, envía una solicitud de rectificación a la administración.» (ver [Rectificación de nota](#rectificación-de-nota-us41)).
+- Un registro `CERRADO` o `PUBLICADO` es de solo lectura, aunque su bimestre siga activo: `mensaje` «Este registro está cerrado y no puede modificarse directamente.» y `correccion` «Si detectas un error, envía una solicitud de rectificación a la coordinación académica.» (ver [Rectificación de nota](#rectificación-de-nota-us41)).
 - Toda escritura sobre él responde `409 REGISTRO_CERRADO`, venga de la pantalla o directo por la API. En la base, el trigger `tg_nota_registro_cerrado` rechaza crear o cambiar notas y `tg_nota_borrado_registro_cerrado` rechaza borrarlas (D-15), aunque se intente fuera de la aplicación.
 
 ## Ítems de evaluación con pesos (bloque M2)

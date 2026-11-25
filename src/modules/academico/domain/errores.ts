@@ -224,7 +224,7 @@ export const erroresAcademico = {
   cursoSinCompetencias: () =>
     new ErrorApp(
       "CURSO_SIN_COMPETENCIAS",
-      "Este curso no tiene competencias configuradas. Contacte al administrador.",
+      "Este curso no tiene competencias configuradas. Comunícate con la coordinación académica.",
       422,
     ),
   // ---------- Asignación de cursos a docentes (US14) ----------

@@ -59,7 +59,7 @@ export const erroresEvaluacion = {
   sinReglaConsolidacion: () =>
     new ErrorApp(
       "SIN_REGLA_CONSOLIDACION",
-      "El año no tiene una regla de consolidación configurada. Comunícate con el Administrador.",
+      "El año no tiene una regla de consolidación configurada. Comunícate con la coordinación académica.",
       422,
     ),
   bimestreAjeno: () => new ErrorApp("NO_ENCONTRADO", "El bimestre no existe en el año de este curso.", 404),

@@ -214,7 +214,7 @@ export async function guardarCompetenciasDeMiCurso(
 /**
  * Competencias que evalúa un plan (curso + grado del año), en orden. Para el registro de notas:
  *   const lista = await competenciasDelPlan(planEstudioId);
- *   verificarCompetenciasConfiguradas(lista); // de @/modules/academico // «Este curso no tiene competencias configuradas. Contacte al administrador.»
+ *   verificarCompetenciasConfiguradas(lista); // de @/modules/academico // «Este curso no tiene competencias configuradas. Comunícate con la coordinación académica.»
  */
 export async function competenciasDelPlan(planEstudioId: string): Promise<CompetenciaDelPlan[]> {
   const plan = await planes.porId(planEstudioId);

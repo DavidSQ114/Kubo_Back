@@ -162,7 +162,8 @@ function Bimestre({
             ))}
           </ul>
           <p className="text-[13px] leading-[1.5] text-texto-3">
-            Tus calificaciones no se muestran hasta que el docente cierre el registro y la administración lo publique.
+            Tus calificaciones no se muestran hasta que el docente cierre el registro y la coordinación académica lo
+            publique.
           </p>
         </Tarjeta>
       )}

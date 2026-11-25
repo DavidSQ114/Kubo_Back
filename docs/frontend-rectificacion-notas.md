@@ -17,7 +17,7 @@ public/figma/icon-comentario.svg             Ícono de M-08 y del botón (messag
 
 ## DO-04 · Registro cerrado (US40, US41)
 
-1. La alerta azul del registro `CERRADO` o `PUBLICADO` dice «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el … por J. Pérez. Si detectas un error, envía una solicitud de rectificación a la administración.» y el botón **«Solicitar rectificación»** (se oculta si el registro no tiene alumnos).
+1. La alerta azul del registro `CERRADO` o `PUBLICADO` dice «Este registro está cerrado y no puede modificarse directamente.» con «Registro cerrado el … por J. Pérez. Si detectas un error, envía una solicitud de rectificación a la coordinación académica.» y el botón **«Solicitar rectificación»** (se oculta si el registro no tiene alumnos).
 2. Debajo de la grilla, **«Mis solicitudes de rectificación»** del registro que se está viendo, de la más reciente a la más antigua: «Ortiz Vela, Camila · C1», «Enviada el 18/11 a las 07:18 · motivo», el cambio «B › A» y la insignia «Pendiente de aprobación» (ámbar), «Aprobada» (verde, con «Resuelta el …») o «Rechazada» (roja, con «Motivo del rechazo: …»). Sin solicitudes, la sección no aparece. Si no carga, alerta roja con «Reintentar».
 
 ## M-08 · Solicitud de rectificación de nota
