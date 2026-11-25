@@ -3,9 +3,9 @@
 import "@/server/wiring";
 import { ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { detalleDeSesion, esquemasHorarios } from "@/modules/horarios";
+import { detalleDeSesion, esquemasHorarios, ROLES_HORARIOS } from "@/modules/horarios";
 
 export const GET = ruta(async (req, { params }) => {
-  const sesion = await requerirSesion(req, { roles: ["DOCENTE", "ADMINISTRADOR"] });
+  const sesion = await requerirSesion(req, { roles: ROLES_HORARIOS.ASISTENCIA_ALUMNOS });
   return ok(await detalleDeSesion(sesion, esquemasHorarios.IdSchema.parse(params.id)));
 });

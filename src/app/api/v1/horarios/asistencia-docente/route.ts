@@ -3,10 +3,10 @@
 import "@/server/wiring";
 import { ok, ruta } from "@/platform/http/ruta";
 import { requerirSesion } from "@/modules/identidad";
-import { asistenciaDocenteDelDia, esquemasHorarios } from "@/modules/horarios";
+import { asistenciaDocenteDelDia, esquemasHorarios, ROLES_HORARIOS } from "@/modules/horarios";
 
 export const GET = ruta(async (req) => {
-  await requerirSesion(req, { roles: ["ADMINISTRADOR"] });
+  await requerirSesion(req, { roles: ROLES_HORARIOS.ASISTENCIA_DOCENTE });
   const consulta = Object.fromEntries(new URL(req.url).searchParams);
   return ok(await asistenciaDocenteDelDia(esquemasHorarios.ConsultaAsistenciaDocenteSchema.parse(consulta)));
 });
