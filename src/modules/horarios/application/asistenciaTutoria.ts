@@ -29,6 +29,7 @@ import { erroresTutoria as E } from "../domain/errores";
 import { bimestreEnCurso, estadoJustificado, situacionDeAlumno, verificarFechaDeTutoria } from "../domain/tutoria";
 import type { Dia } from "../domain/tipos";
 import { asistencias, sesiones, type SesionFila } from "../infrastructure/asistencia";
+import { justificaciones } from "../infrastructure/justificaciones";
 import { clases } from "../infrastructure/repositorio";
 import {
   aplicarCorreccion,
@@ -150,6 +151,8 @@ export interface InicioDeTutoria extends CabeceraDeTutoria {
   faltasDeHoy: AlumnoConFaltaHoy[];
   alumnosConAviso: AlumnoConAviso[];
   umbrales: { faltasMes: number; porcentajeAviso: number; porcentajeRiesgo: number };
+  /** Justificaciones de apoderados por revisar (fase 7). */
+  justificacionesPendientes: number;
 }
 
 const esFalta = (e: EstadoAsistencia) => e === "FALTA" || e === "FALTA_JUSTIFICADA";
@@ -180,13 +183,14 @@ export async function inicioDeTutoria(
     cabecera(t),
   ]);
 
-  const [delAnio, deHoy, sesionesDeHoy] = await Promise.all([
+  const [delAnio, deHoy, sesionesDeHoy, justificacionesPendientes] = await Promise.all([
     asistencias.deMatriculas(
       alumnos.map((a) => a.matriculaId),
       { fechaInicio: anio.fechaInicio, fechaFin: hoy },
     ),
     asistencias.deSeccion(seccionId, { fechaInicio: hoy, fechaFin: hoy }),
     sesiones.enFecha(hoy, [seccionId]),
+    justificaciones.pendientesDeSeccion(seccionId),
   ]);
   const dia = diaDeClases(hoy);
   const programadas = dia ? (await clases.publicadasDeSeccion(seccionId)).filter((c) => c.dia === dia).length : 0;
@@ -238,6 +242,7 @@ export async function inicioDeTutoria(
       porcentajeAviso: Math.round(umbrales.aviso * 1000) / 10,
       porcentajeRiesgo: Math.round(umbrales.riesgo * 1000) / 10,
     },
+    justificacionesPendientes,
   };
 }
 

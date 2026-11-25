@@ -4,6 +4,7 @@
 // cualquiera y registra, modifica (con motivo) o justifica la asistencia.
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   AsistenciaVacia,
@@ -52,6 +53,7 @@ interface InicioDeTutoria {
     alertaDelMes: boolean;
   }[];
   umbrales: { faltasMes: number; porcentajeAviso: number; porcentajeRiesgo: number };
+  justificacionesPendientes: number;
 }
 
 // ---------- Inicio ----------
@@ -70,6 +72,16 @@ export function InicioTutoria() {
         {d.tutor && ` · Tutor: ${d.tutor}`}
         {d.cotutor && ` · Cotutor: ${d.cotutor}`}
       </p>
+      {d.justificacionesPendientes > 0 && (
+        <Alerta
+          tipo="info"
+          titulo={`Tienes ${cantidad(d.justificacionesPendientes, "justificación", "justificaciones")} de apoderados por revisar.`}
+        >
+          <Link href="/docente/tutoria/justificaciones" className="font-semibold text-kubo-azul underline">
+            Revisar justificaciones
+          </Link>
+        </Alerta>
+      )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Indicador valor={d.totalAlumnos} texto="Alumnos" detalle="Con matrícula vigente" />
         <Indicador

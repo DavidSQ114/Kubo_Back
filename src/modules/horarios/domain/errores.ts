@@ -194,5 +194,21 @@ export const erroresTutoria = {
       "La lista cambia registros que ya estaban guardados: indica el motivo de la modificación.",
       400,
     ),
+  fueraDelPlazoDeJustificacion: () =>
+    new ErrorApp(
+      "JUSTIFICACION_FUERA_DE_PLAZO",
+      "Solo puedes justificar faltas y tardanzas de los últimos 7 días.",
+      422,
+    ),
+  justificacionPendiente: () =>
+    new ErrorApp(
+      "JUSTIFICACION_PENDIENTE",
+      "Ya enviaste una justificación de este registro: está pendiente de revisión del tutor.",
+      409,
+    ),
+  justificacionYaRevisada: () => new ErrorApp("JUSTIFICACION_YA_REVISADA", "Esta justificación ya fue revisada.", 409),
+  justificacionNoEncontrada: () => new ErrorApp("NO_ENCONTRADO", "La justificación no existe.", 404),
+  registroDeOtroAlumno: () =>
+    new ErrorApp("REGISTRO_DE_OTRO_ALUMNO", "Este registro de asistencia no es de tu hijo.", 403),
   yaJustificado: () => new ErrorApp("YA_JUSTIFICADO", "Este registro ya está justificado.", 409),
 };

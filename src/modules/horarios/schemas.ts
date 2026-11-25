@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { ESTADOS_ASISTENCIA } from "./domain/asistencia";
 import { DIAS } from "./domain/tipos";
-import { ORDENES_REPORTE } from "./domain/tutoria";
+import { LARGO_MAXIMO_MOTIVO_JUSTIFICACION, ORDENES_REPORTE } from "./domain/tutoria";
 
 export const IdSchema = z.string().uuid("Identificador no válido");
 
@@ -157,3 +157,16 @@ export const ConsultaReporteTutoriaSchema = z.object({
     .transform((v) => v === "true")
     .optional(),
 });
+
+/** Justificación que envía el apoderado (bloque M3): el registro y el motivo; el archivo llega aparte en el formulario. */
+export const JustificacionApoderadoSchema = z.object({
+  registroId: IdSchema,
+  motivo: z
+    .string({ message: "Escribe el motivo de la justificación" })
+    .trim()
+    .min(LARGO_MINIMO_MOTIVO, `Indica el motivo de la justificación (mínimo ${LARGO_MINIMO_MOTIVO} caracteres)`)
+    .max(LARGO_MAXIMO_MOTIVO_JUSTIFICACION, "Motivo demasiado largo"),
+});
+
+/** Rechazo de una justificación por el tutor: el motivo es obligatorio. */
+export const RechazoJustificacionSchema = z.object({ motivo: MotivoSchema("decisión") });

@@ -3,6 +3,7 @@
 // PLAZO_CORRECCION_ASISTENCIA_H (US36). El administrador corrige fuera de plazo con motivo y auditoría (M-20).
 // El docente sale de la sesión, nunca de la URL: una clase o una sesión de otro docente responde 403.
 import { prisma } from "@/platform/db/prisma";
+import type { Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { parametroNumero } from "@/platform/config/parametros";
 import { errores } from "@/platform/http/errores";
@@ -528,6 +529,8 @@ export interface OpcionesCorreccion {
   verificar?: (sesion: SesionFila, actual: RegistroFila) => void;
   /** Estado nuevo calculado desde el actual (la justificación); si no se da, se usa `datos.estado`. */
   estadoDesde?: (actual: RegistroFila) => EstadoAsistencia;
+  /** Escrituras extra en la misma transacción (la aprobación de una justificación del apoderado, bloque M3). */
+  alGuardar?: (tx: Tx) => Promise<void>;
 }
 
 /**
@@ -583,6 +586,7 @@ export async function aplicarCorreccion(
       },
       meta,
     );
+    await opciones.alGuardar?.(tx);
     return {
       sesion,
       matriculaId: actual.matriculaId,

@@ -4,7 +4,8 @@
 // registró), modificación con motivo y auditoría sin el plazo de 24 horas, justificación de faltas y tardanzas (las
 // justificadas no cuentan para los avisos por umbral), el reporte de faltas y tardanzas por bimestre, la nota de
 // conducta (no se modifica con el periodo finalizado y aparece en la libreta cuando el bimestre está publicado) y las
-// notas de la tutoría (libreta completa por alumno, con lo no publicado, y el consolidado de la sección).
+// notas de la tutoría (libreta completa por alumno, con lo no publicado, y el consolidado de la sección) y la
+// justificación que envía el apoderado (plazo de 7 días, una pendiente por registro, aprobación y rechazo).
 // Necesita una base TEMPORAL migrada y con el seed (nunca kubo_dev ni Neon). Se ejecuta solo si se pide:
 //   KUBO_PRUEBA_INTEGRACION=1 DATABASE_URL=postgresql://…/kubo_tmp_… npx vitest run tests/horarios/tutoria.integracion
 // Crea sus propios datos ficticios en el año 2076 (en curso, DNI 900025xx) y los borra al terminar. La auditoría es
@@ -13,6 +14,7 @@
 import "@/server/wiring";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eliminarArchivo } from "@/platform/archivos";
 import { hashPassword } from "@/platform/auth/tokens";
 import { prisma } from "@/platform/db/prisma";
 import { GET as inicioRuta } from "@/app/api/v1/horarios/tutoria/[seccionId]/inicio/route";
@@ -30,16 +32,21 @@ import {
 } from "@/modules/evaluacion";
 import {
   abrirClaseDeTutoria,
+  aprobarJustificacion,
   asignarClase,
   clasesDelDiaDeTutoria,
   corregirAsistenciaDeTutoria,
+  enviarJustificacion,
   esquemasHorarios,
   guardarAsistenciaDeTutoria,
   inicioDeTutoria,
+  justificacionesDeTutoria,
+  justificacionesDelHijo,
   justificarAsistenciaDeTutoria,
   listarSesiones,
   obtenerCuadricula,
   publicarHorario,
+  rechazarJustificacion,
   reporteDeAsistencia,
   reporteDeAsistenciaCsv,
   reporteDeAsistenciaPdf,
@@ -101,6 +108,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
   const bimestres: string[] = [];
   let apoderadaPersonaId: string;
   let diegoEstudianteId: string;
+  let luciaEstudianteId: string;
   let asignacionA: string;
   let competenciaPlanId: string;
   let reglaId: string;
@@ -263,6 +271,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
       );
       alumnos[clave] = m.matriculaId;
       if (clave === "diego") diegoEstudianteId = es.estudiante!.id;
+      if (clave === "lucia") luciaEstudianteId = es.estudiante!.id;
     }
     // las matrículas confirmadas hoy empiezan hoy: se adelantan al inicio del año ficticio
     await prisma.matricula.updateMany({
@@ -301,6 +310,14 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
     // la conducta de un periodo finalizado no se borra (trigger): los periodos vuelven a ACTIVO antes de limpiar
     await prisma.periodoEvaluacion.updateMany({ where: { anioAcademicoId: anioId }, data: { estado: "ACTIVO" } });
     await prisma.notaConducta.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
+    const conArchivo = await prisma.justificacionAsistencia.findMany({
+      where: { asistenciaEstudiante: { matricula: { anioAcademicoId: anioId } }, archivoClave: { not: null } },
+      select: { archivoClave: true },
+    });
+    for (const j of conArchivo) await eliminarArchivo(j.archivoClave!, meta.requestId);
+    await prisma.notificacion.deleteMany({
+      where: { usuarioId: tutor.usuarioId, titulo: { in: ["Justificación aprobada", "Justificación rechazada"] } },
+    });
     await prisma.cierreCalificacion.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
     await prisma.reglaConsolidacion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.sesionClase.deleteMany({ where: { detalleHorario: { seccion: { anioAcademicoId: anioId } } } });
@@ -733,6 +750,139 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
     await expect(consolidadoDeLaSeccion(tutor, seccionB, {}, MIERCOLES_SIGUIENTE)).rejects.toMatchObject({
       codigo: "NO_ES_TUTOR",
     });
+  });
+
+  // ---------- Fase 7 · Justificación del apoderado ----------
+
+  it("el apoderado justifica una falta de los últimos 7 días y el tutor la aprueba o la rechaza", async () => {
+    const SEGUNDO_LUNES = "2076-03-23";
+    // el tutor registra la clase del lunes 23: Diego falta y Lucía llega tarde
+    const sesion = await abrirClaseDeTutoria(
+      tutor,
+      seccionA,
+      { claseId: claseA, fecha: SEGUNDO_LUNES },
+      MIERCOLES_SIGUIENTE,
+    );
+    await guardarAsistenciaDeTutoria(
+      tutor,
+      seccionA,
+      sesion.id,
+      esquemasHorarios.ListaAsistenciaTutoriaSchema.parse({
+        alumnos: [
+          { matriculaId: alumnos.diego, estado: "FALTA" },
+          { matriculaId: alumnos.lucia, estado: "TARDANZA" },
+        ],
+      }),
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    const apoderada = { ...tutor, personaId: apoderadaPersonaId, rol: "APODERADO" as const };
+    const delHijo = await justificacionesDelHijo(apoderada, diegoEstudianteId, MIERCOLES_SIGUIENTE);
+    // la falta del lunes 16 ya está justificada y además tiene más de 7 días: solo aparece la del 23
+    expect(delHijo.justificables).toMatchObject([{ fecha: SEGUNDO_LUNES, estado: "FALTA", curso: "Matemática" }]);
+    const registroDiego = delHijo.justificables[0].registroId;
+
+    const pdf = {
+      nombre: "constancia médica.pdf",
+      bytes: new TextEncoder().encode("%PDF-1.4\n% constancia ficticia\n%%EOF"),
+    };
+    const enviada = await enviarJustificacion(
+      apoderada,
+      diegoEstudianteId,
+      { registroId: registroDiego, motivo: "Tuvo cita médica en la mañana", archivo: pdf },
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    expect(enviada.enviadas).toMatchObject([{ estado: "PENDIENTE", archivo: { nombre: "constancia médica.pdf" } }]);
+    expect(enviada.justificables).toEqual([]);
+    // una sola pendiente por registro
+    await expect(
+      enviarJustificacion(
+        apoderada,
+        diegoEstudianteId,
+        { registroId: registroDiego, motivo: "Otra vez la misma", archivo: null },
+        meta,
+        MIERCOLES_SIGUIENTE,
+      ),
+    ).rejects.toMatchObject({ codigo: "JUSTIFICACION_PENDIENTE" });
+    // un registro de otro hijo no se justifica desde la ficha de Diego, ni uno de hace más de 7 días
+    const registroLucia = (await justificacionesDelHijo(apoderada, luciaEstudianteId, MIERCOLES_SIGUIENTE))
+      .justificables[0].registroId;
+    await expect(
+      enviarJustificacion(
+        apoderada,
+        diegoEstudianteId,
+        { registroId: registroLucia, motivo: "No es su registro", archivo: null },
+        meta,
+        MIERCOLES_SIGUIENTE,
+      ),
+    ).rejects.toMatchObject({ codigo: "REGISTRO_DE_OTRO_ALUMNO" });
+    await expect(
+      enviarJustificacion(
+        apoderada,
+        luciaEstudianteId,
+        { registroId: registroLucia, motivo: "Llegó tarde por el tráfico", archivo: null },
+        meta,
+        new Date("2076-04-02T15:00:00Z"),
+      ),
+    ).rejects.toMatchObject({ codigo: "JUSTIFICACION_FUERA_DE_PLAZO" });
+
+    // el tutor de otra sección no las ve
+    await expect(
+      justificacionesDeTutoria(
+        { ...tutor, personaId: (await prisma.docente.findUniqueOrThrow({ where: { id: docenteIds.mora } })).personaId },
+        seccionA,
+      ),
+    ).rejects.toMatchObject({ codigo: "NO_ES_TUTOR" });
+
+    const pendientes = await justificacionesDeTutoria(tutor, seccionA, MIERCOLES_SIGUIENTE);
+    expect(pendientes.pendientes).toMatchObject([{ matriculaId: alumnos.diego, estadoRegistro: "FALTA" }]);
+    const aprobada = await aprobarJustificacion(
+      tutor,
+      seccionA,
+      pendientes.pendientes[0].id,
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    expect(aprobada.revisadas).toMatchObject([{ estado: "APROBADA", estadoRegistro: "FALTA_JUSTIFICADA" }]);
+    expect((await prisma.asistenciaEstudiante.findUniqueOrThrow({ where: { id: registroDiego } })).estado).toBe(
+      "FALTA_JUSTIFICADA",
+    );
+    await expect(
+      aprobarJustificacion(tutor, seccionA, pendientes.pendientes[0].id, meta, MIERCOLES_SIGUIENTE),
+    ).rejects.toMatchObject({ codigo: "JUSTIFICACION_YA_REVISADA" });
+
+    // la tardanza de Lucía se rechaza con motivo: el registro no cambia
+    await enviarJustificacion(
+      apoderada,
+      luciaEstudianteId,
+      { registroId: registroLucia, motivo: "Llegó tarde por el tráfico", archivo: null },
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    const otra = (await justificacionesDeTutoria(tutor, seccionA, MIERCOLES_SIGUIENTE)).pendientes[0];
+    await rechazarJustificacion(
+      tutor,
+      seccionA,
+      otra.id,
+      { motivo: "No presentó constancia" },
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    expect((await prisma.asistenciaEstudiante.findUniqueOrThrow({ where: { id: registroLucia } })).estado).toBe(
+      "TARDANZA",
+    );
+    const avisos = await prisma.notificacion.findMany({
+      where: { usuarioId: tutor.usuarioId, titulo: { in: ["Justificación aprobada", "Justificación rechazada"] } },
+    });
+    expect(avisos.map((a) => a.titulo).sort()).toEqual(["Justificación aprobada", "Justificación rechazada"]);
+    const auditoria = await prisma.registroAuditoria.findMany({
+      where: {
+        requestId: meta.requestId,
+        accion: { in: ["ENVIAR_JUSTIFICACION", "APROBAR_JUSTIFICACION", "RECHAZAR_JUSTIFICACION"] },
+      },
+    });
+    expect(auditoria).toHaveLength(4);
   });
 
   it("con el periodo finalizado la conducta no se registra ni se modifica", async () => {

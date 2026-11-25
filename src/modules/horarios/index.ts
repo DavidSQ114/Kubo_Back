@@ -81,6 +81,17 @@ export {
 } from "./application/reporteTutoria";
 export { ORDENES_REPORTE, type OrdenReporte } from "./domain/tutoria";
 export {
+  justificacionesDelHijo,
+  enviarJustificacion,
+  justificacionesDeTutoria,
+  archivoDeJustificacion,
+  aprobarJustificacion,
+  rechazarJustificacion,
+  MENSAJE_ARCHIVO_JUSTIFICACION,
+  type JustificacionesDelHijo,
+  type JustificacionDeTutoria,
+} from "./application/justificaciones";
+export {
   asistenciaDelHijo,
   asistenciaDelAlumno,
   type AsistenciaDelMes,

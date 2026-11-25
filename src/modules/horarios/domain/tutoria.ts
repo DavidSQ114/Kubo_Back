@@ -176,3 +176,31 @@ export function ordenarReporte<T extends ConteoDeAsistencia & { nombre: string }
     return ascendente ? x - y : y - x;
   });
 }
+
+// ---------- Justificación del apoderado (bloque M3, fase 7) ----------
+
+export const ESTADOS_JUSTIFICACION = ["PENDIENTE", "APROBADA", "RECHAZADA"] as const;
+export type EstadoJustificacion = (typeof ESTADOS_JUSTIFICACION)[number];
+
+/** El apoderado justifica faltas y tardanzas de los últimos 7 días (contando hoy como el día 0). */
+export const DIAS_PARA_JUSTIFICAR = 7;
+export const LARGO_MAXIMO_MOTIVO_JUSTIFICACION = 500;
+
+/** Primer día que todavía se puede justificar: hoy menos DIAS_PARA_JUSTIFICAR. */
+export function inicioDelPlazoDeJustificacion(hoy: string, dias = DIAS_PARA_JUSTIFICAR): string {
+  const instante = new Date(`${hoy}T00:00:00.000Z`);
+  instante.setUTCDate(instante.getUTCDate() - dias);
+  return instante.toISOString().slice(0, 10);
+}
+
+/** La falta o tardanza debe ser de los últimos 7 días y aún sin justificar. */
+export function verificarJustificacionDelApoderado(registro: { fecha: string; estado: EstadoAsistencia }, hoy: string) {
+  if (registro.fecha > hoy || registro.fecha < inicioDelPlazoDeJustificacion(hoy))
+    throw E.fueraDelPlazoDeJustificacion();
+  estadoJustificado(registro.estado);
+}
+
+/** Solo una justificación PENDIENTE se aprueba o se rechaza. */
+export function verificarJustificacionPendiente(estado: EstadoJustificacion) {
+  if (estado !== "PENDIENTE") throw E.justificacionYaRevisada();
+}

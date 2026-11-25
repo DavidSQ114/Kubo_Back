@@ -7,10 +7,13 @@ import {
   conteoDeAsistencia,
   esJustificable,
   estadoJustificado,
+  inicioDelPlazoDeJustificacion,
   ordenarReporte,
   situacionDeAlumno,
   totalDeAsistencia,
   verificarFechaDeTutoria,
+  verificarJustificacionDelApoderado,
+  verificarJustificacionPendiente,
 } from "@/modules/horarios/domain/tutoria";
 
 function esperarError(fn: () => void, codigo: string) {
@@ -160,5 +163,41 @@ describe("reporte de faltas y tardanzas por bimestre (bloque M3)", () => {
       "Campos, Carla",
     ]);
     expect(ordenarReporte(filas, "nombre", true)[0].nombre).toBe("Álvarez, Beto");
+  });
+});
+
+describe("justificación del apoderado (bloque M3, fase 7)", () => {
+  const hoy = "2026-05-27";
+
+  it("el plazo empieza 7 días antes de hoy", () => {
+    expect(inicioDelPlazoDeJustificacion(hoy)).toBe("2026-05-20");
+    expect(inicioDelPlazoDeJustificacion("2026-03-03")).toBe("2026-02-24");
+  });
+
+  it("acepta faltas y tardanzas sin justificar de los últimos 7 días", () => {
+    expect(() => verificarJustificacionDelApoderado({ fecha: "2026-05-20", estado: "FALTA" }, hoy)).not.toThrow();
+    expect(() => verificarJustificacionDelApoderado({ fecha: hoy, estado: "TARDANZA" }, hoy)).not.toThrow();
+  });
+
+  it("rechaza registros fuera del plazo, ya justificados o que no son falta ni tardanza", () => {
+    esperarError(
+      () => verificarJustificacionDelApoderado({ fecha: "2026-05-19", estado: "FALTA" }, hoy),
+      "JUSTIFICACION_FUERA_DE_PLAZO",
+    );
+    esperarError(
+      () => verificarJustificacionDelApoderado({ fecha: "2026-05-28", estado: "FALTA" }, hoy),
+      "JUSTIFICACION_FUERA_DE_PLAZO",
+    );
+    esperarError(
+      () => verificarJustificacionDelApoderado({ fecha: hoy, estado: "FALTA_JUSTIFICADA" }, hoy),
+      "YA_JUSTIFICADO",
+    );
+    esperarError(() => verificarJustificacionDelApoderado({ fecha: hoy, estado: "PRESENTE" }, hoy), "NO_JUSTIFICABLE");
+  });
+
+  it("solo se revisa una justificación pendiente", () => {
+    expect(() => verificarJustificacionPendiente("PENDIENTE")).not.toThrow();
+    esperarError(() => verificarJustificacionPendiente("APROBADA"), "JUSTIFICACION_YA_REVISADA");
+    esperarError(() => verificarJustificacionPendiente("RECHAZADA"), "JUSTIFICACION_YA_REVISADA");
   });
 });
