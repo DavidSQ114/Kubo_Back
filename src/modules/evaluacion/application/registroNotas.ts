@@ -68,7 +68,12 @@ import {
   type NotaFila,
 } from "../infrastructure/repositorio";
 import { registrarEnBitacora, type CambioDeNota } from "./bitacora";
-import { aplicarRecalculo, calcularNotaDeItems, type ResumenRecalculo } from "./recalculoItems";
+import {
+  aplicarRecalculo,
+  calcularNotaDeItems,
+  eliminarArchivosHuerfanos,
+  type ResumenRecalculo,
+} from "./recalculoItems";
 import { vistaDeEvidencia } from "./vistaEvidencias";
 
 // ---------- Vistas ----------
@@ -486,6 +491,8 @@ export async function guardarNotas(
   periodoId: string,
   datos: { notas: NotaPedida[]; calificaciones?: CalificacionPedida[] },
   ahora: Date = new Date(),
+  /** requestId del log al borrar los archivos de evidencias de notas quitadas por el recálculo (bloque M5). */
+  requestId: string | null = null,
 ): Promise<NotasGuardadas> {
   const pedidasItems = datos.calificaciones ?? [];
   const { asignacion, bimestre, docente } = await cargarContexto(auth, asignacionId, periodoId, ahora);
@@ -572,7 +579,7 @@ export async function guardarNotas(
     }
     for (const m of deItems.modificadas) await calificacionesItem.cambiar(tx, m.id, m.logro, auth.usuarioId);
     const tocadas = new Set(pedidasItems.map((c) => c.itemId));
-    const recalculo = await aplicarRecalculo(tx, {
+    const { resumen: recalculo, archivosHuerfanos } = await aplicarRecalculo(tx, {
       cierreId: cierre.id,
       cambios: recalcularNotas({
         competenciaPlanIds: items.filter((i) => tocadas.has(i.id)).map((i) => i.competenciaPlanId),
@@ -593,15 +600,19 @@ export async function guardarNotas(
       sinCambio: cambios.sinCambio + deItems.sinCambio,
       calificaciones: { nuevas: deItems.nuevas.length, modificadas: deItems.modificadas.length },
       recalculo,
+      archivosHuerfanos,
     };
   });
-  return { ...(await armarRegistro(asignacion, bimestre, ahora)), guardado: resumen };
+  // los archivos de las evidencias borradas con sus notas, solo después de confirmar la transacción
+  const { archivosHuerfanos, ...guardado } = resumen;
+  await eliminarArchivosHuerfanos(archivosHuerfanos, requestId ?? "sin-solicitud");
+  return { ...(await armarRegistro(asignacion, bimestre, ahora)), guardado };
 }
 
 // ---------- US39 · Cierre y consolidación del bimestre ----------
 
 export interface AvisoCierre {
-  /** Administradores activos con correo. */
+  /** Coordinadores académicos activos con correo. */
   coordinadores: number;
   /** Correos enviados (un fallo del correo no revierte el cierre). */
   enviados: number;

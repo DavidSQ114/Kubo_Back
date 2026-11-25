@@ -90,7 +90,7 @@ export default function LoginPage() {
       setError({
         titulo: "Correo o contraseña incorrectos",
         texto:
-          "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras 5 intentos fallidos la cuenta se bloquea 15 minutos.",
+          "Verifica tus datos e inténtalo nuevamente. Por seguridad, tras varios intentos fallidos la cuenta se bloquea por unos minutos.",
       });
       return;
     }
@@ -228,7 +228,8 @@ export default function LoginPage() {
               <div className="flex w-full items-start gap-2">
                 <Icono nombre="icon-info" size={18} />
                 <p className="flex-1 text-[13px] leading-[1.4] text-texto-3">
-                  Tu perfil (administrador, docente, apoderado o alumno) se detecta automáticamente al ingresar.
+                  Tu perfil (administrador, coordinador académico, docente, apoderado o alumno) se detecta
+                  automáticamente al ingresar.
                 </p>
               </div>
             </form>

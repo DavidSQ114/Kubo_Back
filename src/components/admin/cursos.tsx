@@ -869,7 +869,7 @@ export function FormularioCurso({
           {d.grados.length > 0 && d.competencias.length === 0 && (
             <Alerta tipo="aviso" icono="alerta-warn" titulo="Debes seleccionar al menos una competencia">
               Sin competencias, el docente no podrá registrar notas y verá “Este curso no tiene competencias
-              configuradas. Contacte al administrador.”
+              configuradas. Comunícate con la coordinación académica.”
             </Alerta>
           )}
           {errores.competencias && d.competencias.length > 0 && <Alerta tipo="error" titulo={errores.competencias} />}

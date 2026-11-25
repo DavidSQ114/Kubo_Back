@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { BadgeLogro, NOMBRE_LOGRO, type Logro } from "@/components/docente/notas";
 import { Alerta, Badge, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
+import { bimestrePorDefecto } from "@/lib/bimestres";
 import { mensajeError } from "./index";
 
 export interface CursoDelAlumno {
@@ -159,7 +160,8 @@ export function LibretaCompleta({
         <Spinner claro={false} /> Cargando notas…
       </div>
     );
-  const bimestre = datos.bimestres.find((b) => b.id === elegido) ?? datos.bimestres[0];
+  const bimestre =
+    datos.bimestres.find((b) => b.id === (elegido ?? bimestrePorDefecto(datos.bimestres))) ?? datos.bimestres[0];
   const sinPublicar = bimestre?.cursos.filter((c) => !c.publicado).length ?? 0;
   return (
     <Tarjeta className="flex min-w-0 flex-col gap-4 p-4 lg:p-6">

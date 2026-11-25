@@ -258,7 +258,9 @@ function FormularioMatricula({
             ? "Confirma los datos del alumno."
             : faltan.length
               ? `Falta subir: ${faltan.map((d) => d.nombre).join(", ")}.`
-              : "Completa el grado y el responsable del pago."}
+              : invalidos.length
+                ? "Reemplaza los archivos marcados: cada documento debe ser un PDF o una imagen JPG de hasta 5 MB."
+                : "Completa el grado y el responsable del pago."}
         </p>
       )}
     </form>

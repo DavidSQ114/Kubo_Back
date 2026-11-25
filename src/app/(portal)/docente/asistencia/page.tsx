@@ -23,7 +23,7 @@ import {
 } from "@/components/portal/asistencia";
 import { Alerta, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fechaDia, fechaLarga } from "@/lib/formato";
+import { cantidad, fechaDia, fechaLarga } from "@/lib/formato";
 
 /** Lo que se está viendo: una clase de hoy (se abre su sesión) o una sesión de días anteriores. */
 type Eleccion = { tipo: "clase"; id: string } | { tipo: "sesion"; id: string };
@@ -80,8 +80,8 @@ function SesionDeClase({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: (
           Asistencia · {s.curso.nombre} {s.seccion.etiqueta}
         </h2>
         <p className="text-[14px] leading-[1.5] text-texto-2">
-          {fechaLarga(s.fecha)} · {s.bloque.horaInicio} – {s.bloque.horaFin} · {s.aula.nombre} · {s.alumnos.length}{" "}
-          estudiantes
+          {fechaLarga(s.fecha)} · {s.bloque.horaInicio} – {s.bloque.horaFin} · {s.aula.nombre} ·{" "}
+          {cantidad(s.alumnos.length, "estudiante", "estudiantes")}
         </p>
       </div>
       {aviso && <Alerta tipo="exito" icono="icon-check-verde" titulo={aviso} />}

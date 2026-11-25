@@ -18,7 +18,7 @@ vi.mock("@/platform/db/prisma", () => ({
 
 const { clasificarError, politicaDeRegistro } = await import("@/platform/http/clasificador");
 const { ErrorApp } = await import("@/platform/http/errores");
-const { ruta } = await import("@/platform/http/ruta");
+const { leerCuerpo, pdf, ruta, TAMANO_MAXIMO_CUERPO_JSON } = await import("@/platform/http/ruta");
 const { logger, redactarTexto } = await import("@/platform/logger");
 const { firmarAcceso } = await import("@/platform/auth/jwt");
 
@@ -40,6 +40,12 @@ describe("clasificador de errores (US05)", () => {
       codigo: "DATOS_INVALIDOS",
       detalles: { email: expect.any(String) },
     });
+  });
+  it("un campo sin mensaje propio responde en español, no con el texto por defecto de Zod (bloque M5)", () => {
+    const sinCampo = z.object({ periodoId: z.string() }).safeParse({});
+    const { detalles } = clasificarError(sinCampo.error) as { detalles: Record<string, string> };
+    expect(detalles.periodoId).not.toMatch(/Invalid input|expected/);
+    expect(detalles.periodoId).toMatch(/se esperaba/);
   });
   it("otros rechazos esperados (401, 409, 422) solo van como INFO al log, no a log_error", () => {
     for (const estado of [401, 409, 422]) {
@@ -151,5 +157,33 @@ describe("ruta() ante un 500 controlado (US05)", () => {
     expect(creado.filas).toEqual([
       expect.objectContaining({ codigoHttp: 400, nivel: "INFO", stackTrace: null, usuarioId: null }),
     ]);
+  });
+});
+
+describe("límites de las peticiones y descargas (bloque M5)", () => {
+  const esquema = z.object({ texto: z.string() });
+
+  it("rechaza con 413 un cuerpo JSON más grande que el límite, sin leerlo ni validarlo", async () => {
+    const enorme = JSON.stringify({ texto: "x".repeat(TAMANO_MAXIMO_CUERPO_JSON) });
+    const req = new NextRequest("http://localhost/api/v1/prueba", { method: "POST", body: enorme });
+    await expect(leerCuerpo(req, esquema)).rejects.toMatchObject({
+      codigo: "CUERPO_DEMASIADO_GRANDE",
+      estadoHttp: 413,
+    });
+  });
+
+  it("acepta un cuerpo dentro del límite", async () => {
+    const req = new NextRequest("http://localhost/api/v1/prueba", {
+      method: "POST",
+      body: JSON.stringify({ texto: "hola" }),
+    });
+    await expect(leerCuerpo(req, esquema)).resolves.toEqual({ texto: "hola" });
+  });
+
+  it("las descargas en PDF no se guardan en caché y no se interpretan como otro tipo", () => {
+    const r = pdf(new Uint8Array([37, 80, 68, 70]), "Recibo con espacios.pdf");
+    expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(r.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(r.headers.get("Content-Disposition")).toBe('attachment; filename="Recibo_con_espacios.pdf"');
   });
 });

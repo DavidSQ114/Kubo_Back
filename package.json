@@ -25,6 +25,7 @@
     "tareas-programadas": "tsx --env-file-if-exists=.env scripts/tareasProgramadas.ts",
     "reintentar-correos": "tsx --env-file-if-exists=.env scripts/reintentarCorreos.ts",
     "demo:morosidad": "tsx --env-file-if-exists=.env scripts/demoMorosidad.ts",
+    "demo:revision": "tsx --env-file-if-exists=.env scripts/demoRevision.ts",
     "archivos:verificar": "tsx --env-file-if-exists=.env scripts/verificarArchivos.ts",
     "test": "vitest run"
   },
@@ -39,19 +40,19 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.12",
     "mercadopago": "3.6.1",
     "next": "16.3.8",
-    "nodemailer": "^10.0.13",
+    "nodemailer": "^10.6.1",
     "pdf-lib": "1.17.1",
     "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "rotating-file-stream": "^3.2.10",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -66,7 +67,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.9",
-    "prisma": "^7.10.0",
+    "prisma": "^7.10.1",
     "tailwindcss": "^4",
     "tsx": "4.23.15",
     "typescript": "^5",

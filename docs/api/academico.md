@@ -221,7 +221,7 @@ Pantalla: AD-04 (`/coordinador/cursos`). Las rutas exigen el rol `COORDINADOR`. 
 - No se quita una competencia con notas registradas: «No se puede eliminar una competencia con notas registradas.»
 - Solo en un año que no esté `CERRADO`.
 
-**Para el registro de notas.** `competenciasDelPlan(planEstudioId)` (en `@/modules/academico`) devuelve `{ competenciaPlanId, competenciaId, codigo, nombre, orden, peso }[]` en orden. `verificarCompetenciasConfiguradas(lista)` rechaza una lista vacía con `422 CURSO_SIN_COMPETENCIAS`: «Este curso no tiene competencias configuradas. Contacte al administrador.»
+**Para el registro de notas.** `competenciasDelPlan(planEstudioId)` (en `@/modules/academico`) devuelve `{ competenciaPlanId, competenciaId, codigo, nombre, orden, peso }[]` en orden. `verificarCompetenciasConfiguradas(lista)` rechaza una lista vacía con `422 CURSO_SIN_COMPETENCIAS`: «Este curso no tiene competencias configuradas. Comunícate con la coordinación académica.»
 
 ## Códigos de error
 

@@ -17,6 +17,8 @@ export const errores = {
   noAutenticado: () => new ErrorApp("NO_AUTENTICADO", "Tu sesión expiró. Vuelve a iniciar sesión.", 401),
   accesoDenegado: () => new ErrorApp("ACCESO_DENEGADO", "No tiene permisos para acceder a este recurso.", 403),
   noEncontrado: (que: string) => new ErrorApp("NO_ENCONTRADO", `${que} no existe.`, 404),
+  cuerpoDemasiadoGrande: () =>
+    new ErrorApp("CUERPO_DEMASIADO_GRANDE", "La información enviada es demasiado grande. Envía menos datos.", 413),
   datosInvalidos: (detalles: Record<string, unknown>) =>
     new ErrorApp("DATOS_INVALIDOS", "Revisa los datos ingresados.", 400, detalles),
 };

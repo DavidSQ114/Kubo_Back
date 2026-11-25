@@ -242,8 +242,8 @@ export default function NotasAdminPage() {
                 onPublicar={(r) => setConfirmar([r])}
               />
               <Alerta tipo="info">
-                Un registro «Cerrado» solo es visible para el docente y la administración hasta que lo publiques. Luego
-                aparece en la libreta del alumno y del apoderado, y sigue sin poder modificarse.
+                Un registro «Cerrado» solo es visible para el docente y la coordinación académica hasta que lo
+                publiques. Luego aparece en la libreta del alumno y del apoderado, y sigue sin poder modificarse.
               </Alerta>
             </>
           )}
@@ -375,7 +375,7 @@ function TablaRegistros({
                 <span className="block text-[12px] text-texto-3">
                   {r.docente ?? "Docente"}
                   {r.estado === "PUBLICADO" && r.publicadoEn
-                    ? ` · publicó ${r.publicadoPor ?? "la administración"} el ${diaYHora(r.publicadoEn)}`
+                    ? ` · publicó ${r.publicadoPor ?? "la coordinación académica"} el ${diaYHora(r.publicadoEn)}`
                     : r.cerradoEn
                       ? ` · cerró el ${diaYHora(r.cerradoEn)}`
                       : ""}

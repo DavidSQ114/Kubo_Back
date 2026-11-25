@@ -74,7 +74,8 @@ export function ModalCompetenciasDelCurso({
             ninguna; se usa cuando la regla del año es «Promedio ponderado».
           </p>
           <EditorCompetencias
-            key={version}
+            // con los datos recargados se vuelve a montar (antes de que lleguen mostraría los anteriores)
+            key={`${version}-${JSON.stringify(datos)}`}
             detalle={datos}
             soloLectura={!datos.editable}
             ponderado
@@ -82,7 +83,6 @@ export function ModalCompetenciasDelCurso({
             onDescartar={() => setVersion((v) => v + 1)}
             onGuardado={() => {
               consulta.recargar();
-              setVersion((v) => v + 1);
               onGuardado(`Se guardaron las competencias de ${datos.plan.curso.nombre} en ${datos.plan.grado.nombre}.`);
             }}
           />

@@ -2,8 +2,12 @@
 // - error interno (500): log ERROR con stack trace completo y fila ERROR en log_error;
 // - validación (400): solo un evento INFO, sin stack trace (en el log y en log_error);
 // - otros rechazos esperados (401, 403, 404, 409, 422…): solo un evento INFO en el log.
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { ErrorApp } from "./errores";
+
+// Mensajes por defecto de Zod en español (bloque M5): un campo sin mensaje propio respondía en inglés en `details`
+// («Invalid input: expected string…»). Toda ruta pasa por este módulo, así que basta con configurarlo aquí.
+z.config(z.locales.es());
 
 export type TipoError = "NEGOCIO" | "VALIDACION" | "INTERNO";
 

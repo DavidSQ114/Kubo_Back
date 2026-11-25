@@ -11,7 +11,7 @@ import { OperacionesAuditadas } from "@/components/admin/operacionesAuditadas";
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Campo, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fechaHora } from "@/lib/formato";
+import { cantidad, fechaHora } from "@/lib/formato";
 
 type Nivel = "INFO" | "WARN" | "ERROR" | "FATAL";
 
@@ -218,7 +218,7 @@ function LogErrores() {
         {pagina && !pagina.items.length && <Alerta tipo="info" titulo="No hay registros con estos filtros." />}
         {pagina && pagina.items.length > 0 && (
           <>
-            <p className="text-[13px] text-texto-3">{`${pagina.paginacion.total} registros · del más reciente al más antiguo`}</p>
+            <p className="text-[13px] text-texto-3">{`${cantidad(pagina.paginacion.total, "registro", "registros")} · del más reciente al más antiguo`}</p>
             <div className="overflow-x-auto rounded-lg border border-borde">
               <table className="w-full min-w-[720px] text-left text-[13px]">
                 <thead className="bg-fondo text-texto-2">

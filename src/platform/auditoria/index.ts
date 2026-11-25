@@ -61,7 +61,8 @@ export async function buscarEnBitacora(f: FiltroBitacora) {
     ...(f.accion ? { accion: f.accion } : {}),
     ...(f.entidad ? { entidadAfectada: f.entidad } : {}),
   };
-  const [total, filas] = await prisma.$transaction([
+  // lectura sin transacción (bloque M5): en frío, una transacción de solo lectura pasó el límite de 5 s
+  const [total, filas] = await Promise.all([
     prisma.registroAuditoria.count({ where }),
     prisma.registroAuditoria.findMany({
       where,

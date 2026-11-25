@@ -153,8 +153,8 @@ function Bimestre({ libreta, id }: { libreta: Libreta; id: string }) {
           <span className="mt-0.5 shrink-0">
             <Icono nombre="icon-info" size={14} />
           </span>
-          Solo se muestran cursos cerrados por el docente y publicados por la administración. Los demás aparecen como «
-          {PENDIENTE}».
+          Solo se muestran cursos cerrados por el docente y publicados por la coordinación académica. Los demás aparecen
+          como «{PENDIENTE}».
         </p>
       </div>
       <div className="flex flex-col gap-6">

@@ -133,12 +133,15 @@ export async function reporteDeAsistenciaCsv(auth: Autenticado, seccionId: strin
     nota,
   ];
   const texto = textoCsv([
-    ["Año", "Bimestre", "Sección", "Estudiante", ...COLUMNAS.map(([t]) => t), "% de asistencia", "Nota"],
+    ["Año", "Bimestre", "Sección", "Estudiante", ...COLUMNAS.map(([t]) => t), "% de asistencia", "Observación"],
     ...r.filas.map((f) => fila(f.nombre, f, f.fueraDeLaSeccion ? "Ya no está en la sección" : "")),
     fila("Total de la sección", r.total),
   ]);
   return { texto, nombreArchivo: nombreArchivo(r, "csv") };
 }
+
+/** «2026-10-19» → «19/10/2026», como en las pantallas. */
+const diaMesAnio = (fecha: string) => fecha.split("-").reverse().join("/");
 
 /** PDF del reporte con platform/pdf: la tabla por alumno, los totales y cómo se calcula el porcentaje. */
 export async function reporteDeAsistenciaPdf(auth: Autenticado, seccionId: string, filtro: FiltroReporte) {
@@ -151,7 +154,10 @@ export async function reporteDeAsistenciaPdf(auth: Autenticado, seccionId: strin
       titulo: "Datos del reporte",
       filas: [
         ["Sección", r.seccion.etiqueta],
-        ["Bimestre", `${r.bimestre.nombre} (${r.bimestre.fechaInicio} al ${r.bimestre.fechaFin})`],
+        [
+          "Bimestre",
+          `${r.bimestre.nombre} (${diaMesAnio(r.bimestre.fechaInicio)} al ${diaMesAnio(r.bimestre.fechaFin)})`,
+        ],
         ["Alumnos", String(r.filas.length)],
       ],
     },

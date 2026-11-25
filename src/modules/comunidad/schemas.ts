@@ -103,7 +103,12 @@ const fechaNacimiento = () =>
       const d = new Date(`${f}T00:00:00Z`);
       return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(f);
     }, "La fecha de nacimiento no es válida")
-    .refine((f) => f <= new Date().toISOString().slice(0, 10), "La fecha de nacimiento no puede ser futura");
+    .refine((f) => f <= hoyEnLima(), "La fecha de nacimiento no puede ser futura");
+
+/** Fecha de hoy en Lima (AAAA-MM-DD): en UTC, después de las 19:00 ya sería el día siguiente. */
+function hoyEnLima() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+}
 
 const textoOpcional = (max: number, mensaje: string) =>
   z

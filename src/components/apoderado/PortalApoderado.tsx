@@ -11,6 +11,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { PaginaCentrada, TarjetaAcceso } from "@/components/acceso";
 import { CampanaNotificaciones } from "@/components/portal/notificaciones";
 import { Alerta, Badge, Boton, Icono, Spinner } from "@/components/ui";
+import { cantidad } from "@/lib/formato";
 import {
   api,
   ApiError,
@@ -445,7 +446,8 @@ function SeleccionHijo({
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-[32px] font-bold leading-[1.2] text-texto">¿A quién deseas consultar?</h1>
         <p className="text-[16px] text-texto-2">
-          Hola, {sesion.usuario.nombres}. Tienes {hijos.length} estudiantes vinculados a tu cuenta.
+          Hola, {sesion.usuario.nombres}. Tienes{" "}
+          {cantidad(hijos.length, "estudiante vinculado", "estudiantes vinculados")} a tu cuenta.
         </p>
       </div>
       {error && (

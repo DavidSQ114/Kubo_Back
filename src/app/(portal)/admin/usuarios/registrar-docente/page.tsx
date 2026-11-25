@@ -156,7 +156,11 @@ export default function RegistrarDocentePage() {
       </div>
 
       {registrado && (
-        <Alerta tipo="exito" icono="icon-check-verde" titulo={`${registrado.nombreCompleto} ya es docente`}>
+        <Alerta
+          tipo="exito"
+          icono="icon-check-verde"
+          titulo={`Se registró a ${registrado.nombreCompleto} como docente`}
+        >
           {registrado.personaExistia ? "Se agregó el perfil Docente a una persona ya registrada. " : ""}
           {registrado.cuentaCreada
             ? registrado.correoEnviado

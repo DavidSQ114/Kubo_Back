@@ -116,7 +116,7 @@ export const erroresAcademico = {
   aulaEnUso: (secciones: string) =>
     new ErrorApp(
       "AULA_EN_USO",
-      `El aula está asignada a ${secciones}. Quítala de esas secciones antes de inactivarla.`,
+      `El aula está asignada a ${secciones}. Pide a la coordinación académica que la quite de esas secciones antes de inactivarla.`,
       409,
     ),
   aforoMenorQueSecciones: (maximo: number) =>
@@ -224,7 +224,7 @@ export const erroresAcademico = {
   cursoSinCompetencias: () =>
     new ErrorApp(
       "CURSO_SIN_COMPETENCIAS",
-      "Este curso no tiene competencias configuradas. Contacte al administrador.",
+      "Este curso no tiene competencias configuradas. Comunícate con la coordinación académica.",
       422,
     ),
   // ---------- Asignación de cursos a docentes (US14) ----------

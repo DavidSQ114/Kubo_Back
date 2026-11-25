@@ -6,9 +6,9 @@ import { leerCuerpo, ok, ruta } from "@/platform/http/ruta";
 import { esquemasEvaluacion, importarCalificacionesItem } from "@/modules/evaluacion";
 import { requerirSesion } from "@/modules/identidad";
 
-export const POST = ruta(async (req, { params }) => {
+export const POST = ruta(async (req, { meta, params }) => {
   const docente = await requerirSesion(req, { roles: ["DOCENTE"] });
   const ids = esquemasEvaluacion.ImportarItemParamsSchema.parse(params);
   const datos = await leerCuerpo(req, esquemasEvaluacion.ImportarCalificacionesSchema);
-  return ok(await importarCalificacionesItem(docente, ids, datos));
+  return ok(await importarCalificacionesItem(docente, ids, datos, new Date(), meta.requestId));
 });

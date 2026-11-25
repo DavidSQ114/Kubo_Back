@@ -335,7 +335,7 @@ function TarjetaSolicitud({
             <dd className="break-words text-texto">
               {s.estado === "RECHAZADA" && s.motivoRechazo ? `${s.motivoRechazo} ` : ""}
               <span className="text-[13px] text-texto-3">
-                {`${s.estado === "APROBADA" ? "Aprobó" : "Resolvió"} ${s.resueltoPor ?? "la administración"}${s.resueltoEn ? ` el ${diaYHora(s.resueltoEn)}` : ""}`}
+                {`${s.estado === "APROBADA" ? "Aprobó" : "Resolvió"} ${s.resueltoPor ?? "la coordinación académica"}${s.resueltoEn ? ` el ${diaYHora(s.resueltoEn)}` : ""}`}
               </span>
             </dd>
           </div>

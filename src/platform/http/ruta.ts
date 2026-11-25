@@ -10,6 +10,7 @@ import { verificarAcceso } from "@/platform/auth/jwt";
 import { prisma } from "@/platform/db/prisma";
 import { logger, redactarTexto } from "@/platform/logger";
 import { clasificarError, politicaDeRegistro, type ErrorClasificado } from "./clasificador";
+import { errores } from "./errores";
 
 /** Largo máximo del mensaje en log_error (el stack trace se guarda completo). */
 const LARGO_MAXIMO_MENSAJE = 2000;
@@ -43,7 +44,8 @@ export function pdf(bytes: Uint8Array, nombreArchivo: string, disposicion: "atta
       "Content-Type": "application/pdf",
       "Content-Disposition": `${disposicion}; filename="${nombreArchivo.replace(/[^\w.-]/g, "_")}"`,
       "Content-Length": String(bytes.byteLength),
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
@@ -60,7 +62,8 @@ export function csv(texto: string, nombreArchivo: string) {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${nombreArchivo.replace(/[^\w.-]/g, "_")}"`,
       "Content-Length": String(bytes.byteLength),
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
@@ -150,8 +153,17 @@ export function ruta(manejador: Manejador) {
 }
 
 /** Lee y valida el cuerpo JSON con un esquema Zod (lanza ZodError si no cumple). */
+/**
+ * Tamaño máximo del cuerpo JSON de una petición (bloque M5). Cubre con holgura el formulario más grande (la importación
+ * de calificaciones en CSV, de hasta 300 filas); los archivos van por multipart con su propio límite (platform/archivos).
+ */
+export const TAMANO_MAXIMO_CUERPO_JSON = 1024 * 1024;
+
 export async function leerCuerpo<T>(req: NextRequest, esquema: { parse: (v: unknown) => T }): Promise<T> {
+  // se rechaza antes de leerlo si el tamaño declarado ya excede el límite, y después por si no lo declaró
+  if (Number(req.headers.get("content-length") ?? 0) > TAMANO_MAXIMO_CUERPO_JSON) throw errores.cuerpoDemasiadoGrande();
   const texto = await req.text();
+  if (Buffer.byteLength(texto) > TAMANO_MAXIMO_CUERPO_JSON) throw errores.cuerpoDemasiadoGrande();
   return esquema.parse(texto ? JSON.parse(texto) : {});
 }
 

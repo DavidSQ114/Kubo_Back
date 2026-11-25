@@ -199,7 +199,8 @@ export async function buscarUsuarios(f: FiltroUsuarios) {
   const where: Prisma.PersonaWhereInput = {
     AND: [condicionBusqueda(f.q), condicionRol(f.rol), condicionEstado(f.estado)],
   };
-  const [total, filas] = await prisma.$transaction([
+  // lectura sin transacción (bloque M5): en frío, una transacción de solo lectura pasó el límite de 5 s
+  const [total, filas] = await Promise.all([
     prisma.persona.count({ where }),
     prisma.persona.findMany({
       where,
@@ -353,7 +354,8 @@ export const apoderados = {
 
   async buscar(f: Pagina) {
     const where: Prisma.ApoderadoWhereInput = { activo: true, persona: { activo: true, ...busquedaPersona(f.q) } };
-    const [total, filas] = await prisma.$transaction([
+    // lectura sin transacción (bloque M5): en frío, una transacción de solo lectura pasó el límite de 5 s
+    const [total, filas] = await Promise.all([
       prisma.apoderado.count({ where }),
       prisma.apoderado.findMany({
         where,
@@ -426,7 +428,8 @@ export const estudiantes = {
 
   async buscar(f: Pagina) {
     const where: Prisma.EstudianteWhereInput = { activo: true, persona: { activo: true, ...busquedaPersona(f.q) } };
-    const [total, filas] = await prisma.$transaction([
+    // lectura sin transacción (bloque M5): en frío, una transacción de solo lectura pasó el límite de 5 s
+    const [total, filas] = await Promise.all([
       prisma.estudiante.count({ where }),
       prisma.estudiante.findMany({
         where,

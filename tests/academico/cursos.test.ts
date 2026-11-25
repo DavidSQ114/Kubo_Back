@@ -157,7 +157,7 @@ describe("competencias del plan (US11, RF09)", () => {
     esperarError(
       () => verificarCompetenciasConfiguradas([]),
       "CURSO_SIN_COMPETENCIAS",
-      "Este curso no tiene competencias configuradas. Contacte al administrador.",
+      "Este curso no tiene competencias configuradas. Comunícate con la coordinación académica.",
     );
   });
 });
