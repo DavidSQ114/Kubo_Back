@@ -2,7 +2,9 @@
 // tutoriaDelDocente (un docente que no es tutor y el tutor de otra sección reciben 403), inicio de la tutoría, registro
 // de la asistencia de una clase ajena (la sesión sigue a nombre del docente de la clase y el tutor queda como quien
 // registró), modificación con motivo y auditoría sin el plazo de 24 horas, justificación de faltas y tardanzas (las
-// justificadas no cuentan para los avisos por umbral) y el reporte de faltas y tardanzas por bimestre.
+// justificadas no cuentan para los avisos por umbral), el reporte de faltas y tardanzas por bimestre, la nota de
+// conducta (no se modifica con el periodo finalizado y aparece en la libreta cuando el bimestre está publicado) y las
+// notas de la tutoría (libreta completa por alumno, con lo no publicado, y el consolidado de la sección).
 // Necesita una base TEMPORAL migrada y con el seed (nunca kubo_dev ni Neon). Se ejecuta solo si se pide:
 //   KUBO_PRUEBA_INTEGRACION=1 DATABASE_URL=postgresql://…/kubo_tmp_… npx vitest run tests/horarios/tutoria.integracion
 // Crea sus propios datos ficticios en el año 2076 (en curso, DNI 900025xx) y los borra al terminar. La auditoría es
@@ -17,6 +19,15 @@ import { GET as inicioRuta } from "@/app/api/v1/horarios/tutoria/[seccionId]/ini
 import { POST as justificarRuta } from "@/app/api/v1/horarios/tutoria/[seccionId]/registros/[registroId]/justificar/route";
 import { GET as miTutoriaRuta } from "@/app/api/v1/academico/mi-tutoria/route";
 import { editarSeccion, misTutorias, tutoriaDelDocente } from "@/modules/academico";
+import {
+  conductaDeLaSeccion,
+  consolidadoDeLaSeccion,
+  consolidadoDeLaSeccionCsv,
+  guardarConducta,
+  libretaDelHijo,
+  libretaPdfDelHijo,
+  notasDeAlumnoDeTutoria,
+} from "@/modules/evaluacion";
 import {
   abrirClaseDeTutoria,
   asignarClase,
@@ -87,6 +98,12 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
   const alumnos: Record<"diego" | "lucia" | "valeria", string> = { diego: "", lucia: "", valeria: "" };
   let claseA: string;
   let sesionA: string;
+  const bimestres: string[] = [];
+  let apoderadaPersonaId: string;
+  let diegoEstudianteId: string;
+  let asignacionA: string;
+  let competenciaPlanId: string;
+  let reglaId: string;
 
   async function ingresar(email: string) {
     const r = await iniciarSesion({ email, password: CLAVE, recordar: false }, meta);
@@ -126,7 +143,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
       [1, "Bimestre I", `${ANIO}-03-02`, `${ANIO}-05-08`],
       [2, "Bimestre II", `${ANIO}-05-18`, `${ANIO}-07-17`],
     ] as const) {
-      await prisma.periodoEvaluacion.create({
+      const periodo = await prisma.periodoEvaluacion.create({
         data: {
           anioAcademicoId: anioId,
           numero,
@@ -136,6 +153,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
           estado: "ACTIVO",
         },
       });
+      bimestres.push(periodo.id);
     }
     // basta una inasistencia injustificada en el mes para que el alumno tenga aviso
     for (const [clave, valor] of [
@@ -178,9 +196,32 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
     const plan = await prisma.planEstudio.create({
       data: { anioAcademicoId: anioId, gradoId: grado.id, cursoId: mat, horasSemanales: 1 },
     });
-    await prisma.asignacionDocente.create({
-      data: { planEstudioId: plan.id, seccionId: seccionA, docenteId: docenteIds.salas },
+    asignacionA = (
+      await prisma.asignacionDocente.create({
+        data: { planEstudioId: plan.id, seccionId: seccionA, docenteId: docenteIds.salas },
+      })
+    ).id;
+    const cursoMat = await prisma.curso.findUniqueOrThrow({ where: { id: mat } });
+    const competencia = await prisma.competencia.findFirstOrThrow({
+      where: { areaCurricularId: cursoMat.areaCurricularId },
+      orderBy: { codigo: "asc" },
     });
+    competenciaPlanId = (
+      await prisma.competenciaPlan.create({ data: { planEstudioId: plan.id, competenciaId: competencia.id, orden: 1 } })
+    ).id;
+    reglaId = (
+      await prisma.reglaConsolidacion.create({
+        data: {
+          anioAcademicoId: anioId,
+          nombre: "Moda de los logros",
+          metodo: "MODA",
+          criterioDesempate: "MAYOR_JERARQUIA",
+          configuracion: {},
+          version: 1,
+          estado: "VIGENTE",
+        },
+      })
+    ).id;
     await prisma.asignacionDocente.create({
       data: { planEstudioId: plan.id, seccionId: seccionB, docenteId: docenteIds.salas },
     });
@@ -190,6 +231,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
       include: { apoderado: true },
     });
     personas.push(apoderado.id);
+    apoderadaPersonaId = apoderado.id;
     for (const [clave, dni, nombres, apellidos, seccionId] of [
       ["diego", "90002521", "Diego", "Quispe Prueba", seccionA],
       ["lucia", "90002522", "Lucía", "Álvarez Prueba", seccionA],
@@ -220,6 +262,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
         meta,
       );
       alumnos[clave] = m.matriculaId;
+      if (clave === "diego") diegoEstudianteId = es.estudiante!.id;
     }
     // las matrículas confirmadas hoy empiezan hoy: se adelantan al inicio del año ficticio
     await prisma.matricula.updateMany({
@@ -255,10 +298,16 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
 
   afterAll(async () => {
     if (!anioId) return;
+    // la conducta de un periodo finalizado no se borra (trigger): los periodos vuelven a ACTIVO antes de limpiar
+    await prisma.periodoEvaluacion.updateMany({ where: { anioAcademicoId: anioId }, data: { estado: "ACTIVO" } });
+    await prisma.notaConducta.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
+    await prisma.cierreCalificacion.deleteMany({ where: { periodoEvaluacion: { anioAcademicoId: anioId } } });
+    await prisma.reglaConsolidacion.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.sesionClase.deleteMany({ where: { detalleHorario: { seccion: { anioAcademicoId: anioId } } } });
     await prisma.horario.deleteMany({ where: { seccion: { anioAcademicoId: anioId } } });
     await prisma.bloqueHorario.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.asignacionDocente.deleteMany({ where: { seccion: { anioAcademicoId: anioId } } });
+    await prisma.competenciaPlan.deleteMany({ where: { planEstudio: { anioAcademicoId: anioId } } });
     await prisma.planEstudio.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.matricula.deleteMany({ where: { anioAcademicoId: anioId } });
     await prisma.vinculoApoderado.deleteMany({ where: { estudiante: { personaId: { in: personas } } } });
@@ -546,5 +595,163 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
     expect(Buffer.from(pdf.bytes).subarray(0, 4).toString()).toBe("%PDF");
     // otro docente no descarga el reporte
     await expect(reporteDeAsistencia(tutor, seccionB, {})).rejects.toMatchObject({ codigo: "NO_ES_TUTOR" });
+  });
+
+  // ---------- Fase 5 · Nota de conducta ----------
+
+  it("el tutor registra y modifica la conducta con auditoría; solo de alumnos de su sección", async () => {
+    const r = await guardarConducta(
+      tutor,
+      seccionA,
+      bimestres[0],
+      {
+        notas: [
+          { matriculaId: alumnos.diego, valor: "AD", comentario: "Muy colaborador con sus compañeros" },
+          { matriculaId: alumnos.lucia, valor: "B", comentario: null },
+        ],
+      },
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    expect(r.guardadas).toEqual({ creadas: 2, modificadas: 0 });
+    const cambio = await guardarConducta(
+      tutor,
+      seccionA,
+      bimestres[0],
+      {
+        notas: [
+          { matriculaId: alumnos.diego, valor: "A", comentario: "Muy colaborador con sus compañeros" },
+          { matriculaId: alumnos.lucia, valor: "B", comentario: null },
+        ],
+      },
+      meta,
+      MIERCOLES_SIGUIENTE,
+    );
+    expect(cambio.guardadas).toEqual({ creadas: 0, modificadas: 1 });
+    expect(cambio.resumen).toMatchObject({ A: 1, B: 1, SIN_NOTA: 0 });
+    const auditoria = await prisma.registroAuditoria.findFirst({
+      where: { accion: "MODIFICAR_NOTA_CONDUCTA", requestId: meta.requestId },
+    });
+    expect(auditoria).toMatchObject({ valorAnterior: { valor: "AD" }, valorNuevo: { valor: "A" } });
+    await expect(
+      guardarConducta(
+        tutor,
+        seccionA,
+        bimestres[0],
+        { notas: [{ matriculaId: alumnos.valeria, valor: "A", comentario: null }] },
+        meta,
+        MIERCOLES_SIGUIENTE,
+      ),
+    ).rejects.toMatchObject({ codigo: "ALUMNO_FUERA_DE_LA_SECCION" });
+    // el cotutor la ve igual que el tutor
+    const vega = await prisma.docente.findUniqueOrThrow({ where: { id: docenteIds.vega } });
+    const cotutor = { ...tutor, personaId: vega.personaId };
+    expect(
+      (await conductaDeLaSeccion(cotutor, seccionA, { periodoId: bimestres[0] }, MIERCOLES_SIGUIENTE)).editable,
+    ).toBe(true);
+  });
+
+  it("la conducta aparece en la libreta del apoderado y en su PDF solo con el bimestre publicado", async () => {
+    const apoderada = { ...tutor, personaId: apoderadaPersonaId, rol: "APODERADO" as const };
+    const antes = await libretaDelHijo(apoderada, diegoEstudianteId, MIERCOLES_SIGUIENTE);
+    if (antes.restringido) throw new Error("La libreta de prueba no debe estar restringida");
+    expect(antes.libreta.bimestres[0].conducta).toBeNull();
+
+    // registro de Matemática de la sección A con notas, cerrado y publicado (el único curso del plan)
+    const cierre = await prisma.cierreCalificacion.create({
+      data: {
+        asignacionDocenteId: asignacionA,
+        periodoEvaluacionId: bimestres[0],
+        reglaConsolidacionId: reglaId,
+        estado: "ABIERTO",
+      },
+    });
+    await prisma.nota.createMany({
+      data: [
+        {
+          cierreId: cierre.id,
+          matriculaId: alumnos.diego,
+          competenciaPlanId,
+          logro: "AD",
+          registradoPorId: tutor.usuarioId,
+        },
+        {
+          cierreId: cierre.id,
+          matriculaId: alumnos.lucia,
+          competenciaPlanId,
+          logro: "B",
+          registradoPorId: tutor.usuarioId,
+        },
+      ],
+    });
+    await prisma.resultadoConsolidado.createMany({
+      data: [
+        { cierreId: cierre.id, matriculaId: alumnos.diego, logroConsolidado: "AD", detalleCalculo: {} },
+        { cierreId: cierre.id, matriculaId: alumnos.lucia, logroConsolidado: "B", detalleCalculo: {} },
+      ],
+    });
+    await prisma.cierreCalificacion.update({
+      where: { id: cierre.id },
+      data: { estado: "CERRADO", cerradoEn: new Date(), cerradoPorId: tutor.usuarioId },
+    });
+
+    // cerrado pero sin publicar: el tutor ve el consolidado marcado «Sin publicar»; la familia aún no ve la conducta
+    const consolidado = await consolidadoDeLaSeccion(tutor, seccionA, { periodoId: bimestres[0] }, MIERCOLES_SIGUIENTE);
+    expect(consolidado.cursos).toMatchObject([{ codigo: "MAT", publicado: false, resumen: { AD: 1, B: 1 } }]);
+    expect(consolidado.alumnos.find((a) => a.matriculaId === alumnos.diego)).toMatchObject({ conducta: "A" });
+    const notas = await notasDeAlumnoDeTutoria(tutor, seccionA, alumnos.diego);
+    expect(notas.bimestres[0]).toMatchObject({
+      conducta: { valor: "A" },
+      cursos: [{ codigo: "MAT", publicado: false, etiquetaEstado: "Sin publicar · cerrado", consolidado: "AD" }],
+    });
+    const intermedia = await libretaDelHijo(apoderada, diegoEstudianteId, MIERCOLES_SIGUIENTE);
+    if (intermedia.restringido) throw new Error("La libreta de prueba no debe estar restringida");
+    expect(intermedia.libreta.bimestres[0].conducta).toBeNull();
+
+    await prisma.cierreCalificacion.update({
+      where: { id: cierre.id },
+      data: { estado: "PUBLICADO", publicadoEn: new Date(), publicadoPorId: tutor.usuarioId },
+    });
+    const despues = await libretaDelHijo(apoderada, diegoEstudianteId, MIERCOLES_SIGUIENTE);
+    if (despues.restringido) throw new Error("La libreta de prueba no debe estar restringida");
+    expect(despues.libreta.bimestres[0]).toMatchObject({
+      estado: "PUBLICADO",
+      conducta: { valor: "A", comentario: "Muy colaborador con sus compañeros" },
+    });
+    const pdf = await libretaPdfDelHijo(apoderada, diegoEstudianteId, bimestres[0]);
+    expect(Buffer.from(pdf.bytes).subarray(0, 4).toString()).toBe("%PDF");
+
+    const csv = await consolidadoDeLaSeccionCsv(tutor, seccionA, { periodoId: bimestres[0] });
+    expect(csv.nombreArchivo).toBe("Consolidado_2TA_BimestreI_2076.csv");
+    expect(csv.texto).toContain("Estudiante,Matemática,Conducta");
+  });
+
+  it("el tutor no ve las notas de un alumno de otra sección", async () => {
+    await expect(notasDeAlumnoDeTutoria(tutor, seccionA, alumnos.valeria)).rejects.toMatchObject({
+      codigo: "ALUMNO_DE_OTRA_SECCION",
+    });
+    await expect(consolidadoDeLaSeccion(tutor, seccionB, {}, MIERCOLES_SIGUIENTE)).rejects.toMatchObject({
+      codigo: "NO_ES_TUTOR",
+    });
+  });
+
+  it("con el periodo finalizado la conducta no se registra ni se modifica", async () => {
+    await prisma.periodoEvaluacion.update({ where: { id: bimestres[0] }, data: { estado: "FINALIZADO" } });
+    const vista = await conductaDeLaSeccion(tutor, seccionA, { periodoId: bimestres[0] }, MIERCOLES_SIGUIENTE);
+    expect(vista).toMatchObject({ editable: false });
+    await expect(
+      guardarConducta(
+        tutor,
+        seccionA,
+        bimestres[0],
+        { notas: [{ matriculaId: alumnos.lucia, valor: "A", comentario: null }] },
+        meta,
+        MIERCOLES_SIGUIENTE,
+      ),
+    ).rejects.toMatchObject({ codigo: "PERIODO_FINALIZADO" });
+    // el trigger también lo impide si se escribe directo en la base
+    await expect(
+      prisma.notaConducta.updateMany({ where: { matriculaId: alumnos.lucia }, data: { valor: "AD" } }),
+    ).rejects.toThrow(/PERIODO_FINALIZADO/);
   });
 });

@@ -104,3 +104,11 @@ export {
   type ConductaDeLaSeccion,
   type ConductaDeAlumno,
 } from "./application/conducta";
+export {
+  alumnosParaNotasDeTutoria,
+  notasDeAlumnoDeTutoria,
+  consolidadoDeLaSeccion,
+  consolidadoDeLaSeccionCsv,
+  type NotasDeAlumnoDeTutoria,
+  type ConsolidadoDeLaSeccion,
+} from "./application/tutoriaNotas";
