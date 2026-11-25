@@ -32,6 +32,7 @@ Sistema web para la gestión integral de un colegio de secundaria: matrícula y 
 10. [Flujo de trabajo con Git](#10-flujo-de-trabajo-con-git)
 11. [Convenciones](#11-convenciones)
 12. [Estándar de programación](#12-estándar-de-programación)
+13. [Revisión final y plan de pruebas del profesor](#13-revisión-final-y-plan-de-pruebas-del-profesor)
 
 ---
 
@@ -304,6 +305,7 @@ Si el puerto 5433 está ocupado, cámbialo en `docker-compose.yml` y en tu `.env
 | `npm run conciliar-pagos` | Tareas de cada 15 minutos (`scripts/tareasProgramadas.ts`): concilia los pagos en línea pendientes (US71), reintenta los correos de la bandeja de salida (US55) y marca la falta de los docentes sin marcar a la hora límite (US32); en AWS lo ejecuta un timer |
 | `npm run tareas-programadas` | Lo mismo que `conciliar-pagos`, con su nombre actual |
 | `npm run demo:morosidad -- --dni <DNI> [--desde 2026-09-01]` | Solo con datos ficticios: adelanta la fecha de matrícula (y el vencimiento de su cuota) de un estudiante y le agrega las pensiones vencidas para demostrar la morosidad (US24, US26, US59). Ver `docs/DESPLIEGUE-AWS.md` |
+| `npm run demo:revision` | Solo en una base temporal o de demostración: crea por la API el colegio ficticio del plan de pruebas del profesor (año 2026 en curso, secciones con tutor, docentes, apoderados, alumnos, matrículas, horario, pago y notas), probando un caso inválido en cada paso. Necesita `KUBO_URL` y `KUBO_CLAVE_DEMO`; ver `docs/pruebas/plan-profesor.md` |
 
 `npm install` ejecuta `prisma generate` automáticamente (`postinstall`). El despliegue está descrito en `docs/DESPLIEGUE.md`.
 
@@ -362,3 +364,17 @@ Antes de abrir un pull request debe pasar:
 ```powershell
 npm run check                 # formato, lint, tipos, pruebas y build
 ```
+
+---
+
+## 13. Revisión final y plan de pruebas del profesor
+
+El bloque M5 recorrió las 66 filas del plan de pruebas del profesor (`docs/pruebas/Plan_de_Pruebas_26-2.xlsx`) con
+cada rol, en una base temporal con datos ficticios:
+
+- `docs/pruebas/plan-profesor.md`: estado, pantalla, pasos, caso inválido y datos de prueba de cada fila, y las
+  cuentas ficticias por rol (sin contraseñas).
+- `docs/pruebas/Plan_de_Pruebas_26-2_kubo.xlsx`: copia del Excel con las columnas Estado y Observación llenas.
+- `docs/REVISION-FINAL.md`: lo revisado, lo corregido y lo que quedó pendiente (entre otros, la versión de `next` y la
+  configuración de archivos, pasarela y correo del servidor que usará el profesor).
+

@@ -25,6 +25,7 @@
     "tareas-programadas": "tsx --env-file-if-exists=.env scripts/tareasProgramadas.ts",
     "reintentar-correos": "tsx --env-file-if-exists=.env scripts/reintentarCorreos.ts",
     "demo:morosidad": "tsx --env-file-if-exists=.env scripts/demoMorosidad.ts",
+    "demo:revision": "tsx --env-file-if-exists=.env scripts/demoRevision.ts",
     "archivos:verificar": "tsx --env-file-if-exists=.env scripts/verificarArchivos.ts",
     "test": "vitest run"
   },
