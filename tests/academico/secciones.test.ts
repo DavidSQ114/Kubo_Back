@@ -4,10 +4,12 @@ import {
   calcularVacantes,
   listaSecciones,
   normalizarNombreSeccion,
+  rolDeTutoria,
   verificarAforo,
   verificarAforoAula,
   verificarAnioEditable,
   verificarEliminacion,
+  verificarTutoria,
   verificarVacantes,
 } from "@/modules/academico/domain/secciones";
 
@@ -82,5 +84,51 @@ describe("vacantes (US08, para matrícula)", () => {
   });
   it("una sección inactiva tampoco", () => {
     esperarError(() => verificarVacantes("INACTIVA", calcularVacantes(0, 30)), "SECCION_INACTIVA");
+  });
+});
+
+describe("tutor y cotutor de la sección (bloque M3)", () => {
+  const otras = [
+    { seccionId: "s-2b", seccion: "2° B", tutorId: "d-ana", cotutorId: "d-beto" },
+    { seccionId: "s-3a", seccion: "3° A", tutorId: "d-carla", cotutorId: null },
+  ];
+
+  it("acepta tutor y cotutor distintos y libres en el año", () => {
+    expect(() => verificarTutoria({ tutorId: "d-diego", cotutorId: "d-elena" }, otras)).not.toThrow();
+    expect(() => verificarTutoria({ tutorId: "d-diego", cotutorId: null }, otras)).not.toThrow();
+    expect(() => verificarTutoria({ tutorId: null, cotutorId: null }, otras)).not.toThrow();
+  });
+
+  it("rechaza que el tutor y el cotutor sean el mismo docente", () => {
+    esperarError(
+      () => verificarTutoria({ tutorId: "d-diego", cotutorId: "d-diego" }, otras),
+      "TUTOR_IGUAL_COTUTOR",
+      "El tutor y el cotutor no pueden ser el mismo docente.",
+    );
+  });
+
+  it("rechaza un cotutor sin tutor", () => {
+    esperarError(() => verificarTutoria({ tutorId: null, cotutorId: "d-diego" }, otras), "COTUTOR_SIN_TUTOR");
+  });
+
+  it("un docente es tutor o cotutor de una sola sección por año", () => {
+    // tutor de otra sección no puede ser tutor aquí
+    esperarError(() => verificarTutoria({ tutorId: "d-ana", cotutorId: null }, otras), "DOCENTE_YA_ES_TUTOR");
+    // cotutor de otra sección tampoco puede ser tutor aquí
+    esperarError(
+      () => verificarTutoria({ tutorId: "d-beto", cotutorId: null }, otras),
+      "DOCENTE_YA_ES_TUTOR",
+      "El docente elegido como tutor ya es tutor o cotutor de 2° B este año. Un docente tiene una sola tutoría por año.",
+    );
+    // tutor de otra sección no puede ser cotutor aquí
+    esperarError(() => verificarTutoria({ tutorId: "d-diego", cotutorId: "d-carla" }, otras), "DOCENTE_YA_ES_TUTOR");
+  });
+
+  it("reconoce si el docente es tutor, cotutor o ninguno", () => {
+    const t = { tutorId: "d-ana", cotutorId: "d-beto" };
+    expect(rolDeTutoria(t, "d-ana")).toBe("TUTOR");
+    expect(rolDeTutoria(t, "d-beto")).toBe("COTUTOR");
+    expect(rolDeTutoria(t, "d-carla")).toBeNull();
+    expect(rolDeTutoria({ tutorId: null, cotutorId: null }, "d-ana")).toBeNull();
   });
 });

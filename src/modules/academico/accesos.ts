@@ -11,4 +11,9 @@ export const ROLES_ACADEMICO = {
   ESPACIOS: ["ADMINISTRADOR"],
   /** Parámetros generales del sistema (bloque M1): los lista y edita el administrador. */
   PARAMETROS_SISTEMA: ["ADMINISTRADOR"],
+  /**
+   * Tutoría de sección (bloque M3): solo docentes; además, cada ruta exige con tutoriaDelDocente que sea tutor o
+   * cotutor de la sección pedida.
+   */
+  TUTORIA: ["DOCENTE"],
 } as const satisfies Record<string, readonly Rol[]>;

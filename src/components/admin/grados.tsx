@@ -29,6 +29,7 @@ export interface Seccion {
   grado: Grado;
   aula: { id: string; nombre: string; aforo: number; activo: boolean } | null;
   tutor: { id: string; nombreCompleto: string; nombreCorto: string } | null;
+  cotutor: { id: string; nombreCompleto: string; nombreCorto: string } | null;
   vacantes: Vacantes;
 }
 
@@ -110,6 +111,7 @@ interface DatosSeccion {
   aforoMaximo: string;
   aulaId: string;
   tutorId: string;
+  cotutorId: string;
 }
 
 function datosIniciales(seccion: Seccion | null, grados: Grado[]): DatosSeccion {
@@ -120,14 +122,16 @@ function datosIniciales(seccion: Seccion | null, grados: Grado[]): DatosSeccion 
       aforoMaximo: String(seccion.aforoMaximo),
       aulaId: seccion.aula?.id ?? "",
       tutorId: seccion.tutor?.id ?? "",
+      cotutorId: seccion.cotutor?.id ?? "",
     };
   }
-  return { gradoId: grados[0]?.id ?? "", nombre: "", aforoMaximo: "", aulaId: "", tutorId: "" };
+  return { gradoId: grados[0]?.id ?? "", nombre: "", aforoMaximo: "", aulaId: "", tutorId: "", cotutorId: "" };
 }
 
 /**
  * Crea o edita una sección del año elegido. Para pasar de una sección a otra, el padre cambia su key (estándar 6.5).
- * El aula y el tutor son opcionales; al elegir un aula, el aforo se completa con el suyo si estaba vacío.
+ * El aula, el tutor y el cotutor son opcionales; al elegir un aula, el aforo se completa con el suyo si estaba vacío.
+ * El cotutor tiene los mismos permisos que el tutor y necesita un tutor (bloque M3).
  */
 export function PanelSeccion({
   anio,
@@ -174,6 +178,7 @@ export function PanelSeccion({
       aforoMaximo: Number(datos.aforoMaximo) || 0,
       aulaId: datos.aulaId || null,
       tutorId: datos.tutorId || null,
+      cotutorId: (datos.tutorId && datos.cotutorId) || null,
     };
     try {
       if (seccion) {
@@ -191,6 +196,9 @@ export function PanelSeccion({
         AFORO_EXCEDE_AULA: "aforoMaximo",
         AULA_INACTIVA: "aulaId",
         TUTOR_NO_DISPONIBLE: "tutorId",
+        COTUTOR_NO_DISPONIBLE: "cotutorId",
+        TUTOR_IGUAL_COTUTOR: "cotutorId",
+        COTUTOR_SIN_TUTOR: "cotutorId",
       });
       setErrores(r.campos);
       setError(r.general);
@@ -264,10 +272,14 @@ export function PanelSeccion({
       <Selector
         etiqueta="Tutor (opcional)"
         valor={datos.tutorId}
-        onCambiar={(v) => setDatos((d) => ({ ...d, tutorId: v }))}
+        onCambiar={(v) => setDatos((d) => ({ ...d, tutorId: v, cotutorId: v ? d.cotutorId : "" }))}
         deshabilitado={soloLectura}
         error={errores.tutorId}
-        ayuda={docentes.length === 0 ? "Aún no hay docentes activos registrados." : undefined}
+        ayuda={
+          docentes.length === 0
+            ? "Aún no hay docentes activos registrados."
+            : "Un docente es tutor o cotutor de una sola sección por año."
+        }
       >
         <option value="">Seleccionar docente</option>
         {docentes.map((d) => (
@@ -275,6 +287,23 @@ export function PanelSeccion({
             {d.nombreCompleto}
           </option>
         ))}
+      </Selector>
+      <Selector
+        etiqueta="Cotutor (opcional)"
+        valor={datos.cotutorId}
+        onCambiar={(v) => setDatos((d) => ({ ...d, cotutorId: v }))}
+        deshabilitado={soloLectura || !datos.tutorId}
+        error={errores.cotutorId}
+        ayuda={datos.tutorId ? "Tiene los mismos permisos que el tutor." : "Elige primero al tutor."}
+      >
+        <option value="">Sin cotutor</option>
+        {docentes
+          .filter((d) => d.id !== datos.tutorId)
+          .map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.nombreCompleto}
+            </option>
+          ))}
       </Selector>
 
       {!seccion && !soloLectura && (
