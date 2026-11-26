@@ -188,9 +188,21 @@ export function estadoPagoPasarela(
   return { estado: "CONFIRMADO", motivo: null };
 }
 
-/** US71: solo un pago en línea Observado admite «Registrar devolución». */
+/**
+ * US71: un pago en línea Observado o Confirmado admite «Registrar devolución» (el Confirmado, desde el bloque M5: es
+ * la única forma de revertir un pago ya cobrado en Mercado Pago). Uno de tesorería o ya Anulado, no.
+ */
 export function verificarDevolucionPosible(op: { origen: OrigenPago; estado: EstadoPago }) {
-  if (op.origen !== "PASARELA" || op.estado !== "OBSERVADO") throw E.devolucionNoPermitida();
+  if (op.origen !== "PASARELA" || (op.estado !== "OBSERVADO" && op.estado !== "CONFIRMADO")) {
+    throw E.devolucionNoPermitida();
+  }
+}
+
+/** La devolución siempre lleva su motivo (bloque M5): queda en la auditoría y en la operación. */
+export function verificarMotivoDevolucion(detalle: string | null | undefined): string {
+  const motivo = detalle?.trim();
+  if (!motivo) throw E.motivoDevolucionRequerido();
+  return motivo;
 }
 
 /** Un pago en línea Observado no se descarta como duplicado: el dinero se devuelve (US71). */

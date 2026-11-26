@@ -674,7 +674,18 @@ export function ModalAnularPago({
   );
 }
 
-// ---------- US71 · Registrar devolución de un pago en línea Observado ----------
+// ---------- US71 · Registrar devolución de un pago en línea (Observado o Confirmado) ----------
+
+/**
+ * Bloque M5: un pago en línea ya cobrado (Confirmado) no se anula, porque sus cuotas volverían a Pendiente con el
+ * dinero aún en Mercado Pago y el portal las cobraría otra vez. Se revierte con «Registrar devolución».
+ */
+export const esPagoEnLineaCobrado = (o: Pick<OperacionPago, "origen" | "estado">) =>
+  o.origen === "PASARELA" && o.estado === "CONFIRMADO";
+
+/** «Registrar devolución» se ofrece para los pagos en línea Observado o Confirmado. */
+export const admiteDevolucion = (o: Pick<OperacionPago, "origen" | "estado">) =>
+  o.origen === "PASARELA" && (o.estado === "OBSERVADO" || o.estado === "CONFIRMADO");
 
 export function ModalDevolucion({
   operacion,
@@ -692,13 +703,19 @@ export function ModalDevolucion({
   const [general, setGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
+  const cobrado = esPagoEnLineaCobrado(operacion);
+
   async function registrar() {
+    if (!detalle.trim()) {
+      setErrores({ detalle: "Escribe el motivo de la devolución." });
+      return;
+    }
     setEnviando(true);
     setGeneral(null);
     try {
       await api(`/matricula/pagos/${operacion.operacionId}/devolver`, {
         method: "POST",
-        body: { detalle: detalle.trim() || null },
+        body: { detalle: detalle.trim() },
       });
       onDevuelto();
     } catch (err) {
@@ -733,23 +750,32 @@ export function ModalDevolucion({
         <div className="flex flex-col">
           <span className="font-semibold text-texto">{estudiante}</span>
           <span className="text-texto-3">
-            {`${operacion.cuotas.map((c) => c.concepto).join(", ")} · ${operacion.motivoObservacion ?? "Observado"}`}
+            {`${operacion.cuotas.map((c) => c.concepto).join(", ")} · ${
+              cobrado ? "Cobrado en Mercado Pago" : (operacion.motivoObservacion ?? "Observado")
+            }`}
           </span>
         </div>
         <BadgeOperacion estado={operacion.estado} />
       </div>
+      <Alerta tipo="aviso" titulo="Primero devuelve el dinero en el panel de Mercado Pago">
+        Kubo no devuelve el dinero: hazlo desde el panel de Mercado Pago y, cuando esté hecho, regístralo aquí. La
+        operación pasa a «Anulado» con el motivo «Devuelto», tu usuario y la fecha, y el apoderado recibe un aviso.
+        {cobrado
+          ? " Sus cuotas vuelven a «Pendiente»: la familia deberá pagarlas otra vez."
+          : " Sus cuotas no cambian: nunca se marcaron como pagadas."}
+      </Alerta>
       <Campo
-        etiqueta="Observación (opcional)"
+        etiqueta="Motivo de la devolución"
+        obligatorio
         maxLength={300}
-        placeholder="Por ejemplo, N.° de la devolución en Mercado Pago"
+        placeholder="Por ejemplo, pago duplicado; devolución N.° 123456 en Mercado Pago"
         value={detalle}
         error={errores.detalle}
-        onChange={(e) => setDetalle(e.target.value)}
+        onChange={(e) => {
+          setDetalle(e.target.value);
+          setErrores((x) => ({ ...x, detalle: "" }));
+        }}
       />
-      <Alerta tipo="info" titulo="Antes de registrar">
-        Devuelve primero el dinero desde el panel de Mercado Pago. Aquí solo se deja constancia: la operación pasa a
-        «Anulado» con el motivo «Devuelto», tu usuario y la fecha, y sus cuotas no cambian.
-      </Alerta>
       {general && <Alerta tipo="error" titulo={general} />}
     </Modal>
   );
@@ -997,7 +1023,7 @@ export function TablaOperaciones({
                     {o.comprobante && (
                       <BotonRecibo operacionId={o.operacionId} comprobante={o.comprobante.numero} onError={onError} />
                     )}
-                    {o.estado === "CONFIRMADO" && (
+                    {o.estado === "CONFIRMADO" && !esPagoEnLineaCobrado(o) && (
                       <button
                         type="button"
                         onClick={() => onAnular(o)}
@@ -1007,7 +1033,7 @@ export function TablaOperaciones({
                         <Icono nombre="act-ban" size={18} />
                       </button>
                     )}
-                    {o.estado === "OBSERVADO" && o.origen === "PASARELA" && (
+                    {admiteDevolucion(o) && (
                       <Boton variante="secundario" onClick={() => onDevolver(o)} disabled={ocupado === o.operacionId}>
                         Registrar devolución
                       </Boton>

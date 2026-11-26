@@ -12,7 +12,7 @@ Pruebas automáticas:
   con su mensaje, recálculo (crear, cambiar, quitar; una competencia sin ítems no se toca), validación de la lista,
   confirmación, nota directa en una competencia con ítems, calificaciones fuera del registro y análisis del CSV.
 - `tests/evaluacion/reportes.test.ts` (sin base): distribución con porcentajes, agrupación por curso y competencia,
-  detalle por alumno, CSV con BOM y campos que empiezan como fórmula neutralizados.
+  detalle por alumno, CSV con BOM, separador `;` y campos que empiezan como fórmula neutralizados.
 - `tests/evaluacion/libreta.test.ts` y `tests/academico/cursos.test.ts` (sin base): detalle de ítems en la libreta,
   `PLAN_CON_NOTAS` y `COMPETENCIA_CON_ITEMS`.
 - `tests/evaluacion/items.integracion.test.ts` (PostgreSQL, en el CI; año 2077, DNI 900024xx): 403 del docente ajeno,

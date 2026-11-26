@@ -635,7 +635,7 @@ describe.skipIf(!ACTIVA)("ítems de evaluación con pesos (bloque M2)", () => {
     expect(mat.alumnos.map((a) => a.nombre)).toEqual(["Álvarez Prueba, Ana", "Castillo Prueba, Bruno"]);
     const csv = await reporteLogroCsv({ anioId, periodoId: bimestre });
     expect(csv.nombreArchivo).toBe(`Reporte_logro_BimestreI_${ANIO}.csv`);
-    expect(csv.texto).toContain('Matemática,1° IT,"Álvarez Prueba, Ana",C1');
+    expect(csv.texto).toContain('Matemática;1° IT;"Álvarez Prueba, Ana";C1');
   });
 
   it("notas por alumno: libreta completa del año con el estado de cada curso y el detalle de ítems", async () => {

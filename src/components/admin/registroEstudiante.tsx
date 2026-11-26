@@ -23,6 +23,7 @@ import { Selector, separarErrores, type Grado } from "@/components/admin/grados"
 import { alertaError, useDestinos } from "@/components/admin/PortalAdmin";
 import { Alerta, Boton, Campo, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api, NOMBRE_ROL } from "@/lib/api";
+import { precargarDePersona, quitarPrecargados } from "@/lib/personas";
 
 interface DatosEstudiante {
   nombres: string;
@@ -34,6 +35,9 @@ interface DatosEstudiante {
   colegioProcedencia: string;
   direccion: string;
 }
+
+/** Datos de la persona registrada que se muestran al reconocer su DNI (bloque M5). */
+const PRECARGADOS: (keyof DatosEstudiante)[] = ["fechaNacimiento", "sexo", "direccion"];
 
 const VACIO: DatosEstudiante = {
   nombres: "",
@@ -130,7 +134,12 @@ export function RegistroEstudiante() {
         if (!vigente) return;
         setConsulta({ dni: dniCompleto!, persona });
         if (persona && !persona.perfiles.includes("ALUMNO")) {
-          setDatos((d) => ({ ...d, nombres: persona.nombres, apellidos: persona.apellidos }));
+          // los datos ya registrados llenan los campos vacíos; el backend solo completa lo que falta (bloque M5)
+          setDatos((d) => ({
+            ...precargarDePersona(d, persona, PRECARGADOS),
+            nombres: persona.nombres,
+            apellidos: persona.apellidos,
+          }));
         }
       } catch {
         if (vigente) setConsulta(null); // sin la consulta, el backend igual valida al guardar
@@ -156,7 +165,7 @@ export function RegistroEstudiante() {
     setDatos((d) => {
       const nuevo = { ...d, ...cambios };
       if (cambios.dni !== undefined && agregaPerfil && cambios.dni.trim() !== dniCompleto) {
-        return { ...nuevo, nombres: "", apellidos: "" };
+        return { ...quitarPrecargados(nuevo, persona!, PRECARGADOS), nombres: "", apellidos: "" };
       }
       return nuevo;
     });

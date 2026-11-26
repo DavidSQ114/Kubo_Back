@@ -392,9 +392,10 @@ export function ModalImportarCsv({
       }
     >
       <p className="text-[13px] leading-[1.4] text-texto-2">
-        Sube un archivo CSV con una fila por alumno: <code className="rounded bg-fondo px-1">dni,calificativo</code>{" "}
-        (por ejemplo, <code className="rounded bg-fondo px-1">71234567,AD</code>). La cabecera es opcional. Revisarás
-        las filas antes de guardarlas; las rechazadas no se importan.
+        Sube un archivo CSV con una fila por alumno: <code className="rounded bg-fondo px-1">dni;calificativo</code>{" "}
+        (por ejemplo, <code className="rounded bg-fondo px-1">71234567;AD</code>; también se acepta la coma, como lo
+        guarda Excel en otros idiomas). La cabecera es opcional. Revisarás las filas antes de guardarlas; las rechazadas
+        no se importan.
       </p>
       <label className="flex flex-col gap-1.5 text-[14px] font-medium text-texto-2">
         Archivo CSV

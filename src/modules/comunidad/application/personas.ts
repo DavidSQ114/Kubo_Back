@@ -17,6 +17,16 @@ export interface PersonaEncontrada {
   perfiles: Rol[];
   /** Tiene cuenta para ingresar al sistema. */
   tieneCuenta: boolean;
+  /**
+   * Datos personales ya registrados (bloque M5): los formularios de registro los muestran en lugar de dejar vacíos los
+   * campos. Solo lectura: el registro sigue completando únicamente lo que falta. Fecha «AAAA-MM-DD».
+   */
+  fechaNacimiento: string | null;
+  sexo: "FEMENINO" | "MASCULINO" | null;
+  telefono: string | null;
+  direccion: string | null;
+  /** Ocupación del perfil Apoderado activo; null si no es apoderado. */
+  ocupacion: string | null;
 }
 
 /** Persona registrada con ese DNI, con sus perfiles activos, o null si el DNI es nuevo. */
@@ -32,6 +42,11 @@ export async function buscarPersonaPorDni(dni: string): Promise<PersonaEncontrad
     email: p.email ?? p.usuario?.email ?? null,
     perfiles: rolesActivos(p),
     tieneCuenta: Boolean(p.usuario),
+    fechaNacimiento: p.fechaNacimiento ? p.fechaNacimiento.toISOString().slice(0, 10) : null,
+    sexo: p.sexo,
+    telefono: p.telefono,
+    direccion: p.direccion,
+    ocupacion: p.apoderado?.activo ? p.apoderado.ocupacion : null,
   };
 }
 

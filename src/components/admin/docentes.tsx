@@ -69,6 +69,13 @@ export interface PersonaEncontrada {
   perfiles: Rol[];
   /** Ya tiene cuenta: no se crea otra ni se envía contraseña temporal. */
   tieneCuenta: boolean;
+  /** Datos ya registrados (bloque M5): se muestran en el formulario en lugar de dejar los campos vacíos. */
+  fechaNacimiento: string | null;
+  sexo: "FEMENINO" | "MASCULINO" | null;
+  telefono: string | null;
+  direccion: string | null;
+  /** Ocupación del perfil Apoderado activo; null si no es apoderado. */
+  ocupacion: string | null;
 }
 
 /** El mismo mensaje que da el backend (DOCENTE_EXISTENTE) cuando el DNI ya es de un docente activo. */

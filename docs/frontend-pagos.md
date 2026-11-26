@@ -85,7 +85,7 @@ Captura en `docs/figma/M-15-pago-anual.png`. En AD-11, junto a la modalidad de l
 
 Pantalla `/admin/morosidad` (`src/app/(portal)/admin/morosidad/page.tsx`), con «Morosidad» habilitado en el menú lateral. Captura en `docs/figma/AD-12-panel-morosidad.png`.
 
-- **Cabecera:** «Panel de morosidad» con la fecha de hoy (Lima) y «Exportar CSV» (con separador `;` y BOM, para Excel en español) cuando hay resultados.
+- **Cabecera:** «Panel de morosidad» con la fecha de hoy (Lima) y «Exportar CSV» (con separador `;`, BOM y la deuda con coma decimal, para Excel en español) cuando hay resultados.
 - **Indicadores:** estudiantes con deuda, deuda vencida total y cuotas vencidas, según el filtro aplicado.
 - **Filtros:** año (por defecto, el «En curso»), grado, sección (las del grado), meses adeudados (1, 2 o 3 o más) y orden (deuda total o meses). Se aplican con **«Filtrar»**, que siempre vuelve a consultar (sin caché); «Limpiar filtros» vuelve a todos.
 - **Tabla:** estudiante, sección, meses adeudados como etiquetas (Matr., Ago, Set…), N.° de cuotas vencidas, deuda total, días de atraso y el apoderado responsable con parentesco y teléfono.

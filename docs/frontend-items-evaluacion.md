@@ -32,7 +32,7 @@ src/components/coordinador/PortalCoordinador.tsx  menú: «Notas por alumno» y 
   un aviso si no suma 100 %. Si el servidor pide confirmación, explica qué se pierde (ítems con calificaciones,
   alumnos que quedan sin nota, evidencias) y el botón pasa a «Confirmar y guardar». No se abre con cambios sin
   guardar en la grilla. Cada ítem guardado ofrece «Importar calificaciones (CSV)».
-- **Importar CSV.** Elige un archivo `dni,calificativo`, muestra cada fila válida o rechazada con su motivo y
+- **Importar CSV.** Elige un archivo `dni;calificativo` (también con comas), muestra cada fila válida o rechazada con su motivo y
   «Importar N calificaciones» guarda solo las válidas.
 - **Competencias de mi curso.** Modal con el editor de AD-04 apuntando al endpoint del docente; aviso de que el cambio
   aplica a todas las secciones del grado (las lista) y, con notas en el año, solo lectura con el motivo.

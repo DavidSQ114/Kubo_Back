@@ -148,8 +148,8 @@ Solo el **Coordinador académico** (`ROLES_EVALUACION.REPORTES`). Pantallas `/co
   secciones, competencias: [{ codigo, nombre, columna, conteo: { AD, A, B, C }, total, porcentajes }], consolidado,
   alumnos: [{ matriculaId, nombre, seccion, logros: { [codigo]: logro | null }, consolidado }] }`. Porcentajes con
   un decimal.
-- **CSV**: `Año,Bimestre,Curso,Sección,Estudiante,Columna,Competencia,Logro`, una fila por alumno y competencia y otra
-  con el «Logro del curso». Los campos que empiezan con `=`, `+`, `-` o `@` se neutralizan con `'`. Archivo
+- **CSV**: `Año;Bimestre;Curso;Sección;Estudiante;Columna;Competencia;Logro` (separador `;` para Excel en español,
+  con BOM y CRLF), una fila por alumno y competencia y otra con el «Logro del curso». Los campos que empiezan con `=`, `+`, `-` o `@` se neutralizan con `'`. Archivo
   `Reporte_logro_<Bimestre>_<Año>.csv` (sin datos personales en el nombre).
 - **PDF** (platform/pdf): filtros, por curso la tabla por competencia con cantidad y porcentaje, y el detalle por alumno.
 - **Notas por alumno**: la búsqueda por DNI o nombre es `GET /matricula/matriculas?anioId=&q=`. `NotasDelAlumno`:
@@ -374,7 +374,7 @@ Rutas del tutor o cotutor de la sección (`ROLES_EVALUACION.TUTORIA`, perfil `DO
 | GET | `/evaluacion/tutoria/{seccionId}/alumnos` | Alumnos de la sección para ver sus notas |
 | GET | `/evaluacion/tutoria/{seccionId}/alumnos/{matriculaId}/notas` | Libreta completa del año (lo no publicado, «Sin publicar») con la conducta de cada bimestre |
 | GET | `/evaluacion/tutoria/{seccionId}/consolidado?periodoId=` | Matriz alumnos × cursos con el consolidado del bimestre, la conducta y el resumen AD/A/B/C por curso |
-| GET | `/evaluacion/tutoria/{seccionId}/consolidado/csv?periodoId=` | El consolidado en CSV (BOM) |
+| GET | `/evaluacion/tutoria/{seccionId}/consolidado/csv?periodoId=` | El consolidado en CSV (BOM, separador `;`) |
 
 ## Reglas
 

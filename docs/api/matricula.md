@@ -37,7 +37,7 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | `GET /matricula/apoderado/pagos/intentos/{id}` | — | `IntentoPago` (US70, **Apoderado** que lo creó) |
 | `POST /matricula/apoderado/pagos/intentos/{id}/simular` | `{ resultado }` | `IntentoPago` (solo `PASARELA=falsa`) |
 | `POST /matricula/pagos/webhooks/pasarela` | `?data.id=&type=order`, cabeceras `x-signature` y `x-request-id` | `{ recibido: true }` (US70, **público**, firmado) |
-| `POST /matricula/pagos/{id}/devolver` | `{ detalle? }` | `{ operacion }` (US71: Observado de la pasarela → Anulado, «Devuelto») |
+| `POST /matricula/pagos/{id}/devolver` | `{ detalle }` (motivo obligatorio) | `{ operacion }` (US71: pago en línea Observado o Confirmado → Anulado, «Devuelto») |
 
 ### Situación del estudiante (AD-10)
 
@@ -176,6 +176,7 @@ Las cuotas (`concepto_cobro`), las operaciones (`operacion_pago`), sus pagos por
   - Sin motivo: `422 MOTIVO_ANULACION_REQUERIDO`.
   - Con `OTRO`, el `detalle` es obligatorio: `422 DETALLE_ANULACION_REQUERIDO`. En los demás, el detalle es opcional (hasta 300 caracteres).
 - Se anula una `CONFIRMADO` o una `OBSERVADO`. Una `ANULADO` responde `409 PAGO_YA_ANULADO`.
+- Bloque M5: un pago en línea ya cobrado (origen `PASARELA`, estado `CONFIRMADO`) **no se anula**: responde `422 PAGO_EN_LINEA_NO_ANULABLE` «Este pago se cobró en Mercado Pago y no se puede anular. Si hay que revertirlo, devuelve el dinero desde el panel de Mercado Pago y luego registra la devolución.». Anularlo dejaba sus cuotas Pendiente con el dinero aún en Mercado Pago, y el portal del apoderado volvía a cobrarlas (cobro duplicado). Regla `verificarPagoAnulable(estado, origen)`.
 - En una transacción: si estaba `CONFIRMADO`, sus cuotas vuelven de `PAGADO` a `PENDIENTE` y admiten un pago nuevo. La operación queda `ANULADO` con `motivo_anulacion`, `observacion_anulacion`, `anulado_por` y `anulado_en`, y se registra `ANULAR_PAGO`.
 - **Nada se borra:** las filas `pago` y el comprobante se conservan, y el historial (`operaciones[].anulacion`) muestra el estado, el motivo, el responsable y la fecha.
 - Una matrícula con pagos no anulados sigue sin poder anularse (`409 MATRICULA_CON_PAGOS`); primero se anulan sus pagos.
@@ -362,9 +363,11 @@ Mercado Pago Checkout Pro con la API de Orders, solo en **modo de prueba**. Deci
 
 ### Registrar devolución (US71, AD-11) · solo `COORDINADOR`
 
-`POST /matricula/pagos/{id}/devolver` con `{ "detalle"?: "…" }` (300 caracteres como máximo) → `{ operacion }`.
-- Solo para un pago en línea **Observado**: si no, `409 DEVOLUCION_NO_PERMITIDA`. La operación pasa a **Anulado** con el motivo `DEVUELTO` («Devuelto»), el administrador y la fecha. Sus cuotas no cambian.
-- El dinero se devuelve en el panel de Mercado Pago; Kubo solo lo registra.
+`POST /matricula/pagos/{id}/devolver` con `{ "detalle": "…" }` (el motivo, obligatorio; 300 caracteres como máximo) → `{ operacion }`.
+- Para un pago en línea **Observado** o **Confirmado** (este último desde el bloque M5: es la única forma de revertir un pago ya cobrado, que no se anula). Uno de tesorería o ya Anulado responde `409 DEVOLUCION_NO_PERMITIDA`; sin motivo, `422 MOTIVO_DEVOLUCION_REQUERIDO` «Escribe el motivo de la devolución.».
+- La operación pasa a **Anulado** con el motivo `DEVUELTO` («Devuelto»), el motivo escrito, el usuario y la fecha. Si estaba **Observado**, sus cuotas no cambian (nunca se marcaron como pagadas). Si estaba **Confirmado**, sus cuotas vuelven a **Pendiente**; las moras ya generadas no se tocan.
+- En la misma transacción: `REGISTRAR_DEVOLUCION` en la auditoría y un aviso (campana, tipo `PAGO`) al apoderado responsable: «Devolución de un pago en línea».
+- El dinero se devuelve en el panel de Mercado Pago; Kubo solo lo registra. En AD-11, una operación de la pasarela confirmada no muestra «Anular pago» sino «Registrar devolución».
 - Un pago en línea Observado no se descarta (`POST …/descartar` → `409 USAR_DEVOLUCION`), pero sí se puede **confirmar** (US23) si la cuota quedó libre.
 
 ### Cambios en las respuestas existentes
@@ -510,7 +513,9 @@ Solo una mora pendiente (`422 CUOTA_NO_ES_MORA`, `409 MORA_PAGADA`, `409 MORA_YA
 | `FIRMA_INVALIDA` | 401 | Aviso de la pasarela sin una firma `x-signature` válida |
 | `INTENTO_NO_ENCONTRADO` | 404 | El intento no existe o es de otra persona |
 | `PAGO_EN_LINEA_NO_DISPONIBLE` · `SIMULACION_NO_DISPONIBLE` | 409 | Pasarela sin configurar, o simulación con una pasarela que no es la falsa |
-| `DEVOLUCION_NO_PERMITIDA` · `USAR_DEVOLUCION` | 409 | Devolución de algo que no es un pago en línea Observado; descarte de un pago en línea |
+| `DEVOLUCION_NO_PERMITIDA` · `USAR_DEVOLUCION` | 409 | Devolución de algo que no es un pago en línea Observado o Confirmado; descarte de un pago en línea |
+| `PAGO_EN_LINEA_NO_ANULABLE` | 422 | Anular un pago en línea ya cobrado (Confirmado): se registra su devolución |
+| `MOTIVO_DEVOLUCION_REQUERIDO` | 422 | Registrar una devolución sin motivo |
 | `CUOTAS_DE_VARIAS_MATRICULAS` | 422 | «Elige cuotas de un mismo año académico.» |
 | `PASARELA_NO_RESPONDE` | 502 | La pasarela no creó la order |
 | `INGRESO_CON_MATRICULA` · `MORA_CON_PENSION` | 409 | Bloque M4: orden de pago con cuota de ingreso y mora |
@@ -536,7 +541,7 @@ Los pagos (US04) se registran con `entidad_afectada = "operacion_pago"`:
 - `CONFIRMAR_PAGO_OBSERVADO`: estado anterior y nuevo, monto, conceptos, número, comprobante y `confirmadoPorId`.
 - `ANULAR_PAGO`: estado anterior, motivo, monto, conceptos, número, comprobante, cuotas revertidas y, al descartar, `decision: "DESCARTAR_OBSERVADO"`. La columna `motivo` guarda «MOTIVO: observación».
 - Desde US70, `REGISTRAR_PAGO` también guarda `actor` (`USUARIO` | `SISTEMA`), `origen` (`TESORERIA` | `PASARELA`) y `motivoObservacion`. En un pago en línea agrega `referenciaExterna` (order) e `intentoId`, y `usuario_id` queda nulo (actor Sistema).
-- `REGISTRAR_DEVOLUCION` (US71): estado anterior (`OBSERVADO` y su motivo), estado nuevo `ANULADO`, motivo `DEVUELTO`, origen, monto, conceptos, número y `referenciaExterna`. La columna `motivo` guarda «Devuelto: observación».
+- `REGISTRAR_DEVOLUCION` (US71): estado anterior (`OBSERVADO` o `CONFIRMADO`, y el motivo de la observación), estado nuevo `ANULADO`, motivo `DEVUELTO`, origen, monto, conceptos, número, `referenciaExterna`, comprobante y `cuotasRevertidas` (las que volvieron a Pendiente). La columna `motivo` guarda «Devuelto: motivo escrito».
 
 El portal del apoderado registra `DESCARGAR_COMPROBANTE_APODERADO` (`entidad_afectada = "comprobante"`) con `estudianteId`, `cuotaId`, `operacionId` y `comprobante`.
 

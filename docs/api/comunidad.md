@@ -50,7 +50,7 @@ Las rutas de usuarios, docentes, administradores, coordinadores y bajas exigen e
 
 ### Persona por DNI (defecto D-07)
 
-- `PersonaEncontrada`: `{ personaId, dni, nombres, apellidos, nombreCompleto, email, perfiles, tieneCuenta }`. `perfiles` son los roles activos (`ADMINISTRADOR`, `DOCENTE`, `APODERADO`, `ALUMNO`). `email` es el de la persona o, si no tiene, el de su cuenta.
+- `PersonaEncontrada`: `{ personaId, dni, nombres, apellidos, nombreCompleto, email, perfiles, tieneCuenta, fechaNacimiento, sexo, telefono, direccion, ocupacion }`. `perfiles` son los roles activos (`ADMINISTRADOR`, `COORDINADOR`, `DOCENTE`, `APODERADO`, `ALUMNO`). `email` es el de la persona o, si no tiene, el de su cuenta. Bloque M5: `fechaNacimiento` (`AAAA-MM-DD`), `sexo` (`FEMENINO`, `MASCULINO`), `telefono` y `direccion` son los ya registrados, y `ocupacion` la del perfil Apoderado activo; cada uno es `null` si no está registrado. Los formularios de registro de docente, apoderado y estudiante los muestran al reconocer el DNI; el registro sigue completando solo los datos que faltan. Solo Administrador y Coordinador académico (`ROLES_COMUNIDAD.CONSULTA`).
 - AD-07 la consulta al completar los 8 dígitos del DNI:
   - si ya es docente activo, muestra bajo el DNI «Ya existe un usuario registrado con este DNI» y no registra;
   - si existe con otro perfil, avisa «Este DNI ya está registrado: Nombre Apellido (Perfiles). Se le agregará el perfil Docente con sus datos actuales.», llena y bloquea nombres, apellidos y correo, y el botón pasa a «Agregar perfil Docente».

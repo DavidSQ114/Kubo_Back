@@ -340,7 +340,7 @@ las **clases existentes** (`sesion_clase`, `asistencia_estudiante`): no hay una 
 | POST | `/horarios/tutoria/{seccionId}/registros/{registroId}/corregir` | `{ estado, observacion?, motivo }`: modifica un registro sin el plazo de 24 horas |
 | POST | `/horarios/tutoria/{seccionId}/registros/{registroId}/justificar` | `{ motivo }`: FALTA → FALTA_JUSTIFICADA, TARDANZA → TARDANZA_JUSTIFICADA |
 | GET | `/horarios/tutoria/{seccionId}/reporte?periodoId=&orden=&ascendente=` | Reporte de faltas y tardanzas del bimestre por alumno, con totales |
-| GET | `/horarios/tutoria/{seccionId}/reporte/csv` · `/reporte/pdf` | El mismo reporte en CSV (BOM) y en PDF (platform/pdf) |
+| GET | `/horarios/tutoria/{seccionId}/reporte/csv` · `/reporte/pdf` | El mismo reporte en CSV (BOM, separador `;` y porcentaje con coma decimal, «33,3») y en PDF (platform/pdf) |
 | GET | `/horarios/tutoria/{seccionId}/justificaciones` | Justificaciones de los apoderados: pendientes y revisadas en 30 días |
 | GET | `/horarios/tutoria/{seccionId}/justificaciones/{id}/archivo` | Archivo adjunto (PDF o JPG, inline) |
 | POST | `/horarios/tutoria/{seccionId}/justificaciones/{id}/aprobar` | Aprueba: el registro queda justificado en la misma transacción |

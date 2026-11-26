@@ -23,10 +23,14 @@ import {
 import { alertaError } from "@/components/admin/PortalAdmin";
 import { Alerta, Boton, Icono, Spinner, Tarjeta } from "@/components/ui";
 import { api } from "@/lib/api";
+import { precargarDePersona, quitarPrecargados } from "@/lib/personas";
 
 interface Catalogos {
   especialidades: string[];
 }
+
+/** Datos de la persona registrada que se muestran al reconocer su DNI (bloque M5). */
+const PRECARGADOS: (keyof DatosDocente)[] = ["fechaNacimiento", "sexo", "telefono"];
 
 export default function RegistrarDocentePage() {
   const router = useRouter();
@@ -52,8 +56,9 @@ export default function RegistrarDocentePage() {
         setConsulta({ dni: dniCompleto!, persona });
         // se usan los datos registrados: el backend solo agrega el perfil y no cambia los datos de la persona
         if (persona && !persona.perfiles.includes("DOCENTE")) {
+          // el correo (bloqueado) muestra el registrado; fecha, sexo y teléfono llenan los vacíos (bloque M5)
           setDatos((d) => ({
-            ...d,
+            ...precargarDePersona(d, persona, PRECARGADOS),
             nombres: persona.nombres,
             apellidos: persona.apellidos,
             email: persona.email ?? d.email,
@@ -83,7 +88,12 @@ export default function RegistrarDocentePage() {
       const nuevo = { ...d, ...cambios };
       // al cambiar el DNI de una persona ya registrada, se liberan los datos que se habían llenado con ella
       if (cambios.dni !== undefined && agregaPerfil && cambios.dni.trim() !== dniCompleto) {
-        return { ...nuevo, nombres: "", apellidos: "", email: persona!.email ? "" : nuevo.email };
+        return {
+          ...quitarPrecargados(nuevo, persona!, PRECARGADOS),
+          nombres: "",
+          apellidos: "",
+          email: persona!.email ? "" : nuevo.email,
+        };
       }
       return nuevo;
     });
