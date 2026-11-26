@@ -382,6 +382,19 @@ export const erroresMatricula = {
       422,
       { nombres },
     ),
+  documentosPresencialesFaltantes: (nombres: string[]) =>
+    new ErrorApp(
+      "DOCUMENTO_FALTANTE",
+      `Es un alumno nuevo: adjunta ${nombres.length === 1 ? "el documento" : "los documentos"} ${nombres.map((n) => `«${n}»`).join(", ")} para matricularlo.`,
+      400,
+      { nombres },
+    ),
+  documentosNoCorresponden: () =>
+    new ErrorApp(
+      "DOCUMENTOS_NO_CORRESPONDEN",
+      "Este estudiante no necesita documentos del proceso de matrícula: vuelve a elegirlo y matricúlalo sin adjuntos.",
+      422,
+    ),
   seccionOtroGrado: (grado: string) =>
     new ErrorApp("SECCION_OTRO_GRADO", `La sección debe ser de ${grado}, el grado de la solicitud.`, 422, { grado }),
 };

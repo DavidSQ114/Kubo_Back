@@ -3,7 +3,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/platform/db/prisma";
 import type { Tx } from "@/platform/db/tipos";
-import type { EstadoDocumento, EstadoSolicitud } from "../domain/solicitudes";
+import type { EstadoDocumento, EstadoSolicitud, OrigenSolicitud } from "../domain/solicitudes";
 
 type Db = Tx | typeof prisma;
 
@@ -13,6 +13,7 @@ const selectSolicitud = {
   procesoId: true,
   gradoId: true,
   estado: true,
+  origen: true,
   creadoPorId: true,
   enviadaEn: true,
   updatedAt: true,
@@ -64,6 +65,7 @@ export interface SolicitudFila {
   procesoId: string;
   gradoId: string;
   estado: EstadoSolicitud;
+  origen: OrigenSolicitud;
   creadoPorId: string;
   enviadaEn: Date;
   updatedAt: Date;
@@ -105,6 +107,33 @@ export const solicitudes = {
     return s.id;
   },
 
+  /**
+   * Solicitud PRESENCIAL de la matrícula directa de un alumno nuevo: nace Matriculada, con los documentos recibidos en
+   * secretaría ya aprobados por quien matricula.
+   */
+  async crearPresencial(
+    tx: Tx,
+    datos: { matriculaId: string; procesoId: string; gradoId: string; creadoPorId: string; revisadoEn: Date },
+    archivos: (ArchivoGuardado & { documentoRequeridoId: string })[],
+  ) {
+    const { revisadoEn, ...solicitud } = datos;
+    const s = await tx.solicitudMatricula.create({
+      data: { ...solicitud, origen: "PRESENCIAL", estado: "MATRICULADA", enviadaEn: revisadoEn },
+      select: { id: true },
+    });
+    await tx.documentoMatricula.createMany({
+      data: archivos.map((a) => ({
+        ...a,
+        solicitudId: s.id,
+        estado: "APROBADO" as const,
+        revisadoPorId: datos.creadoPorId,
+        revisadoEn,
+        subidoEn: revisadoEn,
+      })),
+    });
+    return s.id;
+  },
+
   async bloquear(tx: Tx, id: string) {
     await tx.$queryRaw`SELECT id FROM solicitud_matricula WHERE id = ${id}::uuid FOR UPDATE`;
   },
@@ -119,10 +148,13 @@ export const solicitudes = {
     return s && fila(s);
   },
 
-  /** Solicitudes de las matrículas del año (bandeja del coordinador), las más antiguas primero. */
+  /**
+   * Solicitudes en línea de las matrículas del año (bandeja del coordinador), las más antiguas primero. Las
+   * presenciales no se revisan: se ven en el detalle de su matrícula.
+   */
   async delAnio(anioAcademicoId: string, estado?: EstadoSolicitud, db: Db = prisma): Promise<SolicitudFila[]> {
     const filas = await db.solicitudMatricula.findMany({
-      where: { matricula: { anioAcademicoId }, ...(estado ? { estado } : {}) },
+      where: { matricula: { anioAcademicoId }, origen: "EN_LINEA", ...(estado ? { estado } : {}) },
       orderBy: { enviadaEn: "asc" },
       select: selectSolicitud,
     });
