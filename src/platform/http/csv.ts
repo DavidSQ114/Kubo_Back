@@ -7,11 +7,21 @@
 export const SEPARADOR_CSV = ";";
 
 /**
- * Un campo del CSV: entre comillas si lleva «;», coma, comillas o salto de línea (la coma se sigue protegiendo para
- * quien abra el archivo con otra configuración); una fórmula al inicio se neutraliza.
+ * Número para el CSV con coma decimal («33,3»), como lo lee Excel en español; con punto lo tomaba como texto. Va sin
+ * comillas para que la hoja de cálculo lo reconozca como número.
+ */
+export function numeroCsv(valor: number): string {
+  return Number.isFinite(valor) ? String(valor).replace(".", ",") : "";
+}
+
+/**
+ * Un campo del CSV. Los números salen con coma decimal (`numeroCsv`). Un texto va entre comillas si lleva «;», coma,
+ * comillas o salto de línea (la coma se sigue protegiendo para quien abra el archivo con otra configuración), y una
+ * fórmula al inicio se neutraliza.
  */
 export function campoCsv(valor: string | number | null | undefined): string {
-  const texto = valor == null ? "" : String(valor);
+  if (typeof valor === "number") return numeroCsv(valor);
+  const texto = valor == null ? "" : valor;
   // =, +, -, @ al inicio: la hoja de cálculo lo ejecutaría como fórmula
   const seguro = /^[=+\-@]/.test(texto) ? `'${texto}` : texto;
   return /[";,\n\r]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;

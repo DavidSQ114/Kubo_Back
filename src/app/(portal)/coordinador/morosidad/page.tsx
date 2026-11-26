@@ -58,7 +58,10 @@ const anioPorDefecto = (anios: AnioAcademico[]) =>
 
 /** CSV (separado por punto y coma, como lo abre Excel en español) del listado filtrado. */
 function descargarCsv(panel: PanelMorosidad) {
-  const celda = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  // los montos van sin comillas y con coma decimal («1000,00») para que Excel en español los lea como número; el
+  // teléfono sigue entre comillas, como texto (bloque M5)
+  const celda = (v: string | number) =>
+    typeof v === "number" || /^\d+,\d+$/.test(v) ? String(v) : `"${String(v).replace(/"/g, '""')}"`;
   const filas = [
     [
       "Estudiante",
@@ -75,7 +78,7 @@ function descargarCsv(panel: PanelMorosidad) {
       f.seccion?.nombre ?? "",
       f.adeudado.join(" "),
       f.cuotasVencidas,
-      f.deuda,
+      f.deuda.replace(".", ","),
       f.diasAtraso,
       f.responsable?.nombreCompleto ?? "",
       f.responsable?.telefono ?? "",

@@ -1,6 +1,6 @@
 // Bloque M5 · CSV de las descargas con separador «;» para Excel configurado en español (coma decimal), con BOM y CRLF.
 import { describe, expect, it } from "vitest";
-import { campoCsv, SEPARADOR_CSV, textoCsv } from "@/platform/http/csv";
+import { campoCsv, numeroCsv, SEPARADOR_CSV, textoCsv } from "@/platform/http/csv";
 
 describe("CSV de las descargas (bloque M5)", () => {
   it("separa las columnas con «;» y lleva BOM y CRLF, también al final", () => {
@@ -26,5 +26,16 @@ describe("CSV de las descargas (bloque M5)", () => {
     expect(campoCsv(null)).toBe("");
     expect(campoCsv(undefined)).toBe("");
     expect(campoCsv(15)).toBe("15");
+  });
+
+  it("los números con decimales salen con coma decimal y sin comillas, como los lee Excel en español", () => {
+    expect(numeroCsv(33.3)).toBe("33,3");
+    expect(campoCsv(66.7)).toBe("66,7");
+    expect(campoCsv(-1.5)).toBe("-1,5");
+    expect(campoCsv(100)).toBe("100");
+    expect(campoCsv(Number.NaN)).toBe("");
+    expect(textoCsv([["% de asistencia"], [33.3]])).toBe("﻿% de asistencia\r\n33,3\r\n");
+    // un texto con decimales (no un número) se respeta tal cual
+    expect(campoCsv("33.3")).toBe("33.3");
   });
 });
