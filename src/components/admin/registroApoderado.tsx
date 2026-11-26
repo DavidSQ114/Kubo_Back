@@ -22,6 +22,7 @@ import { Selector, separarErrores } from "@/components/admin/grados";
 import { alertaError, useDestinos } from "@/components/admin/PortalAdmin";
 import { Alerta, Badge, Boton, Campo, Casilla, Icono, Tarjeta } from "@/components/ui";
 import { api, ApiError, NOMBRE_ROL } from "@/lib/api";
+import { precargarDePersona, quitarPrecargados } from "@/lib/personas";
 
 interface DatosApoderado {
   dni: string;
@@ -71,6 +72,16 @@ interface EstudianteElegido {
   /** Ya se vinculó (modo «Vincular a un estudiante»): no se vuelve a enviar. */
   vinculado?: boolean;
 }
+
+/** Datos de la persona registrada que se muestran al validar su DNI (bloque M5). */
+const PRECARGADOS: (keyof DatosApoderado)[] = [
+  "email",
+  "fechaNacimiento",
+  "sexo",
+  "telefono",
+  "direccion",
+  "ocupacion",
+];
 
 const CAMPO_POR_CODIGO: Record<string, string> = {
   PERSONA_NO_COINCIDE: "dni",
@@ -134,9 +145,9 @@ export function RegistroApoderado() {
   function cambiar(cambios: Partial<DatosApoderado>) {
     setDatos((d) => {
       const nuevo = { ...d, ...cambios };
-      // al cambiar el DNI se liberan los nombres que venían de la persona registrada
+      // al cambiar el DNI se liberan los datos que venían de la persona registrada
       if (cambios.dni !== undefined && vigente?.persona && cambios.dni.trim() !== vigente.dni) {
-        return { ...nuevo, nombres: "", apellidos: "" };
+        return { ...quitarPrecargados(nuevo, vigente.persona, PRECARGADOS), nombres: "", apellidos: "" };
       }
       return nuevo;
     });
@@ -159,13 +170,13 @@ export function RegistroApoderado() {
       }
       setValidacion({ dni, persona, apoderado });
       setErrores((e) => ({ ...e, dni: "" }));
-      // se usan los datos registrados: el backend solo agrega el perfil y completa lo que falte
+      // se usan los datos registrados: el backend solo agrega el perfil y completa lo que falte. Si ya es apoderado,
+      // los campos quedan bloqueados y muestran lo registrado; si no, solo se llenan los vacíos (bloque M5).
       if (persona) {
         setDatos((d) => ({
-          ...d,
+          ...precargarDePersona(d, persona, PRECARGADOS, Boolean(apoderado)),
           nombres: persona.nombres,
           apellidos: persona.apellidos,
-          email: d.email || persona.email || "",
         }));
       }
     } catch (e) {

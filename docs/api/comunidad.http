@@ -57,7 +57,7 @@ GET {{base}}/comunidad/docentes
 
 # ---------- Defecto D-07: persona ya registrada con ese DNI ----------
 
-### 10. DNI de la persona del bloque 3 → 200 { nombreCompleto, perfiles, tieneCuenta… }
+### 10. DNI de la persona del bloque 3 → 200 { nombreCompleto, perfiles, tieneCuenta, fechaNacimiento, sexo, telefono, direccion, ocupacion… }
 GET {{base}}/comunidad/personas?dni=45678912
 
 ### 11. DNI nuevo → 200 null

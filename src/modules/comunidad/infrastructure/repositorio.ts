@@ -91,8 +91,14 @@ export const personas = {
         nombres: true,
         apellidos: true,
         email: true,
+        // bloque M5: los formularios de registro muestran los datos ya registrados en los campos que no se editan
+        fechaNacimiento: true,
+        sexo: true,
+        telefono: true,
+        direccion: true,
         usuario: { select: { email: true } },
         ...selectPerfiles,
+        apoderado: { select: { activo: true, ocupacion: true } },
       },
     }),
 
