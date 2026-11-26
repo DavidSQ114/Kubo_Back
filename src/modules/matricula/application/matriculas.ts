@@ -1,7 +1,10 @@
 // matricula/application: matrícula en sección (US18, RF14, AD-10), cronograma de pagos (US21, RF16) y anulación
-// (M-19). Confirmar y generar el cronograma van en una sola transacción, con la fila de la sección bloqueada.
+// (M-19). Confirmar y generar el cronograma van en una sola transacción, con la fila de la sección bloqueada. Al
+// matricular directamente a un alumno nuevo sin solicitud en línea, se registran en la misma transacción los documentos
+// del proceso de matrícula del año recibidos en secretaría (solicitud PRESENCIAL).
+import { eliminarArchivo, validarArchivo, type ArchivoRecibido } from "@/platform/archivos";
 import { prisma } from "@/platform/db/prisma";
-import { esDuplicado } from "@/platform/db/tipos";
+import { esDuplicado, type Tx } from "@/platform/db/tipos";
 import { registrarAuditoria } from "@/platform/auditoria";
 import { obtenerParametro } from "@/platform/config/parametros";
 import { registrarAvisos } from "@/platform/notificaciones";
@@ -43,10 +46,30 @@ import {
   type ModalidadPago,
   type MotivoAnulacionMatricula,
 } from "../domain/matriculas";
-import { verificarListaParaAsignar, verificarSolicitudAbierta } from "../domain/solicitudes";
+import {
+  documentosParaMatriculaDirecta,
+  MENSAJE_ARCHIVO_MATRICULA,
+  NOMBRE_ORIGEN_SOLICITUD,
+  verificarDocumentosDirectos,
+  verificarListaParaAsignar,
+  verificarSolicitudAbierta,
+  type DocumentoDelProceso,
+} from "../domain/solicitudes";
 import { procesos } from "../infrastructure/proceso";
 import { contarPagosVigentes, cuotas, historial, matriculas, type MatriculaFila } from "../infrastructure/repositorio";
-import { solicitudes } from "../infrastructure/solicitudes";
+import { solicitudes, type ArchivoGuardado, type SolicitudFila } from "../infrastructure/solicitudes";
+import { documentosDeSolicitud, guardarArchivos } from "./solicitudes";
+
+const reglasArchivo = { permitidos: ["PDF", "JPG"] as const, mensaje: MENSAJE_ARCHIVO_MATRICULA };
+
+/** Documentos activos del proceso de matrícula del año, en su orden (vacío si el año no tiene proceso). */
+async function documentosDelProceso(anioAcademicoId: string) {
+  const proceso = await procesos.delAnio(anioAcademicoId);
+  const documentos: DocumentoDelProceso[] = (proceso?.documentos ?? [])
+    .filter((d) => d.activo)
+    .map((d) => ({ id: d.id, nombre: d.nombre, obligatorio: d.obligatorio }));
+  return { procesoId: proceso?.id ?? null, documentos };
+}
 
 const etiquetaSeccion = (s: Pick<SeccionVista, "nombre" | "grado">) => `${s.grado.numero}° ${s.nombre}`;
 
@@ -112,7 +135,17 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
   ]);
   if (!estudiante?.activo) throw E.estudianteNoEncontrado();
   const vigente = await matriculas.vigente(estudianteId, anioAcademicoId);
-  const alumnoNuevo = esAlumnoNuevo(await matriculas.otrasDelEstudiante(estudianteId, vigente?.id ?? null));
+  const [otras, solicitud, delProceso] = await Promise.all([
+    matriculas.otrasDelEstudiante(estudianteId, vigente?.id ?? null),
+    vigente ? solicitudes.deMatricula(vigente.id) : Promise.resolve(null),
+    documentosDelProceso(anioAcademicoId),
+  ]);
+  const alumnoNuevo = esAlumnoNuevo(otras);
+  const documentosRequeridos = documentosParaMatriculaDirecta({
+    esAlumnoNuevo: alumnoNuevo,
+    tieneSolicitud: Boolean(solicitud),
+    requeridos: delProceso.documentos,
+  });
   const hoy = fechaEnLima(new Date());
   const previsto =
     montos.montoMatricula && montos.montoPension
@@ -147,6 +180,14 @@ export async function situacionEstudiante(estudianteId: string, anioAcademicoId:
       montoIngreso: montos.montoIngreso,
     },
     esAlumnoNuevo: alumnoNuevo,
+    /** Con solicitud en línea, la matrícula exige sus documentos aprobados (bandeja de solicitudes). */
+    tieneSolicitudEnLinea: solicitud?.origen === "EN_LINEA",
+    /** Documentos del proceso del año que se adjuntan al matricular (alumno nuevo sin solicitud en línea). */
+    documentosRequeridos: documentosRequeridos.map((d) => ({
+      documentoRequeridoId: d.id,
+      nombre: d.nombre,
+      obligatorio: d.obligatorio,
+    })),
     cronogramaPrevisto: previsto,
   };
 }
@@ -159,12 +200,96 @@ export interface DatosMatricula {
   seccionId?: string | null;
   vinculoResponsableId?: string | null;
   modalidadPago: ModalidadPago;
+  /**
+   * Archivo de cada documento del proceso del año recibido en secretaría, por el id del documento requerido. Solo para
+   * un alumno nuevo sin solicitud en línea (los obligatorios son exigibles).
+   */
+  archivos?: Record<string, ArchivoRecibido>;
+}
+
+type ArchivoDeDocumento = ArchivoGuardado & { documentoRequeridoId: string };
+
+/**
+ * Registra los documentos de la matrícula directa de un alumno nuevo (solicitud PRESENCIAL Matriculada con sus
+ * documentos aprobados por quien matricula) y la auditoría RECIBIR_DOCUMENTOS_MATRICULA. Sin documentos exigidos no
+ * hace nada.
+ */
+async function recibirDocumentosPresenciales(
+  tx: Tx,
+  datos: {
+    admin: Autenticado;
+    matriculaId: string;
+    estudianteId: string;
+    anio: number;
+    gradoId: string;
+    procesoId: string | null;
+    exigidos: DocumentoDelProceso[];
+    guardados: ArchivoDeDocumento[];
+  },
+  meta: MetaSolicitud,
+) {
+  if (!datos.exigidos.length || !datos.procesoId) return;
+  const nombreDe = new Map(datos.exigidos.map((d) => [d.id, d.nombre]));
+  const recibidos = new Set(datos.guardados.map((g) => g.documentoRequeridoId));
+  const solicitudId = await solicitudes.crearPresencial(
+    tx,
+    {
+      matriculaId: datos.matriculaId,
+      procesoId: datos.procesoId,
+      gradoId: datos.gradoId,
+      creadoPorId: datos.admin.usuarioId,
+      revisadoEn: new Date(),
+    },
+    datos.guardados,
+  );
+  await registrarAuditoria(
+    tx,
+    {
+      usuarioId: datos.admin.usuarioId,
+      entidad: "solicitud_matricula",
+      entidadId: solicitudId,
+      accion: "RECIBIR_DOCUMENTOS_MATRICULA",
+      nuevo: {
+        origen: "PRESENCIAL",
+        matriculaId: datos.matriculaId,
+        estudianteId: datos.estudianteId,
+        anio: datos.anio,
+        estado: "APROBADO",
+        documentos: datos.guardados.map((g) => ({
+          documento: nombreDe.get(g.documentoRequeridoId) ?? g.documentoRequeridoId,
+          nombreArchivo: g.nombreArchivo,
+          tamanoBytes: g.tamanoBytes,
+        })),
+        noEntregados: datos.exigidos.filter((d) => !recibidos.has(d.id)).map((d) => d.nombre),
+      },
+    },
+    meta,
+  );
+}
+
+/** Valida y guarda los archivos adjuntos antes de la transacción (solo documentos activos del proceso del año). */
+async function guardarAdjuntos(
+  archivos: Record<string, ArchivoRecibido>,
+  requeridos: DocumentoDelProceso[],
+  requestId: string,
+): Promise<ArchivoDeDocumento[]> {
+  const ids = Object.keys(archivos);
+  if (!ids.length) return [];
+  const activos = new Set(requeridos.map((d) => d.id));
+  if (ids.some((id) => !activos.has(id))) throw E.documentoNoRequerido();
+  const validados = ids.map((id) => ({
+    documentoRequeridoId: id,
+    archivo: validarArchivo(archivos[id], reglasArchivo),
+  }));
+  return guardarArchivos(validados, requestId);
 }
 
 /**
  * Matricula al estudiante en la sección (US18): confirma su matrícula En proceso o crea una nueva, y en la misma
  * transacción genera su cronograma (US21). Bloquea la fila de la sección y recién entonces cuenta las matrículas
- * Matriculado: de dos solicitudes simultáneas por la última vacante, solo una pasa.
+ * Matriculado: de dos solicitudes simultáneas por la última vacante, solo una pasa. A un alumno nuevo sin solicitud en
+ * línea se le exigen los documentos obligatorios del proceso del año, que quedan registrados como recibidos en
+ * secretaría; sus archivos se guardan antes de la transacción y se borran si esta falla.
  */
 export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricula, meta: MetaSolicitud) {
   verificarCompleta(datos);
@@ -172,10 +297,12 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
   const vinculoResponsableId = datos.vinculoResponsableId!;
   const anio = await obtenerAnio(datos.anioAcademicoId);
   verificarAnioMatriculable(anio, NOMBRE_ESTADO_ANIO[anio.estado]);
-  const [montos, dia] = await Promise.all([
+  const [montos, dia, delProceso] = await Promise.all([
     montosParaMatricular(anio.id),
     obtenerParametro("DIA_VENCIMIENTO", anio.id),
+    documentosDelProceso(anio.id),
   ]);
+  const guardados = await guardarAdjuntos(datos.archivos ?? {}, delProceso.documentos, meta.requestId);
 
   let matriculaId: string;
   try {
@@ -204,6 +331,16 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
           throw E.seccionOtroGrado(grado?.nombre ?? "el grado pedido");
         }
       }
+      // alumno nuevo sin solicitud en línea: los documentos del proceso del año se reciben en secretaría
+      const exigidos = documentosParaMatriculaDirecta({
+        esAlumnoNuevo: esAlumnoNuevo(await matriculas.otrasDelEstudiante(datos.estudianteId, vigente?.id ?? null, tx)),
+        tieneSolicitud: Boolean(solicitud),
+        requeridos: delProceso.documentos,
+      });
+      verificarDocumentosDirectos(
+        exigidos,
+        guardados.map((g) => g.documentoRequeridoId),
+      );
       // la vacante se valida recién aquí: las matrículas En proceso no la reservan
       verificarCupo(await matriculas.contarMatriculados(seccion.id, tx), seccion.aforoMaximo);
 
@@ -262,6 +399,20 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
         },
         meta,
       );
+      await recibirDocumentosPresenciales(
+        tx,
+        {
+          admin,
+          matriculaId: id,
+          estudianteId: datos.estudianteId,
+          anio: anio.anio,
+          gradoId: seccion.grado.id,
+          procesoId: delProceso.procesoId,
+          exigidos,
+          guardados,
+        },
+        meta,
+      );
       if (solicitud) {
         await solicitudes.cambiarEstado(tx, solicitud.id, "MATRICULADA");
         await registrarAvisos(tx, {
@@ -301,6 +452,7 @@ export async function confirmarMatricula(admin: Autenticado, datos: DatosMatricu
       return id;
     });
   } catch (e) {
+    await Promise.all(guardados.map((g) => eliminarArchivo(g.archivoClave, meta.requestId)));
     // dos confirmaciones simultáneas del mismo estudiante sin borrador previo: el índice único rechaza la segunda
     if (esDuplicado(e, "uq_matricula_activa_por_anio")) throw E.yaMatriculado({ matriculaId: "", seccionId: null });
     throw e;
@@ -420,17 +572,28 @@ export async function listarMatriculas(f: FiltroMatriculas) {
   };
 }
 
+/**
+ * Documentos de la matrícula con su origen («En línea» o «Recibido en secretaría»). Una solicitud ya resuelta muestra
+ * solo lo que se registró en su momento: si la coordinación cambia después la lista del proceso, no se piden de nuevo.
+ */
+async function documentosDeMatricula(s: SolicitudFila) {
+  const resuelta = s.estado === "MATRICULADA" || s.estado === "ANULADA";
+  const lista = (await documentosDeSolicitud(s)).filter((d) => !resuelta || d.documento);
+  return { solicitudId: s.id, origen: s.origen, nombreOrigen: NOMBRE_ORIGEN_SOLICITUD[s.origen], items: lista };
+}
+
 /** Detalle de una matrícula: estudiante, sección, apoderados (con el responsable del pago) y cronograma. */
 export async function detalleMatricula(matriculaId: string) {
   const m = await matriculas.porId(matriculaId);
   if (!m) throw E.noEncontrada();
-  const [estudiante, anio, secciones, lista, pagos, tramos] = await Promise.all([
+  const [estudiante, anio, secciones, lista, pagos, tramos, solicitud] = await Promise.all([
     estudianteParaMatricula(m.estudianteId),
     obtenerAnio(m.anioAcademicoId),
     listarSecciones(m.anioAcademicoId),
     cuotas.deMatricula(m.id),
     contarPagosVigentes(m.id),
     historial.deMatricula(m.id),
+    solicitudes.deMatricula(m.id),
   ]);
   const seccion = secciones.find((s) => s.id === m.seccionId);
   const nombreSeccion = (id: string) => {
@@ -478,6 +641,7 @@ export async function detalleMatricula(matriculaId: string) {
           }
         : null,
     historialSecciones: tramos.map((t) => ({ ...t, seccion: nombreSeccion(t.seccionId) })),
+    documentos: solicitud ? await documentosDeMatricula(solicitud) : null,
     pagos,
     puedeAnular: (m.estado === "EN_PROCESO" || m.estado === "MATRICULADO") && pagos === 0,
     puedeTrasladar: m.estado === "MATRICULADO",

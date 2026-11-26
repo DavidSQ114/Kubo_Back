@@ -511,3 +511,45 @@ POST {{base}}/matricula/solicitudes/{{solicitud}}/asignar-seccion
 Content-Type: application/json
 
 { "seccionId": "{{seccionM4}}", "modalidadPago": "MENSUAL" }
+
+### 90. Documentos de la matrícula presencial: con sesión de coordinador, la situación de un alumno nuevo sin
+# solicitud en línea trae documentosRequeridos (los activos del proceso del año, en su orden)
+GET {{base}}/matricula/estudiantes/{{estudiante}}?anioId={{anio}}
+
+@documentoObligatorio = 00000000-0000-0000-0000-000000000000
+
+### 91. Matricular al alumno nuevo sin un obligatorio → 400 DOCUMENTO_FALTANTE (details.nombres)
+POST {{base}}/matricula/matriculas
+Content-Type: application/json
+
+{ "estudianteId": "{{estudiante}}", "anioAcademicoId": "{{anio}}", "seccionId": "{{seccion}}", "vinculoResponsableId": "{{vinculo}}", "modalidadPago": "MENSUAL" }
+
+### 92. Matricular con los documentos recibidos en secretaría → 201 MATRICULADO; documentos.nombreOrigen
+# «Recibido en secretaría». Repetir la parte «documento:<id>» por cada documento (archivo de prueba, PDF o JPG ≤ 5 MB).
+POST {{base}}/matricula/matriculas
+Content-Type: multipart/form-data; boundary=kubo
+
+--kubo
+Content-Disposition: form-data; name="estudianteId"
+
+{{estudiante}}
+--kubo
+Content-Disposition: form-data; name="anioAcademicoId"
+
+{{anio}}
+--kubo
+Content-Disposition: form-data; name="seccionId"
+
+{{seccion}}
+--kubo
+Content-Disposition: form-data; name="vinculoResponsableId"
+
+{{vinculo}}
+--kubo
+Content-Disposition: form-data; name="documento:{{documentoObligatorio}}"; filename="documento.pdf"
+Content-Type: application/pdf
+
+< ./documento-prueba.pdf
+--kubo--
+
+### 93. Un alumno antiguo con adjuntos → 422 DOCUMENTOS_NO_CORRESPONDEN (sin adjuntos se matricula como siempre)

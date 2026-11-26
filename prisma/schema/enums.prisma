@@ -305,6 +305,13 @@ enum EstadoSolicitudMatricula {
   ANULADA
 }
 
+/// De dónde vienen los documentos de la matrícula: «En línea» (los sube el apoderado) o «Recibido en secretaría» (los
+/// adjunta la coordinación al matricular directamente a un alumno nuevo).
+enum OrigenSolicitudMatricula {
+  EN_LINEA
+  PRESENCIAL
+}
+
 /// Bloque M4: revisión de cada documento subido por el apoderado.
 enum EstadoDocumentoMatricula {
   EN_REVISION

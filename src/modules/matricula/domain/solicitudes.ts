@@ -24,6 +24,14 @@ export const NOMBRE_ESTADO_DOCUMENTO: Record<EstadoDocumento, string> = {
   OBSERVADO: "Observado",
 };
 
+export const ORIGENES_SOLICITUD = ["EN_LINEA", "PRESENCIAL"] as const;
+export type OrigenSolicitud = (typeof ORIGENES_SOLICITUD)[number];
+
+export const NOMBRE_ORIGEN_SOLICITUD: Record<OrigenSolicitud, string> = {
+  EN_LINEA: "En línea",
+  PRESENCIAL: "Recibido en secretaría",
+};
+
 export const DECISIONES_DOCUMENTO = ["APROBAR", "OBSERVAR"] as const;
 export type DecisionDocumento = (typeof DECISIONES_DOCUMENTO)[number];
 
@@ -103,6 +111,38 @@ export function revisarDocumento(
   const limpia = (observacion ?? "").trim().replace(/\s+/g, " ");
   if (!limpia) throw E.observacionRequerida();
   return { estado: "OBSERVADO", observacion: limpia.slice(0, LARGO_MAXIMO_OBSERVACION) };
+}
+
+/**
+ * Documentos que la coordinación debe recibir al matricular directamente en «Matrícula»: a un alumno nuevo (sin
+ * matrícula anterior) que no tiene solicitud en línea se le piden los documentos activos del proceso de matrícula del
+ * año. Lista vacía (alumno antiguo, con solicitud en línea o año sin proceso o sin documentos): la matrícula sigue
+ * como siempre.
+ */
+export function documentosParaMatriculaDirecta(situacion: {
+  esAlumnoNuevo: boolean;
+  tieneSolicitud: boolean;
+  requeridos: DocumentoDelProceso[];
+}): DocumentoDelProceso[] {
+  if (!situacion.esAlumnoNuevo || situacion.tieneSolicitud) return [];
+  return situacion.requeridos;
+}
+
+/**
+ * Valida los archivos que adjuntó la coordinación al matricular directamente: si no se piden documentos no debe
+ * llegar ninguno (422 DOCUMENTOS_NO_CORRESPONDEN); si se piden, cubren los obligatorios y solo nombran documentos del
+ * proceso (los opcionales pueden faltar).
+ */
+export function verificarDocumentosDirectos(exigidos: DocumentoDelProceso[], enviados: string[]) {
+  if (!exigidos.length) {
+    if (enviados.length) throw E.documentosNoCorresponden();
+    return;
+  }
+  const ids = new Set(exigidos.map((d) => d.id));
+  if (enviados.some((id) => !ids.has(id))) throw E.documentoNoRequerido();
+  const conArchivo = new Set(enviados);
+  const faltan = exigidos.filter((d) => d.obligatorio && !conArchivo.has(d.id)).map((d) => d.nombre);
+  if (faltan.length) throw E.documentosPresencialesFaltantes(faltan);
 }
 
 /** Para asignar la sección, todos los obligatorios deben estar aprobados (los nombra si faltan). */

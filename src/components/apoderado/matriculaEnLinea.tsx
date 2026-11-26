@@ -36,6 +36,9 @@ export interface Solicitud {
   gradoId: string;
   estado: EstadoSolicitud;
   nombreEstado: string;
+  /** EN_LINEA: la envió el apoderado; PRESENCIAL: documentos recibidos en secretaría al matricular. */
+  origen: "EN_LINEA" | "PRESENCIAL";
+  nombreOrigen: string;
   enviadaEn: string;
   documentos: DocumentoDeSolicitud[];
 }
@@ -69,8 +72,8 @@ export interface MatriculaEnLinea {
 }
 
 const TAMANO_MAXIMO = 5 * 1024 * 1024;
-const MENSAJE_ARCHIVO = "Cada documento debe ser un PDF o una imagen JPG de hasta 5 MB.";
-const archivoValido = (a: File) => a.size <= TAMANO_MAXIMO && /\.(pdf|jpe?g)$/i.test(a.name);
+export const MENSAJE_DOCUMENTO_MATRICULA = "Cada documento debe ser un PDF o una imagen JPG de hasta 5 MB.";
+export const documentoMatriculaValido = (a: File) => a.size <= TAMANO_MAXIMO && /\.(pdf|jpe?g)$/i.test(a.name);
 
 const TONO_SOLICITUD: Record<EstadoSolicitud, "celeste" | "ambar" | "verde" | "gris"> = {
   EN_REVISION: "celeste",
@@ -149,7 +152,7 @@ function FormularioMatricula({
   const [error, setError] = useState<string | null>(null);
 
   const faltan = proceso.documentos.filter((d) => d.obligatorio && !archivos[d.documentoRequeridoId]);
-  const invalidos = Object.values(archivos).filter((a): a is File => Boolean(a) && !archivoValido(a!));
+  const invalidos = Object.values(archivos).filter((a): a is File => Boolean(a) && !documentoMatriculaValido(a!));
   const listo = confirma && gradoId && responsable && !faltan.length && !invalidos.length;
 
   async function enviar(e: FormEvent) {
@@ -234,8 +237,8 @@ function FormularioMatricula({
                   }
                   className="text-[14px] text-texto-2"
                 />
-                {archivo && !archivoValido(archivo) && (
-                  <span className="text-[13px] text-rojo-oscuro">{MENSAJE_ARCHIVO}</span>
+                {archivo && !documentoMatriculaValido(archivo) && (
+                  <span className="text-[13px] text-rojo-oscuro">{MENSAJE_DOCUMENTO_MATRICULA}</span>
                 )}
               </li>
             );
@@ -284,8 +287,8 @@ function BotonReemplazar({
 
   async function subir(archivo: File | null) {
     if (!archivo) return;
-    if (!archivoValido(archivo)) {
-      setError(MENSAJE_ARCHIVO);
+    if (!documentoMatriculaValido(archivo)) {
+      setError(MENSAJE_DOCUMENTO_MATRICULA);
       return;
     }
     setEnviando(true);
@@ -436,7 +439,9 @@ export function TarjetaHijo({
               : s.estado === "APROBADA"
                 ? "Los documentos fueron aprobados. La coordinación asignará la sección."
                 : s.estado === "MATRICULADA"
-                  ? "La matrícula está confirmada. Ya puedes ver su cronograma en «Pagos»."
+                  ? s.origen === "PRESENCIAL"
+                    ? "Se matriculó en la secretaría del colegio con estos documentos. Ya puedes ver su cronograma en «Pagos»."
+                    : "La matrícula está confirmada. Ya puedes ver su cronograma en «Pagos»."
                   : `Enviada el ${fechaDia(hoyEnLima(new Date(s.enviadaEn)))}. La coordinación está revisando los documentos.`}
           </p>
           <DocumentosDeSolicitud

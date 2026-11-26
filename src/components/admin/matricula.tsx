@@ -5,8 +5,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import {
+  documentoMatriculaValido,
+  MENSAJE_DOCUMENTO_MATRICULA,
+  rutaArchivoDocumento,
+  type DocumentoDeSolicitud,
+} from "@/components/apoderado/matriculaEnLinea";
 import { Alerta, Badge, Boton, Campo, Icono, Modal, Spinner } from "@/components/ui";
-import { api } from "@/lib/api";
+import { abrirEnPestana, api } from "@/lib/api";
 import { fechaDia, soles } from "@/lib/formato";
 import type { TipoCuota } from "@/lib/ordenCuotas";
 import { Avatar } from "./apoderados";
@@ -67,7 +73,17 @@ export interface SituacionEstudiante {
   montos: { montoMatricula: string | null; montoPension: string | null; montoIngreso: string | null };
   /** Sin matrículas anteriores en el colegio: se le cobra la cuota de ingreso (bloque M4). */
   esAlumnoNuevo: boolean;
+  /** Tiene solicitud en línea: sus documentos se revisan en «Solicitudes de matrícula». */
+  tieneSolicitudEnLinea: boolean;
+  /** Documentos del proceso del año que se adjuntan al matricular (alumno nuevo sin solicitud en línea). */
+  documentosRequeridos: DocumentoRequerido[];
   cronogramaPrevisto: CronogramaPrevisto | null;
+}
+
+export interface DocumentoRequerido {
+  documentoRequeridoId: string;
+  nombre: string;
+  obligatorio: boolean;
 }
 
 export interface MontosAnio {
@@ -119,6 +135,13 @@ export interface DetalleMatricula {
     fechaFin: string | null;
     motivo: string | null;
   }[];
+  /** Documentos de la matrícula y su origen (null si no los tiene: alumno antiguo o año sin proceso). */
+  documentos: {
+    solicitudId: string;
+    origen: "EN_LINEA" | "PRESENCIAL";
+    nombreOrigen: string;
+    items: DocumentoDeSolicitud[];
+  } | null;
   pagos: number;
   puedeAnular: boolean;
   puedeTrasladar: boolean;
@@ -529,6 +552,7 @@ export function ModalDetalle({
               <p className="text-[14px] text-texto-2">Aún no tiene cronograma: se genera al confirmar la matrícula.</p>
             )}
           </div>
+          {detalle.documentos && <DocumentosDeMatricula documentos={detalle.documentos} />}
           {extra?.(detalle)}
         </>
       )}
@@ -693,6 +717,129 @@ export function FiltrosMatriculas({
           </option>
         ))}
       </Selector>
+    </div>
+  );
+}
+
+// ---------- Documentos de la matrícula ----------
+
+/** Archivos que faltan o no son válidos entre los adjuntos de la nueva matrícula (los obligatorios bloquean). */
+export function revisarAdjuntos(documentos: DocumentoRequerido[], adjuntos: Record<string, File | null>) {
+  return {
+    faltan: documentos.filter((d) => d.obligatorio && !adjuntos[d.documentoRequeridoId]),
+    invalidos: documentos.filter((d) => {
+      const archivo = adjuntos[d.documentoRequeridoId];
+      return archivo ? !documentoMatriculaValido(archivo) : false;
+    }),
+  };
+}
+
+/**
+ * «Nueva matrícula» de un alumno nuevo sin solicitud en línea: un campo de archivo por cada documento del proceso de
+ * matrícula del año (PDF o JPG de hasta 5 MB), en su orden. Los obligatorios bloquean «Matricular».
+ */
+export function AdjuntosMatricula({
+  documentos,
+  adjuntos,
+  onCambiar,
+  deshabilitado = false,
+}: {
+  documentos: DocumentoRequerido[];
+  adjuntos: Record<string, File | null>;
+  onCambiar: (documentoRequeridoId: string, archivo: File | null) => void;
+  deshabilitado?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[14px] font-medium text-texto-2">Documentos de matrícula</p>
+        <p className="text-[13px] text-texto-3">
+          Es un alumno nuevo: adjunta los documentos que entregó en secretaría. Quedan registrados como recibidos y
+          aprobados por ti.
+        </p>
+      </div>
+      <ul className="flex flex-col divide-y divide-borde rounded-lg border border-borde">
+        {documentos.map((d) => {
+          const archivo = adjuntos[d.documentoRequeridoId];
+          const id = `adjunto-${d.documentoRequeridoId}`;
+          return (
+            <li key={d.documentoRequeridoId} className="flex flex-col gap-1.5 px-3 py-3">
+              <label htmlFor={id} className="text-[14px] text-texto">
+                {d.nombre}{" "}
+                {d.obligatorio ? (
+                  <span className="text-rojo">*</span>
+                ) : (
+                  <span className="text-texto-3">(opcional)</span>
+                )}
+              </label>
+              <input
+                id={id}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,application/pdf,image/jpeg"
+                disabled={deshabilitado}
+                onChange={(e) => onCambiar(d.documentoRequeridoId, e.target.files?.[0] ?? null)}
+                className="text-[14px] text-texto-2"
+              />
+              {archivo && !documentoMatriculaValido(archivo) && (
+                <span className="text-[13px] text-rojo-oscuro">{MENSAJE_DOCUMENTO_MATRICULA}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[12px] text-texto-3">PDF o JPG de hasta 5 MB por documento.</p>
+    </div>
+  );
+}
+
+/** Documentos en el detalle de la matrícula, con su origen y «Abrir». */
+function DocumentosDeMatricula({ documentos }: { documentos: NonNullable<DetalleMatricula["documentos"]> }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[14px] font-semibold text-texto">Documentos de matrícula</p>
+        <Badge tono={documentos.origen === "PRESENCIAL" ? "azul" : "celeste"}>{documentos.nombreOrigen}</Badge>
+      </div>
+      {documentos.items.length ? (
+        <ul className="flex flex-col divide-y divide-borde rounded-lg border border-borde">
+          {documentos.items.map((d) => (
+            <li key={d.documentoRequeridoId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+              <span className="flex min-w-0 flex-col text-[14px]">
+                <span className="font-semibold text-texto">
+                  {d.nombre}
+                  {!d.obligatorio && <span className="font-normal text-texto-3"> (opcional)</span>}
+                </span>
+                <span className="truncate text-[13px] text-texto-3">
+                  {d.documento ? d.documento.nombreArchivo : "Sin archivo"}
+                </span>
+              </span>
+              {d.documento && (
+                <span className="flex items-center gap-3">
+                  <Badge tono={d.documento.estado === "APROBADO" ? "verde" : "ambar"} punto>
+                    {d.documento.nombreEstado}
+                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      abrirEnPestana(rutaArchivoDocumento(documentos.solicitudId, d.documento!.documentoId)).catch(
+                        (e) => setError(alertaError(e)),
+                      )
+                    }
+                    aria-label={`Abrir ${d.nombre}`}
+                    className="text-[14px] font-semibold text-kubo-azul hover:underline"
+                  >
+                    Abrir
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[14px] text-texto-2">No se registraron documentos.</p>
+      )}
+      {error && <Alerta tipo="error" titulo={error} />}
     </div>
   );
 }

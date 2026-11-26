@@ -257,7 +257,8 @@ model DocumentoRequerido {
 }
 
 /// Bloque M4: solicitud de matrícula que envía el apoderado desde su portal. Acompaña a la matrícula En proceso hasta
-/// que el coordinador revisa los documentos y asigna la sección (Matriculado).
+/// que el coordinador revisa los documentos y asigna la sección (Matriculado). La matrícula directa de un alumno nuevo
+/// en «Matrícula» crea una PRESENCIAL ya Matriculada, con los documentos recibidos en secretaría.
 model SolicitudMatricula {
   id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   matriculaId     String                   @unique @db.Uuid @map("matricula_id")
@@ -268,7 +269,9 @@ model SolicitudMatricula {
   gradoId         String                   @db.Uuid @map("grado_id")
   grado           Grado                    @relation(fields: [gradoId], references: [id], onDelete: Restrict)
   estado          EstadoSolicitudMatricula @default(EN_REVISION)
-  creadoPorId     String                   @db.Uuid @map("creado_por_id")
+  /// PRESENCIAL: la registró la coordinación al matricular en «Matrícula» con los documentos ya revisados.
+  origen          OrigenSolicitudMatricula @default(EN_LINEA)
+  creadoPorId    String                   @db.Uuid @map("creado_por_id")
   creadoPor       Usuario                  @relation("SolicitudCreadaPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
   enviadaEn       DateTime                 @default(now()) @db.Timestamptz(3) @map("enviada_en")
   createdAt       DateTime                 @default(now()) @db.Timestamptz(3) @map("created_at")

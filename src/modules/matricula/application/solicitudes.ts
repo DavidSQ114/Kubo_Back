@@ -29,6 +29,7 @@ import {
   MENSAJE_ARCHIVO_MATRICULA,
   NOMBRE_ESTADO_DOCUMENTO,
   NOMBRE_ESTADO_SOLICITUD,
+  NOMBRE_ORIGEN_SOLICITUD,
   verificarDocumentosEnviados,
   verificarPuedeMatricular,
   verificarReemplazable,
@@ -112,6 +113,8 @@ export async function vistaSolicitud(s: SolicitudFila) {
     gradoId: s.gradoId,
     estado: s.estado,
     nombreEstado: NOMBRE_ESTADO_SOLICITUD[s.estado],
+    origen: s.origen,
+    nombreOrigen: NOMBRE_ORIGEN_SOLICITUD[s.origen],
     enviadaEn: s.enviadaEn.toISOString(),
     documentos: await documentosDeSolicitud(s),
   };
@@ -199,7 +202,7 @@ async function verificarHijo(auth: Autenticado, estudianteId: string) {
 }
 
 /** Guarda los archivos validados; si algo falla después, se borran. */
-async function guardarArchivos(
+export async function guardarArchivos(
   lista: { documentoRequeridoId: string; archivo: ArchivoValidado }[],
   requestId: string,
 ): Promise<(ArchivoGuardado & { documentoRequeridoId: string })[]> {
