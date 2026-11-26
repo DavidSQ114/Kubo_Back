@@ -10,6 +10,7 @@ import type { AnioAcademico } from "@/components/admin/anio";
 import { BotonFicha, HistorialSecciones, ModalRetiro, ModalTraslado } from "@/components/admin/cambiosMatricula";
 import { Selector, separarErrores, type Grado, type Seccion } from "@/components/admin/grados";
 import {
+  AdjuntosMatricula,
   BadgeEstado,
   BarraMontos,
   etiquetaSeccion,
@@ -19,6 +20,7 @@ import {
   ModalAnular,
   ModalDetalle,
   ModalMontos,
+  revisarAdjuntos,
   soles,
   TablaCronograma,
   TarjetaSeccion,
@@ -62,6 +64,8 @@ function PaginaMatricula() {
   const [seccionId, setSeccionId] = useState<string | null>(null);
   const [vinculoElegido, setVinculoElegido] = useState<string | null>(null);
   const [modalidad, setModalidad] = useState<ModalidadPago>("MENSUAL");
+  // documentos del proceso del año que se adjuntan a la matrícula directa de un alumno nuevo
+  const [adjuntos, setAdjuntos] = useState<Record<string, File | null>>({});
   const [general, setGeneral] = useState<{ titulo: string; detalle?: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [confirmada, setConfirmada] = useState<DetalleMatricula | null>(null);
@@ -166,6 +170,9 @@ function PaginaMatricula() {
   const vinculoId = vinculoElegido ?? sit?.matricula?.vinculoResponsableId ?? principal?.vinculoId ?? "";
   const sinMontos = datosAnio ? !datosAnio.montos.configurados : false;
   const seccionActual = datosAnio?.secciones.find((s) => s.id === sit?.matricula?.seccionId);
+  const documentos = sit?.documentosRequeridos ?? [];
+  const { faltan, invalidos } = revisarAdjuntos(documentos, adjuntos);
+  const adjuntosPendientes = faltan.length > 0 || invalidos.length > 0;
 
   function elegirEstudiante(id: string | null) {
     setEstudianteId(id);
@@ -174,6 +181,7 @@ function PaginaMatricula() {
     setSeccionId(null);
     setVinculoElegido(null);
     setModalidad("MENSUAL");
+    setAdjuntos({});
     setGeneral(null);
     setConfirmada(null);
   }
@@ -185,18 +193,28 @@ function PaginaMatricula() {
       setGeneral({ titulo: MENSAJE_INCOMPLETA });
       return;
     }
+    if (adjuntosPendientes) return;
     setEnviando(true);
+    const campos = {
+      estudianteId: sit.estudiante.estudianteId,
+      anioAcademicoId: anio.id,
+      seccionId: seccion.id,
+      vinculoResponsableId: vinculoId,
+      modalidadPago: modalidad,
+    };
+    // alumno nuevo con documentos del proceso: multipart con un archivo por documento en «documento:<id>»
+    let cuerpo: FormData | typeof campos = campos;
+    if (documentos.length) {
+      const form = new FormData();
+      for (const [clave, valor] of Object.entries(campos)) form.set(clave, valor);
+      for (const d of documentos) {
+        const archivo = adjuntos[d.documentoRequeridoId];
+        if (archivo) form.set(`documento:${d.documentoRequeridoId}`, archivo);
+      }
+      cuerpo = form;
+    }
     try {
-      const d = await api<DetalleMatricula>("/matricula/matriculas", {
-        method: "POST",
-        body: {
-          estudianteId: sit.estudiante.estudianteId,
-          anioAcademicoId: anio.id,
-          seccionId: seccion.id,
-          vinculoResponsableId: vinculoId,
-          modalidadPago: modalidad,
-        },
-      });
+      const d = await api<DetalleMatricula>("/matricula/matriculas", { method: "POST", body: cuerpo });
       setConfirmada(d);
       setRecarga((r) => r + 1);
     } catch (err) {
@@ -452,6 +470,17 @@ function PaginaMatricula() {
                       </p>
                     </div>
                   </div>
+                  {documentos.length > 0 && (
+                    <AdjuntosMatricula
+                      documentos={documentos}
+                      adjuntos={adjuntos}
+                      deshabilitado={enviando}
+                      onCambiar={(id, archivo) => {
+                        setAdjuntos((a) => ({ ...a, [id]: archivo }));
+                        setGeneral(null);
+                      }}
+                    />
+                  )}
                   {seccion?.vacantes.completo && !general && (
                     <Alerta
                       tipo="error"
@@ -491,7 +520,7 @@ function PaginaMatricula() {
                     <Boton
                       onClick={matricular}
                       cargando={enviando}
-                      disabled={yaMatriculado || sinMontos || !anioAbierto}
+                      disabled={yaMatriculado || sinMontos || !anioAbierto || adjuntosPendientes}
                       icono="check-blanco"
                     >
                       Matricular
@@ -499,6 +528,13 @@ function PaginaMatricula() {
                   </>
                 )}
               </div>
+              {!confirmada && !yaMatriculado && adjuntosPendientes && (
+                <p className="-mt-2 text-right text-[13px] text-texto-3">
+                  {faltan.length
+                    ? `Falta adjuntar: ${faltan.map((d) => d.nombre).join(", ")}.`
+                    : "Reemplaza los archivos marcados: cada documento debe ser un PDF o una imagen JPG de hasta 5 MB."}
+                </p>
+              )}
             </>
           )}
         </Tarjeta>
