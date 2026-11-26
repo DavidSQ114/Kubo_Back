@@ -47,6 +47,7 @@ import {
   NOMBRE_ORIGEN_PAGO,
   verificarDescartable,
   verificarDevolucionPosible,
+  verificarMotivoDevolucion,
   type OrigenPago,
 } from "../domain/pasarela";
 import { cuotas as cuotasMatricula, historial, matriculas } from "../infrastructure/repositorio";
@@ -710,7 +711,8 @@ export async function anularPago(
     await operaciones.bloquear(tx, operacionId);
     const op = await operaciones.porId(operacionId, tx);
     if (!op) throw E.pagoNoEncontrado();
-    verificarPagoAnulable(op.estado);
+    // un pago en línea ya cobrado no se anula: se devuelve el dinero y se registra la devolución (bloque M5)
+    verificarPagoAnulable(op.estado, op.origen);
     let revertidas = 0;
     if (op.estado === "CONFIRMADO") {
       const ids = op.cuotas.map((c) => c.id);
@@ -748,12 +750,38 @@ export async function anularPago(
   return { operacion: await detalleOperacion(operacionId) };
 }
 
-// ---------- Registrar devolución de un pago en línea Observado (US71) ----------
+// ---------- Registrar devolución de un pago en línea (US71) ----------
+
+/** Avisa al apoderado responsable que se registró la devolución del pago en línea (dentro de la transacción). */
+async function notificarDevolucion(
+  tx: Tx,
+  usuarioId: string | null,
+  datos: { operacionId: string; estudiante: string; conceptos: string[]; monto: string; cuotasPendientes: boolean },
+) {
+  if (!usuarioId) return;
+  await registrarAvisos(tx, {
+    notificaciones: [
+      {
+        usuarioId,
+        tipo: "PAGO",
+        titulo: "Devolución de un pago en línea",
+        mensaje:
+          `${datos.estudiante} · ${datos.conceptos.join(", ")} · S/ ${datos.monto} devueltos` +
+          (datos.cuotasPendientes ? " · las cuotas vuelven a estar pendientes" : ""),
+        enlace: "/apoderado/pagos",
+      },
+    ],
+    correos: [],
+    origen: { entidad: ENTIDAD, id: datos.operacionId },
+  });
+}
 
 /**
- * Tesorería ya devolvió el dinero de un pago en línea Observado (por ejemplo, la cuota estaba pagada por otro medio):
- * la operación pasa a Anulado con el motivo «Devuelto». Sus cuotas no cambian (nunca se marcaron como pagadas). La
- * devolución en sí se hace en el panel de la pasarela. Queda REGISTRAR_DEVOLUCION en la auditoría.
+ * Tesorería ya devolvió el dinero de un pago en línea desde el panel de la pasarela; aquí se registra (US71): la
+ * operación pasa a Anulado con el motivo «Devuelto» y el motivo escrito. Si estaba Observado, sus cuotas no cambian
+ * (nunca se marcaron como pagadas). Si estaba Confirmado (bloque M5: es la única forma de revertir un pago ya cobrado,
+ * que no se anula), sus cuotas vuelven a Pendiente; las moras ya generadas no se tocan. Queda REGISTRAR_DEVOLUCION en
+ * la auditoría y el apoderado responsable recibe un aviso, todo en la misma transacción.
  */
 export async function registrarDevolucion(
   admin: Autenticado,
@@ -761,12 +789,23 @@ export async function registrarDevolucion(
   datos: { detalle?: string | null },
   meta: MetaSolicitud,
 ) {
+  // el destinatario del aviso se consulta antes de bloquear (lectura de otros módulos)
+  const previa = await operaciones.porId(operacionId);
+  if (!previa) throw E.pagoNoEncontrado();
+  const ctx = await contextoRecibo(previa).catch(() => null);
+  const destinatario = await usuarioDelResponsable(ctx, meta.requestId);
   await prisma.$transaction(async (tx) => {
     await operaciones.bloquear(tx, operacionId);
     const op = await operaciones.porId(operacionId, tx);
     if (!op) throw E.pagoNoEncontrado();
     verificarDevolucionPosible(op);
-    const observacion = datos.detalle?.trim() || null;
+    const observacion = verificarMotivoDevolucion(datos.detalle);
+    let revertidas = 0;
+    if (op.estado === "CONFIRMADO") {
+      const ids = op.cuotas.map((c) => c.id);
+      await cuotasDePago.bloqueadas(tx, ids);
+      revertidas = await cuotasDePago.marcar(tx, ids, "PAGADO", "PENDIENTE");
+    }
     await operaciones.anular(tx, operacionId, {
       anuladoPorId: admin.usuarioId,
       anuladoEn: new Date(),
@@ -780,7 +819,7 @@ export async function registrarDevolucion(
         entidad: ENTIDAD,
         entidadId: operacionId,
         accion: "REGISTRAR_DEVOLUCION",
-        anterior: { estado: "OBSERVADO", motivoObservacion: op.motivoObservacion },
+        anterior: { estado: op.estado, motivoObservacion: op.motivoObservacion },
         nuevo: {
           estado: "ANULADO",
           motivo: "DEVUELTO",
@@ -789,12 +828,20 @@ export async function registrarDevolucion(
           conceptos: resumenCuotas(op.cuotas),
           numeroOperacion: op.numeroOperacion,
           referenciaExterna: op.referenciaExterna,
-          cuotasRevertidas: 0,
+          comprobante: op.comprobante?.numero ?? null,
+          cuotasRevertidas: revertidas,
         },
-        motivo: observacion ? `${MOTIVO_DEVOLUCION}: ${observacion}` : MOTIVO_DEVOLUCION,
+        motivo: `${MOTIVO_DEVOLUCION}: ${observacion}`,
       },
       meta,
     );
+    await notificarDevolucion(tx, destinatario, {
+      operacionId,
+      estudiante: ctx?.estudiante.nombres.split(" ")[0] ?? "Tu hijo",
+      conceptos: resumenCuotas(op.cuotas),
+      monto: op.monto,
+      cuotasPendientes: revertidas > 0,
+    });
   });
   return { operacion: await detalleOperacion(operacionId) };
 }

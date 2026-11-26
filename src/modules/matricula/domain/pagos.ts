@@ -1,6 +1,7 @@
 // matricula/domain: reglas puras de los pagos manuales (US22), la validación de duplicados (US23), la anulación
 // auditada (US04) y el correlativo del comprobante (US25). Montos en céntimos enteros; fechas «AAAA-MM-DD».
 import type { TipoConcepto } from "./cronograma";
+import type { OrigenPago } from "./pasarela";
 import { erroresMatricula as E } from "./errores";
 
 /** Medios que tesorería registra a mano (US22). PASARELA solo lo asigna el pago en línea (US70). */
@@ -164,9 +165,14 @@ export function verificarObservado(estado: EstadoPago) {
   if (estado !== "OBSERVADO") throw E.pagoNoObservado(NOMBRE_ESTADO_PAGO[estado]);
 }
 
-/** Se anula una operación Confirmado u Observado; una Anulado no se anula otra vez. */
-export function verificarPagoAnulable(estado: EstadoPago) {
+/**
+ * Se anula una operación Confirmado u Observado; una Anulado no se anula otra vez. Un pago en línea ya cobrado
+ * (PASARELA y CONFIRMADO) tampoco: sus cuotas volverían a Pendiente con el dinero todavía en Mercado Pago, y el portal
+ * las cobraría de nuevo. Ese pago se revierte devolviendo el dinero y registrando la devolución (US71, bloque M5).
+ */
+export function verificarPagoAnulable(estado: EstadoPago, origen: OrigenPago) {
   if (estado === "ANULADO") throw E.pagoYaAnulado();
+  if (origen === "PASARELA" && estado === "CONFIRMADO") throw E.pagoEnLineaNoAnulable();
 }
 
 /** US04: con «Otro» el detalle pasa a ser obligatorio (M-02). */

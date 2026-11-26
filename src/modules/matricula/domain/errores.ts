@@ -159,6 +159,14 @@ export const erroresMatricula = {
       409,
     ),
   pagoYaAnulado: () => new ErrorApp("PAGO_YA_ANULADO", "La operación de pago ya está anulada.", 409),
+  /** Bloque M5: anularlo dejaría sus cuotas Pendiente y el portal volvería a cobrarlas (cobro duplicado). */
+  pagoEnLineaNoAnulable: () =>
+    new ErrorApp(
+      "PAGO_EN_LINEA_NO_ANULABLE",
+      "Este pago se cobró en Mercado Pago y no se puede anular. Si hay que revertirlo, devuelve el dinero desde el " +
+        "panel de Mercado Pago y luego registra la devolución.",
+      422,
+    ),
   motivoAnulacionPagoRequerido: () =>
     new ErrorApp("MOTIVO_ANULACION_REQUERIDO", "Selecciona el motivo de la anulación.", 422),
   detalleAnulacionRequerido: () =>
@@ -201,9 +209,11 @@ export const erroresMatricula = {
   devolucionNoPermitida: () =>
     new ErrorApp(
       "DEVOLUCION_NO_PERMITIDA",
-      "Solo se registra la devolución de un pago en línea en estado «Observado».",
+      "Solo se registra la devolución de un pago en línea en estado «Observado» o «Confirmado».",
       409,
     ),
+  motivoDevolucionRequerido: () =>
+    new ErrorApp("MOTIVO_DEVOLUCION_REQUERIDO", "Escribe el motivo de la devolución.", 422),
   usarDevolucion: () =>
     new ErrorApp(
       "USAR_DEVOLUCION",

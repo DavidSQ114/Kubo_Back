@@ -109,9 +109,25 @@ describe("anulación de pagos (US04)", () => {
     expect(() => verificarMotivoAnulacionPago("OTRO", "  ")).toThrowError(codigo("DETALLE_ANULACION_REQUERIDO"));
   });
   it("una operación Anulado no se anula otra vez", () => {
-    expect(() => verificarPagoAnulable("CONFIRMADO")).not.toThrow();
-    expect(() => verificarPagoAnulable("OBSERVADO")).not.toThrow();
-    expect(() => verificarPagoAnulable("ANULADO")).toThrowError(codigo("PAGO_YA_ANULADO"));
+    expect(() => verificarPagoAnulable("CONFIRMADO", "TESORERIA")).not.toThrow();
+    expect(() => verificarPagoAnulable("OBSERVADO", "TESORERIA")).not.toThrow();
+    expect(() => verificarPagoAnulable("ANULADO", "TESORERIA")).toThrowError(codigo("PAGO_YA_ANULADO"));
+    expect(() => verificarPagoAnulable("ANULADO", "PASARELA")).toThrowError(codigo("PAGO_YA_ANULADO"));
+  });
+
+  it("un pago en línea ya cobrado (Confirmado) no se anula: se registra su devolución (bloque M5)", () => {
+    expect(() => verificarPagoAnulable("CONFIRMADO", "PASARELA")).toThrowError(codigo("PAGO_EN_LINEA_NO_ANULABLE"));
+    try {
+      verificarPagoAnulable("CONFIRMADO", "PASARELA");
+    } catch (e) {
+      expect((e as { estadoHttp: number }).estadoHttp).toBe(422);
+      expect((e as Error).message).toBe(
+        "Este pago se cobró en Mercado Pago y no se puede anular. Si hay que revertirlo, devuelve el dinero desde el " +
+          "panel de Mercado Pago y luego registra la devolución.",
+      );
+    }
+    // un pago en línea Observado no cobró las cuotas: la regla de anulación no lo bloquea
+    expect(() => verificarPagoAnulable("OBSERVADO", "PASARELA")).not.toThrow();
   });
 });
 

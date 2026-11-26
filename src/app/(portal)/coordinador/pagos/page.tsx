@@ -440,7 +440,9 @@ function PaginaPagos() {
           onDevuelto={() => {
             setExito({
               titulo: "Devolución registrada",
-              detalle: `El pago en línea ${devolviendo.numeroOperacion} quedó «Anulado» con el motivo «Devuelto». Las cuotas no cambian.`,
+              detalle: `El pago en línea ${devolviendo.numeroOperacion} quedó «Anulado» con el motivo «Devuelto». ${
+                devolviendo.estado === "CONFIRMADO" ? "Sus cuotas volvieron a «Pendiente»." : "Las cuotas no cambian."
+              }`,
               recibo: null,
             });
             setAviso(null);

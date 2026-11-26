@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/platform/db/prisma";
 import {
+  anularPago,
   conciliarIntentosPendientes,
   confirmarMatricula,
   consultarIntento,
@@ -281,6 +282,69 @@ describe.skipIf(!ACTIVA)("aviso de la pasarela y conciliación (US70, US71)", ()
     expect(await procesarOrdenPasarela(ordenId, meta)).toBe("OBSERVADO");
     expect(await operacionesDe(ordenId)).toHaveLength(0);
     expect((await consultarIntento(apoderado, intentoId, meta)).estado).toBe("OBSERVADO");
+  });
+
+  it("un pago en línea confirmado no se anula; con la devolución sus cuotas vuelven a Pendiente (bloque M5)", async () => {
+    const cuota = cuotas[8];
+    const { ordenId } = await intentoPara(cuota);
+    simularPagoFalso(ordenId, "APROBADO");
+    expect(await procesarOrdenPasarela(ordenId, meta)).toBe("REGISTRADO");
+    const [op] = await operacionesDe(ordenId);
+    expect(op.estado).toBe("CONFIRMADO");
+    expect((await prisma.conceptoCobro.findUniqueOrThrow({ where: { id: cuota.id } })).estado).toBe("PAGADO");
+
+    // anularlo dejaría la cuota Pendiente con el dinero aún en Mercado Pago: el portal la cobraría otra vez
+    await expect(anularPago(admin, op.id, { motivo: "PAGO_DUPLICADO" }, meta)).rejects.toMatchObject({
+      codigo: "PAGO_EN_LINEA_NO_ANULABLE",
+      estadoHttp: 422,
+    });
+    expect((await prisma.operacionPago.findUniqueOrThrow({ where: { id: op.id } })).estado).toBe("CONFIRMADO");
+
+    // una mora ligada a la pensión (generada aparte) no la toca la devolución
+    const pension = await prisma.conceptoCobro.findUniqueOrThrow({ where: { id: cuota.id } });
+    const mora = await prisma.conceptoCobro.create({
+      data: {
+        matriculaId: pension.matriculaId,
+        tipo: "MORA",
+        mes: pension.mes,
+        concepto: "Mora de prueba",
+        monto: "20.00",
+        fechaVencimiento: pension.fechaVencimiento,
+        cuotaOrigenId: pension.id,
+      },
+    });
+
+    // sin motivo no se registra
+    await expect(registrarDevolucion(admin, op.id, { detalle: "  " }, meta)).rejects.toMatchObject({
+      codigo: "MOTIVO_DEVOLUCION_REQUERIDO",
+    });
+    const avisosAntes = await prisma.notificacion.count({ where: { usuarioId: usuarioApoderadoId } });
+
+    const r = await registrarDevolucion(admin, op.id, { detalle: "Devuelto desde el panel de Mercado Pago" }, meta);
+    expect(r.operacion).toMatchObject({ estado: "ANULADO", anulacion: { motivo: "DEVUELTO" } });
+    expect((await prisma.conceptoCobro.findUniqueOrThrow({ where: { id: cuota.id } })).estado).toBe("PENDIENTE");
+    const moraDespues = await prisma.conceptoCobro.findUniqueOrThrow({ where: { id: mora.id } });
+    expect({ estado: moraDespues.estado, monto: moraDespues.monto.toFixed(2) }).toEqual({
+      estado: "PENDIENTE",
+      monto: "20.00",
+    });
+    const evento = await prisma.registroAuditoria.findFirstOrThrow({
+      where: { entidadId: op.id, accion: "REGISTRAR_DEVOLUCION" },
+    });
+    expect(evento.motivo).toBe("Devuelto: Devuelto desde el panel de Mercado Pago");
+    expect(evento.valorAnterior).toMatchObject({ estado: "CONFIRMADO" });
+    expect(evento.valorNuevo).toMatchObject({ estado: "ANULADO", motivo: "DEVUELTO", cuotasRevertidas: 1 });
+    const aviso = await prisma.notificacion.findFirstOrThrow({
+      where: { usuarioId: usuarioApoderadoId, titulo: "Devolución de un pago en línea" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(aviso.mensaje).toContain("las cuotas vuelven a estar pendientes");
+    expect(await prisma.notificacion.count({ where: { usuarioId: usuarioApoderadoId } })).toBe(avisosAntes + 1);
+    // ya devuelto, no se devuelve ni se anula otra vez
+    await expect(registrarDevolucion(admin, op.id, { detalle: "Otra vez" }, meta)).rejects.toMatchObject({
+      codigo: "DEVOLUCION_NO_PERMITIDA",
+    });
+    await prisma.conceptoCobro.delete({ where: { id: mora.id } });
   });
 
   it("un apoderado no consulta el intento de otro", async () => {

@@ -306,6 +306,28 @@ Content-Type: application/json
 
 { "detalle": "Devolución ficticia en el panel de prueba" }
 
+### 54b. Devolución sin motivo → 422 MOTIVO_DEVOLUCION_REQUERIDO
+POST {{base}}/matricula/pagos/{{operacionPasarela}}/devolver
+Content-Type: application/json
+
+{}
+
+# Bloque M5 · pago en línea ya cobrado (origen PASARELA, estado CONFIRMADO). Copia su id del estado de cuenta.
+@operacionPasarelaConfirmada = 00000000-0000-0000-0000-000000000000
+
+### 54c. Anular un pago en línea confirmado → 422 PAGO_EN_LINEA_NO_ANULABLE (no se anula: se devuelve el dinero)
+POST {{base}}/matricula/pagos/{{operacionPasarelaConfirmada}}/anular
+Content-Type: application/json
+
+{ "motivo": "PAGO_DUPLICADO" }
+
+### 54d. Registrar su devolución (ya devuelto en el panel de Mercado Pago) → Anulado, «Devuelto»; sus cuotas vuelven
+### a Pendiente y el apoderado recibe un aviso
+POST {{base}}/matricula/pagos/{{operacionPasarelaConfirmada}}/devolver
+Content-Type: application/json
+
+{ "detalle": "Pago duplicado; devolución N.° 123456 en el panel de prueba" }
+
 ### 55. Descartar un pago en línea Observado → 409 USAR_DEVOLUCION
 POST {{base}}/matricula/pagos/{{operacionPasarela}}/descartar
 Content-Type: application/json

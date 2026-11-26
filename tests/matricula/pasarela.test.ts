@@ -14,6 +14,7 @@ import {
   puedeActualizarIntento,
   verificarDescartable,
   verificarDevolucionPosible,
+  verificarMotivoDevolucion,
   type CobroConsultado,
 } from "@/modules/matricula/domain/pasarela";
 import type { CuotaParaPago } from "@/modules/matricula/domain/pagos";
@@ -156,15 +157,31 @@ describe("pago aprobado con una cuota que ya no está pendiente (US70)", () => {
   });
 });
 
-describe("devolución de un pago en línea Observado (US71)", () => {
-  it("solo un pago en línea Observado admite la devolución", () => {
+describe("devolución de un pago en línea (US71)", () => {
+  it("un pago en línea Observado o Confirmado admite la devolución; uno de tesorería o anulado, no", () => {
     expect(() => verificarDevolucionPosible({ origen: "PASARELA", estado: "OBSERVADO" })).not.toThrow();
-    expect(() => verificarDevolucionPosible({ origen: "TESORERIA", estado: "OBSERVADO" })).toThrow(
-      expect.objectContaining({ codigo: "DEVOLUCION_NO_PERMITIDA" }),
+    // bloque M5: el pago ya cobrado se revierte con la devolución (no se anula)
+    expect(() => verificarDevolucionPosible({ origen: "PASARELA", estado: "CONFIRMADO" })).not.toThrow();
+    for (const op of [
+      { origen: "TESORERIA", estado: "OBSERVADO" },
+      { origen: "TESORERIA", estado: "CONFIRMADO" },
+      { origen: "PASARELA", estado: "ANULADO" },
+    ] as const) {
+      expect(() => verificarDevolucionPosible(op)).toThrow(
+        expect.objectContaining({ codigo: "DEVOLUCION_NO_PERMITIDA" }),
+      );
+    }
+  });
+
+  it("la devolución exige su motivo (bloque M5)", () => {
+    expect(verificarMotivoDevolucion("  Se devolvió desde el panel de Mercado Pago  ")).toBe(
+      "Se devolvió desde el panel de Mercado Pago",
     );
-    expect(() => verificarDevolucionPosible({ origen: "PASARELA", estado: "CONFIRMADO" })).toThrow(
-      expect.objectContaining({ codigo: "DEVOLUCION_NO_PERMITIDA" }),
-    );
+    for (const vacio of [null, undefined, "", "   "]) {
+      expect(() => verificarMotivoDevolucion(vacio)).toThrow(
+        expect.objectContaining({ codigo: "MOTIVO_DEVOLUCION_REQUERIDO", estadoHttp: 422 }),
+      );
+    }
   });
 
   it("un pago en línea Observado no se descarta como duplicado", () => {
