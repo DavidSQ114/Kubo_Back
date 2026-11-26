@@ -1,13 +1,8 @@
 // Pruebas de los reportes del coordinador académico (bloque M2): distribución de AD, A, B y C con porcentajes,
 // agrupación por curso y competencia con el detalle por alumno, y CSV seguro para hojas de cálculo. Ejecutar: npm test
 import { describe, expect, it } from "vitest";
-import {
-  armarReporte,
-  campoCsv,
-  csvDelReporte,
-  distribucion,
-  nombreArchivoReporte,
-} from "@/modules/evaluacion/domain/reportes";
+import { campoCsv } from "@/platform/http/csv";
+import { armarReporte, csvDelReporte, distribucion, nombreArchivoReporte } from "@/modules/evaluacion/domain/reportes";
 
 describe("distribución de logros por competencia (bloque M2)", () => {
   it("cuenta cada logro y su porcentaje con un decimal; los null no cuentan", () => {
@@ -70,13 +65,14 @@ describe("reporte de logro de competencias (bloque M2)", () => {
     ]);
   });
 
-  it("el CSV lleva BOM, una fila por alumno y competencia y el logro del curso", () => {
+  it("el CSV lleva BOM, separador «;», una fila por alumno y competencia y el logro del curso", () => {
     const texto = csvDelReporte({ anio: 2026, bimestre: "Bimestre I" }, reporte);
-    expect(texto.startsWith("\uFEFFAño,Bimestre,Curso")).toBe(true);
+    expect(texto.startsWith("\uFEFFAño;Bimestre;Curso")).toBe(true);
+    expect(texto.endsWith("\r\n")).toBe(true);
     const filas = texto.trim().split("\r\n");
     expect(filas).toHaveLength(1 + 2 * 3);
-    expect(filas[1]).toBe('2026,Bimestre I,Matemática,1° A,"Álvarez, Bruno",C1,Cantidad,B');
-    expect(filas[3]).toBe('2026,Bimestre I,Matemática,1° A,"Álvarez, Bruno",,Logro del curso,B');
+    expect(filas[1]).toBe('2026;Bimestre I;Matemática;1° A;"Álvarez, Bruno";C1;Cantidad;B');
+    expect(filas[3]).toBe('2026;Bimestre I;Matemática;1° A;"Álvarez, Bruno";;Logro del curso;B');
     expect(nombreArchivoReporte({ anio: 2026, bimestre: "Bimestre I" }, "csv")).toBe(
       "Reporte_logro_BimestreI_2026.csv",
     );

@@ -2,6 +2,7 @@
 // competencias» (cantidad y porcentaje de AD, A, B y C por competencia, con el detalle por alumno, y su CSV) y
 // «Notas por alumno» (estado de cada curso en la libreta completa del año). Solo cuentan los registros CERRADOS o
 // PUBLICADOS: los abiertos aún son del docente; esa selección la hace el caso de uso.
+import { textoCsv } from "@/platform/http/csv";
 import { LOGROS_NOTA, type EstadoRegistro, type LogroNota } from "./notas";
 
 /** Los porcentajes se muestran con un decimal («33,3 %»). */
@@ -128,17 +129,10 @@ export function armarReporte(datos: {
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-/** Un campo del CSV: entre comillas si lleva coma, comillas o salto de línea (RFC 4180). */
-export function campoCsv(valor: string | number | null): string {
-  const texto = valor == null ? "" : String(valor);
-  // una fórmula (=, +, -, @) al inicio se neutraliza para que la hoja de cálculo no la ejecute
-  const seguro = /^[=+\-@]/.test(texto) ? `'${texto}` : texto;
-  return /[",\n\r]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
-}
-
 /**
- * CSV del reporte: una fila por alumno y competencia, más el logro del curso. Con BOM para que la hoja de cálculo lea
- * las tildes. Ejemplo de fila: «2026,Bimestre I,Matemática,3° B,"Álvarez Prueba, Ana",C1,Resuelve problemas…,AD».
+ * CSV del reporte: una fila por alumno y competencia, más el logro del curso. Se arma con textoCsv de platform (BOM,
+ * separador «;», CRLF y fórmulas neutralizadas). Ejemplo de fila:
+ * «2026;Bimestre I;Matemática;3° B;"Álvarez Prueba, Ana";C1;Resuelve problemas…;AD».
  */
 export function csvDelReporte(contexto: { anio: number; bimestre: string }, cursos: CursoDelReporte[]): string {
   const filas: (string | number | null)[][] = [
@@ -170,7 +164,7 @@ export function csvDelReporte(contexto: { anio: number; bimestre: string }, curs
       ]);
     }
   }
-  return `\uFEFF${filas.map((f) => f.map(campoCsv).join(",")).join("\r\n")}\r\n`;
+  return textoCsv(filas);
 }
 
 /** «Reporte_logro_BimestreI_2026.csv»: sin tildes ni espacios ni datos personales. */

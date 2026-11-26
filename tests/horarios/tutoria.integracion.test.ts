@@ -606,7 +606,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
 
     const csv = await reporteDeAsistenciaCsv(tutor, seccionA, { periodoId: r.bimestre.id });
     expect(csv.nombreArchivo).toBe("Asistencia_2TA_BimestreI_2076.csv");
-    expect(csv.texto.startsWith("\uFEFFAño,Bimestre,Sección,Estudiante,Clases")).toBe(true);
+    expect(csv.texto.startsWith("\uFEFFAño;Bimestre;Sección;Estudiante;Clases")).toBe(true);
     expect(csv.texto).toContain("Total de la sección");
     const pdf = await reporteDeAsistenciaPdf(tutor, seccionA, { periodoId: r.bimestre.id });
     expect(Buffer.from(pdf.bytes).subarray(0, 4).toString()).toBe("%PDF");
@@ -740,7 +740,7 @@ describe.skipIf(!ACTIVA)("tutoría de sección: acceso, asistencia, justificaci�
 
     const csv = await consolidadoDeLaSeccionCsv(tutor, seccionA, { periodoId: bimestres[0] });
     expect(csv.nombreArchivo).toBe("Consolidado_2TA_BimestreI_2076.csv");
-    expect(csv.texto).toContain("Estudiante,Matemática,Conducta");
+    expect(csv.texto).toContain("Estudiante;Matemática;Conducta");
   });
 
   it("el tutor no ve las notas de un alumno de otra sección", async () => {

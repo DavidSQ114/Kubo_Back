@@ -140,7 +140,7 @@ src/modules/identidad/
 
 | Capa | Contiene | Puede importar | NO puede importar |
 |---|---|---|---|
-| **domain/** | Reglas puras, constantes, tipos y errores del módulo | Otros archivos de domain/ y `@/platform/http/errores` | Prisma, Next.js, `@/platform/db`, fetch, correo |
+| **domain/** | Reglas puras, constantes, tipos y errores del módulo | Otros archivos de domain/ y los utilitarios puros `@/platform/http/errores` y `@/platform/http/csv` | Prisma, Next.js, `@/platform/db`, fetch, correo |
 | **application/** | Casos de uso: orquestan reglas, transacciones, auditoría y correo | domain/, infrastructure/ del mismo módulo, `@/platform/*`, el index.ts de otros módulos | Archivos internos de otros módulos; `next/server` |
 | **infrastructure/** | Repositorios (consultas Prisma) e implementaciones de puertos | domain/, `@/platform/db`, `@/generated/prisma/*`, el index.ts de otros módulos | application/; archivos internos de otros módulos |
 | **schemas.ts** | Esquemas Zod de las entradas de la API | zod, domain/ y el index.ts de otros módulos | Prisma, application/ |
