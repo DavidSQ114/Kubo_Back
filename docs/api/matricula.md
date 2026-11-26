@@ -12,7 +12,7 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 | Método y ruta | Cuerpo / consulta | Respuesta `data` |
 |---|---|---|
 | `GET /matricula/estudiantes/{id}` | `?anioId=` | `SituacionEstudiante`: apoderados, matrícula vigente en el año y cronograma previsto |
-| `POST /matricula/matriculas` | `{ estudianteId, anioAcademicoId, seccionId, vinculoResponsableId, modalidadPago }` | `201 DetalleMatricula` (ya `MATRICULADO`, con su cronograma) |
+| `POST /matricula/matriculas` | `{ estudianteId, anioAcademicoId, seccionId, vinculoResponsableId, modalidadPago }` (JSON) o multipart con esos campos y `documento:<documentoRequeridoId>` ([alumno nuevo](#documentos-de-la-matrícula-presencial)) | `201 DetalleMatricula` (ya `MATRICULADO`, con su cronograma) |
 | `GET /matricula/matriculas` | `?anioId=&estado=&gradoId=&seccionId=&q=&pagina=1&tamano=20` | `{ items: MatriculaListada[], paginacion }` |
 | `GET /matricula/matriculas/{id}` | — | `DetalleMatricula` |
 | `POST /matricula/matriculas/{id}/anular` | `{ motivo, detalle }` | `DetalleMatricula` (ya `ANULADO`) |
@@ -41,9 +41,10 @@ Los montos del año se configuran en académico: `GET/PUT /academico/anios/{id}/
 
 ### Situación del estudiante (AD-10)
 
-`SituacionEstudiante`: `{ estudiante: { estudianteId, dni, nombreCompleto, gradoIngresoId, activo, apoderados: [{ vinculoId, apoderadoId, nombreCompleto, parentesco, esPrincipal, autorizado, telefono, email }] }, anio: { id, anio, estado }, matricula: { matriculaId, estado, seccionId, vinculoResponsableId, modalidadPago, fechaMatricula } | null, montos: { montoMatricula, montoPension }, cronogramaPrevisto: { cuotas, total, extemporanea, pensiones } | null }`.
+`SituacionEstudiante`: `{ estudiante: { estudianteId, dni, nombreCompleto, gradoIngresoId, activo, apoderados: [{ vinculoId, apoderadoId, nombreCompleto, parentesco, esPrincipal, autorizado, telefono, email }] }, anio: { id, anio, estado }, matricula: { matriculaId, estado, seccionId, vinculoResponsableId, modalidadPago, fechaMatricula } | null, montos: { montoMatricula, montoPension, montoIngreso }, esAlumnoNuevo, tieneSolicitudEnLinea, documentosRequeridos: [{ documentoRequeridoId, nombre, obligatorio }], cronogramaPrevisto: { cuotas, total, extemporanea, pensiones } | null }`.
 
 - `matricula` es la vigente del año (`EN_PROCESO` o `MATRICULADO`). `cronogramaPrevisto` es el que se generaría hoy; es `null` si el año no tiene montos.
+- `documentosRequeridos`: los documentos activos del proceso de matrícula del año, en su orden, que se adjuntan al matricular a un alumno nuevo sin solicitud en línea; vacío en cualquier otro caso (ver [documentos de la matrícula presencial](#documentos-de-la-matrícula-presencial)).
 - Los datos del estudiante y de sus apoderados los entrega comunidad (`estudianteParaMatricula`) por su `index.ts`: matricula no lee tablas de comunidad.
 
 ### Matricular en sección (US18) y generar el cronograma (US21)
@@ -443,6 +444,34 @@ Solo una mora pendiente (`422 CUOTA_NO_ES_MORA`, `409 MORA_PAGADA`, `409 MORA_YA
   siguen nombrando); sin `id`, se crea uno nuevo. Año cerrado: `422 ANIO_CERRADO`. Auditoría
   `CONFIGURAR_PROCESO_MATRICULA` con lo anterior.
 
+### Documentos de la matrícula presencial
+
+Todo alumno nuevo (sin otra matrícula que no esté anulada) debe tener en Kubo los documentos del proceso de matrícula
+del año, venga en línea o a la secretaría. Al matricularlo directamente con `POST /matricula/matriculas`:
+
+- **Cuándo se piden:** alumno nuevo, sin solicitud en línea y con proceso de matrícula configurado en el año (sus
+  documentos activos, con su nombre, orden y marca de obligatorio; las fechas del proceso no importan). Si el año no
+  tiene proceso, o el alumno es antiguo, la matrícula sigue como siempre y en JSON. Con solicitud en línea, se exigen
+  sus documentos aprobados (`422 DOCUMENTOS_PENDIENTES`).
+- **Cómo se envían:** `multipart/form-data` con `estudianteId`, `anioAcademicoId`, `seccionId`, `vinculoResponsableId`,
+  `modalidadPago` y un archivo PDF o JPG de hasta 5 MB (por su contenido real) en `documento:<documentoRequeridoId>`.
+- **Validaciones:** falta un obligatorio: `400 DOCUMENTO_FALTANTE` «Es un alumno nuevo: adjunta los documentos «…» para
+  matricularlo.» (`details.nombres`); un documento que no es del proceso: `400 DOCUMENTO_NO_REQUERIDO`; adjuntos para un
+  alumno que no los necesita: `422 DOCUMENTOS_NO_CORRESPONDEN`; archivo no permitido o grande: `400 ARCHIVO_NO_PERMITIDO`,
+  `413 ARCHIVO_DEMASIADO_GRANDE`. Los opcionales pueden faltar.
+- **Qué se registra, en la misma transacción que la matrícula:** una solicitud con `origen: "PRESENCIAL"` y estado
+  `MATRICULADA` (el CHECK `ck_solicitud_matricula_presencial_resuelta` no le permite otro estado que `ANULADA`) y sus
+  documentos en `APROBADO`, con quien matricula como revisor y la fecha. Auditoría `RECIBIR_DOCUMENTOS_MATRICULA`
+  (`entidad_afectada = "solicitud_matricula"`) con los documentos recibidos y los opcionales no entregados.
+- **Archivos:** se validan y se guardan en `platform/archivos` (área `matricula`) antes de la transacción; si esta falla
+  (por ejemplo, falta un obligatorio o la sección no tiene vacantes), se borran.
+- **Detalle:** `DetalleMatricula.documentos` es `{ solicitudId, origen, nombreOrigen («En línea» o «Recibido en
+  secretaría»), items }` (`null` si la matrícula no tiene documentos). Una solicitud resuelta muestra solo lo que se
+  registró en su momento: si la coordinación cambia después la lista del proceso, no se piden de nuevo. Cada archivo se
+  abre con `GET /matricula/solicitudes/{solicitudId}/documentos/{documentoId}/archivo`.
+- Las solicitudes presenciales no aparecen en la bandeja `GET /matricula/solicitudes`. El apoderado las ve en su
+  pantalla «Matricular» con `origen: "PRESENCIAL"`.
+
 ### Matrícula en línea · `APODERADO`
 
 | Método y ruta | Cuerpo | Respuesta `data` |
@@ -530,11 +559,12 @@ Solo una mora pendiente (`422 CUOTA_NO_ES_MORA`, `409 MORA_PAGADA`, `409 MORA_YA
 | `HIJO_YA_MATRICULADO` · `SOLICITUD_EXISTENTE` · `SOLICITUD_CERRADA` · `DOCUMENTO_NO_REEMPLAZABLE` · `DOCUMENTO_YA_REVISADO` | 409 | Estado que no permite matricular, reemplazar o revisar |
 | `DATOS_NO_CONFIRMADOS` · `GRADO_NO_VALIDO` · `DOCUMENTO_FALTANTE` · `DOCUMENTO_NO_REQUERIDO` · `OBSERVACION_REQUERIDA` | 400 | Datos de la solicitud o de la revisión |
 | `DOCUMENTOS_PENDIENTES` · `SECCION_OTRO_GRADO` | 422 | Asignar la sección sin los obligatorios aprobados o en otro grado |
+| `DOCUMENTOS_NO_CORRESPONDEN` | 422 | Matrícula directa con adjuntos de un alumno que no necesita documentos (antiguo o con solicitud en línea) |
 | `ARCHIVO_NO_PERMITIDO` · `ARCHIVO_DEMASIADO_GRANDE` | 400 · 413 | «Cada documento debe ser un PDF o una imagen JPG de hasta 5 MB.» |
 
 ## Auditoría (RF03)
 
-`CONFIRMAR_MATRICULA` (estado anterior, sección, responsable, modalidad y fecha), `GENERAR_CRONOGRAMA` (cantidad de cuotas, total, si fue extemporánea y los montos usados) `ANULAR_MATRICULA` (estado anterior, cuotas anuladas y motivo), `TRASLADAR_SECCION` (sección antes y después, fecha y motivo), `RETIRAR_ESTUDIANTE` (estado anterior, fecha, motivo y la lista de cuotas anuladas) y `GENERAR_FICHA_MATRICULA` (estado, fecha de generación y tamaño; nunca el contenido del PDF).
+`CONFIRMAR_MATRICULA` (estado anterior, sección, responsable, modalidad y fecha), `GENERAR_CRONOGRAMA` (cantidad de cuotas, total, si fue extemporánea y los montos usados) `ANULAR_MATRICULA` (estado anterior, cuotas anuladas y motivo), `TRASLADAR_SECCION` (sección antes y después, fecha y motivo), `RETIRAR_ESTUDIANTE` (estado anterior, fecha, motivo y la lista de cuotas anuladas), `GENERAR_FICHA_MATRICULA` (estado, fecha de generación y tamaño; nunca el contenido del PDF) y `RECIBIR_DOCUMENTOS_MATRICULA` (matrícula directa de un alumno nuevo: origen, documentos recibidos con su archivo y tamaño, y los opcionales no entregados).
 
 Los pagos (US04) se registran con `entidad_afectada = "operacion_pago"`:
 - `REGISTRAR_PAGO`: `administradorId`, `fechaHora`, `monto`, `conceptos`, `numeroOperacion`, `medioPago`, `fechaPago`, `estadoResultante` («PAGADO» u «OBSERVADO») y `comprobante`.

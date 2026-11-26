@@ -39,6 +39,18 @@ Capturas en `docs/figma/M-05-traslado-seccion.png` y `docs/figma/M-18-retirar-es
 - **M-18 Retirar estudiante:** fecha de retiro (por defecto hoy, entre la fecha de matrícula y el fin del año), motivo (Traslado a otro colegio, Motivos económicos, Motivos de salud, Otro motivo), detalle opcional, tabla «Efecto en el cronograma de cobros» que se recalcula al cambiar la fecha («Se anula · pensión de diciembre 2026 (vence 05/12)» y «Se conservan» con su total) y «Se liberará 1 vacante en 3° B». Sin motivo: «Seleccione el motivo del retiro».
 - **Ficha PDF:** «Generar ficha PDF» descarga `ficha-matricula-<año>-<id>.pdf`; si faltan datos, la alerta «No se puede generar la ficha: existen datos obligatorios pendientes» aparece en el detalle.
 
+## Documentos de la matrícula presencial
+
+- En «Nueva matrícula», si el estudiante es nuevo (sin otra matrícula que no esté anulada), no tiene solicitud en línea y
+  el año tiene proceso de matrícula, aparece «Documentos de matrícula» con un campo de archivo por cada documento activo
+  del proceso, con su nombre, su orden y la marca de obligatorio (la lista no está fija en el código).
+- Los obligatorios bloquean «Matricular» («Falta adjuntar: …»); un archivo que no es PDF o JPG de hasta 5 MB se marca y
+  también bloquea. Los opcionales se pueden adjuntar sin bloquear.
+- Con documentos, la matrícula se envía como multipart; sin ellos, en JSON como siempre.
+- En el detalle (👁) aparece «Documentos de matrícula» con su origen («En línea» o «Recibido en secretaría»), el estado
+  de cada documento y «Abrir». Una matrícula ya hecha muestra los documentos que se registraron en su momento.
+- No hay frame en el Figma para esta parte: sigue el formulario «Matricular» del apoderado.
+
 ## Diferencias con el Figma (y por qué)
 
 | En el Figma | En el código | Motivo |
